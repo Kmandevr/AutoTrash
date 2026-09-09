@@ -1,0 +1,904 @@
+████████████████████████████████████████████████████████████████
+AUTOTRASH v26 — FEATURE REFERENCE DOCUMENT
+Last updated: 2026-09-01 (twelfth pass, 2026-09-01, added a §6/§12 note on
+BUG-E18 — see those sections)
+Use this as the source of truth when debugging, extending, or
+reviewing either Code.gs or index.html.
+████████████████████████████████████████████████████████████████
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. RULE TYPES — WHAT EACH ONE IS AND HOW IT SHOULD WORK
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1a. CUSTOM LABEL RULES
+  Purpose : Target emails by a specific Gmail label (e.g. "newsletters").
+  Fields  : label (string), days (int), isTrash (bool)
+  Query   : label:"X" in:inbox older_than:Nd -is:starred -in:trash
+  Scope   : in:inbox ONLY — ensures archive action is permanent.
+            Once archived, label is still on thread but thread is
+            no longer in inbox → invisible on next search → stays archived.
+  Action  : isTrash === false  → archive
+            anything else      → trash   (true OR undefined = trash)
+  UI      : User types label name + days + picks Trash/Archive from dropdown.
+            isTrash must be set as explicit boolean (never undefined) by addRule().
+  Notes   : Label names with spaces must still be passed as-is; buildQuery
+            wraps them in quotes automatically. The label text is free-form
+            user input with no character restrictions — buildQuery() only
+            ever puts it inside a quoted Gmail search term, but if this text
+            is ever rendered as HTML (the email per-rule breakdown table is
+            the one place it is), it must be HTML-escaped first. See §6's
+            note on escHtml() — BUG-E15 in AUTOTRASH_BUG_PLAN.txt is the
+            regression history for why this matters. Separately, since
+            2026-09-01 (BUG-C20), a literal " character inside the label is
+            stripped before it goes into the quoted search term itself —
+            Gmail search has no escape mechanism for a quote inside a
+            quoted phrase, so an unstripped " would have prematurely closed
+            the phrase and turned the rest of the label into loose,
+            unrelated search terms, silently widening the match. Only the
+            search term is affected; the stored/displayed label text (rule
+            list, email table) is untouched by this. As of 2026-09-01
+            (BUG-H15), addRule() in index.html additionally refuses to save
+            a label if stripping every " from it (the same rule
+            buildQuery() applies) would leave nothing — a label made ONLY of
+            " characters would otherwise sanitize down to an empty Gmail
+            search term (label:"" ...) and search with that empty term on
+            every run, forever. This is a client-side, save-time guard; it
+            does not change what buildQuery() itself does to a label that
+            already got saved with at least one non-quote character.
+            The "Days" field is also validated at save time — addRule()
+            rejects any value under 1 (`d < 1`) — so a label rule can never
+            be saved with a zero or negative day count. See §1b for the
+            equivalent (and, until 2026-09-01/BUG-H16, missing) guard on
+            category rules.
+
+1b. GMAIL CATEGORY RULES
+  Purpose : Target Gmail's auto-sorted categories (Promotions, Social,
+            Updates, Forums). Also supports Spam (special case).
+  Fields  : category (string), days (int), isTrash (bool), enabled (bool),
+            isCategory: true (always set by queue builder)
+  Defaults: Promotions → 30d → trash
+            Social     → 60d → archive
+            Updates    → 30d → trash
+            Forums     → 60d → archive
+            Spam       →  7d → trash
+  Query   : Normal categories:
+              category:X in:inbox older_than:Nd -is:starred -in:trash
+            Spam (special case — not a Gmail tab, lives in in:spam):
+              in:spam older_than:Nd -is:starred -in:trash
+  Scope   : in:inbox for all non-spam. in:spam for spam.
+  Action  : Same isTrash logic as label rules.
+  UI      : Toggle card ON/OFF. Fields show when enabled.
+            isTrash set by getCatState() from the action dropdown.
+            The per-category "Days" number input carries a `min="1"` HTML
+            attribute, but that only gates form-level validation, not raw
+            keystrokes — a user could type a negative value directly. As of
+            2026-09-01 (BUG-H16), getCatState() — the single function every
+            read of category state goes through, at render, toggle, and
+            save time — floors any non-positive parsed value back to the
+            category's documented default, mirroring the guard addRule()
+            already has for custom label rules (§1a). Before this fix, a
+            negative day count would have been saved and interpolated
+            verbatim into buildQuery()'s `older_than:${days}d` term with no
+            clamp anywhere server-side either.
+  CAUTION (BUG-C19, open — see AUTOTRASH_BUG_PLAN.txt): "Archive" for the
+            Spam category is suspected to be a silent no-op. Every other
+            category is scoped `in:inbox`, so its threads carry the INBOX
+            label and "archive" (= remove INBOX label) does what it says.
+            Spam is scoped `in:spam` with no `in:inbox`, because spam
+            threads normally never carry the INBOX label in the first
+            place — so "archiving" one has nothing to remove, the SPAM
+            label is untouched, and the thread stays in Spam and keeps
+            matching every future run. This has NOT been empirically
+            confirmed against a live Gmail account as of this writing;
+            treat it as a strong suspicion pending verification, not a
+            settled fact. The UI hint text in the Gmail Category Rules
+            panel now carries an interim warning about this; the default
+            action for Spam remains "Trash" and that default is
+            unaffected either way.
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2. ENGINE ARCHITECTURE — HOW A RUN WORKS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+2a. LIVE (MANUAL) RUN — client-driven bursts
+  1. User clicks "Engage Engine" in the browser.
+  2. launchEngine() builds a queue and a stats skeleton client-side.
+  3. burst() sends the payload to processLiveBurst() via google.script.run.
+  4. Server processes ONE rule (the head of activeQueue):
+       - Searches Gmail (max 500 results)
+       - Filters out seenIds (threads already handled this run)
+       - If 0 threads remain → eject rule from queue (shift)
+       - If dry run         → count what would move, eject rule
+       - If live            → execute trash/archive, rotate rule to back
+  5. Server returns updated payload + log entries to client.
+  6. handleRes() renders log lines, updates stat counters + progress bars,
+     and mirrors the full server stats object into `lastStats` (see §4 —
+     this is what makes an eventual abort's email/digest accounting
+     complete, not just the on-screen counters).
+  7. Client calls burst() again with the returned payload.
+  8. Repeat until activeQueue is empty → finishEng().
+  9. finishEng() calls finalizeAndEmail() server-side then stops.
+
+  Note: the client always pre-builds activeQueue before the FIRST call to
+  processLiveBurst() (see burst() in index.html) — the server-side "build it
+  when null" path described in §11 exists as a defensive fallback (added
+  2026-08-31, BUG-C16) for any caller that doesn't pre-build it, but the
+  shipped UI never actually exercises that fallback.
+
+  Coordination note (S-N8 in AUTOTRASH_SUGGESTIONS.txt): unlike
+  backgroundRun() (§2b), there is no lock across concurrent live runs. Two
+  browser tabs/devices signed into the same account both clicking "Engage
+  Engine" would each track their own payload/seenIds independently. Gmail's
+  move actions are idempotent, so this cannot cause a wrong action or data
+  loss — the only effect is double-counted, overlapping totals in each
+  tab's own stats and summary email. Not fixed; low priority.
+
+  Scale note (S-N10 in AUTOTRASH_SUGGESTIONS.txt): payload.seenIds is a
+  plain array that grows for the entire life of one run and is serialized
+  in both directions on every single burst RPC (see §11's data-flow
+  contract) — nothing trims it. For the great majority of runs this is
+  negligible, but a single Global/Inbox Purge run against a very large,
+  multi-year backlog could grow this into a meaningfully large payload by
+  the run's later bursts, which would show up as each burst getting slower
+  purely from serialization overhead rather than any actual Gmail work.
+  Not fixed; needs a design decision (see S-N10) since the naive fixes
+  interact with the seenIds correctness guarantee in §2d/§9.
+
+2b. BACKGROUND RUN — time-trigger driven
+  1. Apps Script trigger fires backgroundRun() on schedule (1min–daily).
+  2. Reads rules from UserProperties (saved config). Parsed defensively —
+     a corrupted AUTOTRASH_RULES/CATEGORY_RULES value falls back to an
+     empty list rather than throwing (2026-08-31, BUG-C18); see §10.
+  3. Acquires script lock (prevents concurrent executions).
+  4. Builds queue, runs while loop until queue empty or 55s budget elapsed.
+  5. Each iteration: search → dedup seenIds → execute → rotate.
+  6. On completion: accumulateDailyStats + maybeSendRunEmail.
+  7. Lock released in finally block.
+  8. Next trigger fires automatically — continuous background operation.
+
+  Note: backgroundRun()'s seenIds is a plain in-memory Set scoped to one
+  execution's 55s budget — it is never serialized anywhere, so the scale
+  note above (S-N10) does not apply to this path, only to the live/manual
+  burst path in §2a.
+
+  CAUTION (BUG-C22, open — see AUTOTRASH_BUG_PLAN.txt, flagged 2026-09-02,
+  ninth pass): step 5's "execute" sub-step (both here and in the live path,
+  §2a) calls executeActions(), which chunks its input into GMAIL_CHUNK
+  (100)-sized batches and only credits its running trashed/archived
+  counters to its own local variables — not yet to the caller's stats
+  object — as each chunk's GmailApp call returns. If a LATER chunk throws
+  after one or more EARLIER chunks already succeeded (a transient Gmail
+  API error or quota limit partway through a large batch), those earlier
+  chunks' actions genuinely happened in the mailbox, but executeActions()
+  throws before ever returning its {trashed, archived, batchMs} object —
+  so the caller (processLiveBurst() or backgroundRun()) never learns the
+  partial count, and it never reaches stats.totalTrashed/totalMoved,
+  creditStat(), DAILY_STATS, or the resulting error email's own "Moved:"
+  line. No wrong Gmail action results — see §7's note on this bug for the
+  full impact — but this is a genuine gap in this section's own guarantee
+  that "each iteration: search → dedup seenIds → execute → rotate" fully
+  and accurately reports what "execute" did.
+
+  CAUTION (BUG-C23, open — see AUTOTRASH_BUG_PLAN.txt, flagged 2026-09-02,
+  tenth pass): step 6's "accumulateDailyStats" call happens while
+  backgroundRun() still holds the ScriptLock from step 3 — so it is
+  correctly serialized against a SECOND backgroundRun() execution. It is
+  NOT serialized against sendDailyDigest() (§6), which is a completely
+  separate trigger function that never acquires this (or any) lock before
+  reading, emailing, and resetting the very same DAILY_STATS property. A
+  digest send that lands while a backgroundRun() execution is mid-flight
+  can have its reset silently overwritten by that backgroundRun()'s own
+  accumulation (which read the pre-reset value) — re-including an
+  already-emailed period's totals in the next one — or, in the opposite
+  ordering, lose that backgroundRun()'s real contribution outright. See
+  BUG-C23 for a concrete reproduction of the exact mechanism. This is
+  separate from, and does not interact with, backgroundRun()'s own
+  ScriptLock guarantee against overlapping WITH ITSELF — that guarantee is
+  intact and unaffected.
+
+2c. ROUND-ROBIN ROTATION
+  - After successfully processing a batch, the rule is moved to the BACK
+    of the queue: queue.push(queue.shift()).
+  - This gives every rule a fair turn; no single large rule starves others.
+  - A rule is only EJECTED (removed entirely) when it returns 0 threads.
+  - Gmail search caps at 500 results per call. If a rule has >500 matches,
+    it will process 500 then rotate, returning on the next cycle for more.
+    This rotate-and-return behaviour is what lets a LIVE run fully drain an
+    arbitrarily large backlog over successive bursts — see §3's note on
+    why a DRY run, which never rotates, does not get the same guarantee.
+
+2d. SEENIDS DEDUPLICATION
+  - payload.seenIds (live) / seenIds Set (background) tracks thread IDs
+    processed by ANY rule during the current run.
+  - Before acting, each rule filters out seenIds from its search results.
+  - Prevents a thread matched by rule A from being re-actioned by rule B.
+  - seenIds lives only for the duration of one run; next run starts fresh.
+  - This is critical for archive correctness: without it, a trash rule
+    could find and trash a thread that an archive rule already archived.
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+3. DRY RUN MODE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  - Toggled by "Dry Run" button before clicking Engage Engine.
+  - Each rule is processed exactly ONCE then ejected (never rotated).
+  - No Gmail actions are executed (no trash, no archive).
+  - Counts go into dryTrashed / dryArchived (not totalTrashed/totalArchived).
+  - Purge rules route their projected counts through creditStat() into
+    globalPurge*/inboxPurge*, exactly as on the live path — never stats.labels.
+  - totalMoved IS incremented (for display purposes — "would action N").
+  - UI stat counters sv1/sv2 show dryTrashed/dryArchived during the run.
+  - Summary email uses dryTrashed/dryArchived (FIX 6).
+  - Abort email uses dryTrashed/dryArchived (FIX 11).
+  - An error email fired mid-dry-run also uses dryTrashed/dryArchived, not
+    0/0 (BUG-E13, fixed 2026-08-31 — the same swap FIX 11/BUG-E9 already
+    applied to the abort email, extended to the error-email path).
+  - Daily stats are NOT accumulated for dry runs (FIX 10) — this now applies
+    consistently on BOTH the normal-completion path (finalizeAndEmail) and
+    the abort path (abortRun), see §4.
+  - After run, isDry state is preserved — user must toggle off manually.
+  - CAUTION (BUG-C21, open — see AUTOTRASH_BUG_PLAN.txt, flagged
+    2026-09-01, eighth pass): because a dry-run rule is processed exactly
+    once and never rotated (unlike a live rule — see §2c), its reported
+    "would trash/archive" count is capped at whatever ONE
+    `GmailApp.search(q, 0, GMAIL_SEARCH)` call returns, i.e. at most 500 —
+    even if the rule's true backlog is far larger. A live run of the same
+    rule still correctly drains the full backlog over multiple bursts via
+    round-robin rotation, so this does not cause any wrong Gmail action or
+    lost mail; it only means a dry-run preview can meaningfully understate
+    how much a live run will actually move for any single rule matching
+    more than 500 threads. Not fixed — needs a decision on whether to
+    surface the truncation (e.g. label the count "500+" when the cap was
+    hit) or actually close it (page through search results within one dry
+    pass, at the cost of a longer single RPC call) before any code changes.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+4. ABORT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  - User clicks "⛔ Abort" during a live run.
+  - Sets aborted=true, running=false client-side immediately.
+  - Calls server abortRun(lastStats, elapsedMs, isDry) — see below for
+    lastStats.
+  - Server saves LAST_RUN_TIME with "(aborted)" suffix.
+  - For a LIVE (non-dry) abort, the server now also calls
+    accumulateDailyStats() before anything else (2026-08-31, BUG-C17) — any
+    real Gmail actions taken in the bursts before the abort are rolled into
+    DAILY_STATS exactly as they would be on a normal completion. A DRY-RUN
+    abort still skips this entirely, matching FIX 10 (nothing real happened,
+    so nothing should be counted). This call is subject to the same
+    unsynchronized-DAILY_STATS caution as backgroundRun()'s own call — see
+    BUG-C23 in §2b/§6/§7.
+  - Server sends abort email if SUMMARY_FREQ !== 'NEVER'. CAUTION (BUG-E17,
+    open — see AUTOTRASH_BUG_PLAN.txt, flagged 2026-09-02, ninth pass): this
+    is the ONLY gate abortRun() applies — unlike maybeSendRunEmail() (§6),
+    which only sends an email immediately for an error-free run when
+    SUMMARY_FREQ is literally EACH_RUN, and otherwise defers to the next
+    scheduled digest. abortRun() sends immediately for EVERY frequency
+    except NEVER, including WEEKLY/DAILY/ALT_DAYS/BIWEEKLY/ERRORS_ONLY, even
+    when the aborted run had no errors — an inconsistency with how every
+    other email in this project behaves, not (currently) a deliberate,
+    documented design choice. Whether "an abort always notifies" should
+    stay as-is or should respect SUMMARY_FREQ the way a normal completion
+    does is an open decision — not fixed.
+  - Abort email shows projected trash/archive if dry run (FIX 11), and now
+    includes the same per-rule breakdown table every other email type gets
+    (2026-08-31, BUG-H13 — previously always empty on the abort email; see
+    "lastStats" below).
+  - The currently-in-flight burst may still complete server-side
+    (Google can't cancel mid-execution), but no further bursts fire.
+
+  lastStats (client, index.html): a full-fidelity mirror of the last stats
+  object returned by processLiveBurst() — labels, purge sub-counts, errors,
+  everything. Distinct from `runStats`, which only ever tracks the three
+  on-screen totals (plus dry mirrors) and is what actually drives the stat
+  counters. Before 2026-08-31 (BUG-H13), doAbort() sent the reduced
+  `runStats` to the server, so the abort email's per-rule table was always
+  empty — and once BUG-C17 added daily-stat accumulation to the abort path —
+  those per-rule/purge sub-counts would still have been missing from
+  DAILY_STATS for any aborted run. doAbort() now sends `lastStats ||
+  runStats` (the fallback covers an abort clicked before the very first
+  burst response arrives).
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+5. BACKGROUND TRIGGER MODES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  OFF     : Manual runs only. No background trigger.
+  1MIN    : Most aggressive. Each execution = 55s burst. Continuous cleanup.
+            Uses ScriptLock to prevent overlapping executions.
+  5MIN    : Same as 1MIN but less frequent.
+  15MIN   : Moderate frequency.
+  HOURLY  : Low frequency, suitable for light maintenance.
+  DAILY   : Runs once at 1am. Single burst only.
+
+  ScriptLock behaviour:
+    - waitLock(5000) — waits up to 5s to acquire.
+    - If another instance holds the lock → log and return (skip this run).
+    - Queue emptiness is checked BEFORE acquiring the lock to avoid
+      holding it when there's nothing to do.
+    - Lock is always released in finally{} block.
+    - This lock ONLY ever guards backgroundRun() against a second
+      backgroundRun() execution overlapping it. It does NOT guard against
+      sendDailyDigest() (§6) reading/resetting DAILY_STATS concurrently —
+      see BUG-C23 (AUTOTRASH_BUG_PLAN.txt, flagged 2026-09-02, tenth pass)
+      and the CAUTION note in §2b for the resulting race.
+
+  KNOWN GAP (tracked as BUG-E14, not yet fixed — see AUTOTRASH_BUG_PLAN.txt):
+    a rule that throws inside backgroundRun()'s loop sends an immediate
+    per-error email AND is still counted in the end-of-cycle summary email
+    (which fires whenever stats.errors is non-empty, regardless of
+    SUMMARY_FREQ except NEVER) — so one failure can produce two emails per
+    cycle. On 1MIN/5MIN this repeats every cycle until the rule is fixed.
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+6. SUMMARY EMAILS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  EACH_RUN    : Email after every live run (background or manual).
+  DAILY       : Accumulate all day, send digest once daily at digestHour.
+  ALT_DAYS    : Digest every 2 days.
+  WEEKLY      : Digest every 7 days.
+  BIWEEKLY    : Digest every 14 days.
+  ERRORS_ONLY : Only send if a run encountered errors.
+  NEVER       : No emails at all (including abort emails).
+
+  maybeSendRunEmail() gate (applies to a NORMAL run completion — live via
+  finalizeAndEmail(), or background's own end-of-cycle call): sends
+  immediately only when the run had errors (any frequency except NEVER) or
+  when SUMMARY_FREQ is literally EACH_RUN; every other frequency with an
+  error-free run sends nothing immediately and simply lets
+  accumulateDailyStats() carry the numbers into the next scheduled digest.
+  abortRun() does NOT go through this same gate — see §4's BUG-E17 note for
+  the resulting inconsistency on an aborted run specifically.
+
+  Digest emails:
+    - Sent by sendDailyDigest(), triggered by a separate daily time trigger.
+    - That trigger is created for ANY digest frequency, independent of
+      TRIGGER_MODE — manual-only users accumulate stats too and must still
+      receive them. sendDailyDigest() returns early when runs === 0, so an
+      idle account sends nothing.
+    - Reads accumulated DAILY_STATS from UserProperties.
+    - After sending, resets DAILY_STATS for the next period.
+    - CAUTION (BUG-C23, open — see AUTOTRASH_BUG_PLAN.txt, flagged
+      2026-09-02, tenth pass): this read-then-send-then-reset sequence
+      shares no lock with accumulateDailyStats() (called by backgroundRun()
+      and finalizeAndEmail()/abortRun()), which performs its own
+      unsynchronized read-modify-write against the same DAILY_STATS
+      property. A digest that fires while a backgroundRun() execution is
+      also touching DAILY_STATS can have its reset silently clobbered by
+      that backgroundRun()'s accumulation (re-including the just-emailed
+      period's totals in the next one) or can itself wipe out a
+      backgroundRun()'s real contribution before it's ever counted — see
+      §2b's CAUTION note and BUG-C23 for the concrete reproduction. Not
+      fixed; needs a decision on whether to share backgroundRun()'s
+      ScriptLock, add a narrower dedicated lock, or leave as-is.
+    - digestHour controls the send time (6am–8pm, configurable). The UI
+      dropdown now offers all 15 valid hours (6–20) — a former gap
+      (previously only 6, 7, 8, 9, 12, 18, 20 were offered) closed
+      2026-08-31 (FIX 43 / S-N5 in AUTOTRASH_SUGGESTIONS.txt). Purely a UI
+      change; the backend has always accepted any integer 6–20.
+    - An aborted LIVE run's real actions now correctly contribute to
+      DAILY_STATS too (2026-08-31, BUG-C17/BUG-H13) — previously an abort
+      silently excluded everything it had actually done from every digest.
+    - DAILY_STATS does NOT accumulate an errors count/list at all — only
+      run/moved/trashed/archived/purge totals and the per-label breakdown
+      (see accumulateDailyStats() in §10). A digest email therefore never
+      reports how many errors occurred during its period, even though the
+      per-run stats object it's built from always carries one. Flagged as
+      S-N12 in AUTOTRASH_SUGGESTIONS.txt (2026-09-01) rather than fixed —
+      immediate per-error emails already exist (see the BUG-E14 gap just
+      above in §5), so this may be intentional; needs a decision.
+
+  Email format:
+    - Dark-theme HTML with stat boxes (Actioned / Trashed / Archived).
+    - Dry run emails: stat boxes relabelled "Would Action / Would Trash / Would Archive";
+      amber "SIMULATION ONLY — NO MAIL WAS MOVED OR DELETED" banner above header.
+    - Per-rule table with colour-coded split bar (red=trash, blue=archive).
+      As of 2026-08-31 this table is populated on the abort email too — it
+      was always empty there before (BUG-H13).
+    - Rule names in that table are HTML-escaped via escHtml() before being
+      interpolated into the row markup (2026-09-01, BUG-E15) — a rule name
+      is free text the user typed into the "Label name" field in index.html
+      with no character restrictions, and every other piece of dynamic text
+      in the email (the operation-summary lines below the table) was already
+      escaped; this closed the one gap where it wasn't. Any future spot that
+      interpolates a label/rule name — or any other user-supplied string —
+      into this email's HTML must go through escHtml() the same way.
+    - ASCII chart appears in the PLAIN-TEXT fallback only. It was removed from
+      the HTML body: the table above shows the same split, and Gmail strips
+      overflow-x so wide charts clipped instead of scrolling. As of
+      2026-09-01 (twelfth pass), the per-line color-selection logic inside
+      buildEmailHtml() (used for the operation-summary lines below the
+      per-rule table) still contains a branch checking for two characters
+      that only the ASCII chart ever produces ('─' and the chart's
+      pre-BUG-R6 '▓' glyph) — but since the chart itself never reaches the
+      `lines[]` array this function receives (only plainBody()'s separate
+      plain-text output gets it), that branch is permanently unreachable.
+      This is harmless dead code, not a behavior bug — see BUG-E18 in
+      AUTOTRASH_BUG_PLAN.txt for the full trace; logged there rather than
+      fixed since there is no observable output to change either way.
+    - Plain text fallback (built by plainBody()) included in all emails.
+    - Digest plain-text now includes per-rule breakdown lines matching the HTML table.
+    - The ERROR email (sendErrorEmail(), separate from the run-summary
+      emails above — fired immediately when a rule throws) has its own
+      "Rule:" line naming the failing rule. As of 2026-09-01 (BUG-E16),
+      that line is guaranteed to name the same rule as the corresponding
+      stats.errors[] entry, including for a category rule with no `.label`
+      field (which falls back to its uppercased category id, same as
+      everywhere else in this file). Both callers (processLiveBurst() and
+      backgroundRun()) pass their own already-correct rule name into
+      sendErrorEmail() explicitly now, rather than letting it re-derive one
+      without that fallback — see AUTOTRASH_BUG_PLAN.txt BUG-E16. CAUTION
+      (BUG-C22, open, flagged 2026-09-02): this "Rule:" line's own "Moved:"
+      figure is sourced from stats.totalMoved, which — per §2b/§7's note —
+      can itself under-report by however many threads a partially-succeeded
+      chunk batch actually moved before a later chunk threw. The rule name
+      is guaranteed correct (BUG-E16); the moved count next to it is not
+      always guaranteed complete.
+    - As of 2026-09-01 (BUG-C24, eleventh pass), sendErrorEmail() no longer
+      assumes the thrown value is a real Error object with a `.message`
+      property — it normalizes whatever was actually thrown (`errMsg =
+      (err && err.message) ? err.message : String(err)`) before building
+      the "Message :" line or the subject line's `.substring(0, 60)`. GmailApp
+      and the other Apps Script services this project calls are documented
+      to throw proper Error instances, and normally do, but nothing in the
+      JS language or this codebase enforced that — a bare `throw` of a
+      string or plain object anywhere upstream used to crash
+      sendErrorEmail() itself with a TypeError before it ever reported the
+      real failure, the same failure shape as BUG-C15 (an error-reporting
+      path that throws a new, unrelated error and hides the original one).
+      See BUG-C24 in AUTOTRASH_BUG_PLAN.txt for the full mechanism.
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+7. STATISTICS & DAILY ACCUMULATION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Per-run stats object fields:
+    totalMoved      — all threads actioned (trash + archive, or dry scan total)
+    totalTrashed    — live trash count only
+    totalArchived   — live archive count only
+    dryTrashed      — projected trash count (dry runs only)
+    dryArchived     — projected archive count (dry runs only)
+    globalPurgeMoved / globalPurgeTrashed
+    inboxPurgeMoved  / inboxPurgeTrashed
+    labels{}        — per-rule breakdown: { moved, trashed, archived, finished }
+                      keyed by the rule's display label (rule.label, or the
+                      uppercased category id as a fallback). See §1a and the
+                      NOTE at the end of this section — a custom label rule
+                      whose text collides with another rule's key (e.g. a
+                      literal "PROMOTIONS" custom label alongside the
+                      Promotions category) shares one entry and one email
+                      row between two logically distinct rules; tracked as
+                      S-N11 in AUTOTRASH_SUGGESTIONS.txt.
+    globalPurgeDone / inboxPurgeDone
+                    — bool, set when a purge rule ejects. Purge rules get no
+                      stats.labels entry, so these are the only "finished"
+                      signal the client has for their progress bars.
+    errors[]        — { label, error } for any rule that threw. This is the
+                      one place a category rule's fallback name
+                      (rule.category.toUpperCase()) and the error email's
+                      own "Rule:" line are required to agree — see §6's
+                      BUG-E16 note; before 2026-09-01 they could disagree
+                      for a category rule with no `.label` field. As of
+                      2026-09-01 (BUG-C24), the `error` field itself is also
+                      guaranteed to be a real string even when the thrown
+                      value has no `.message` property — previously a
+                      non-Error throw stored a literal `undefined` here,
+                      which would have printed as the text "undefined" in
+                      any downstream email/digest listing stats.errors.
+
+  Daily stats (stored in UserProperties as JSON):
+    Accumulated by accumulateDailyStats() after each live run — this
+    includes an ABORTED live run (2026-08-31, BUG-C17): abortRun() now
+    calls accumulateDailyStats() itself for non-dry aborts, mirroring what
+    finalizeAndEmail() has always done for normal completions. Only a
+    DRY-RUN abort (or a dry-run normal completion) skips it.
+    DRY RUNS DO NOT accumulate (FIX 10).
+    Reset ONLY after a digest email is sent — never on a calendar-day
+    boundary, or ALT_DAYS / WEEKLY / BIWEEKLY periods would lose every day
+    but the last one. accumulateDailyStats() updates the date field as a
+    last-updated marker and initialises only when the stored object is empty.
+    CAUTION (BUG-C23, open — see AUTOTRASH_BUG_PLAN.txt, flagged
+    2026-09-02, tenth pass): accumulateDailyStats() (called from
+    backgroundRun(), finalizeAndEmail(), and abortRun()) and
+    sendDailyDigest()'s own read-send-reset cycle both perform unsynchronized
+    read-modify-write against this same property — backgroundRun()'s
+    ScriptLock only ever guards against a second backgroundRun() execution,
+    never against a concurrent sendDailyDigest() trigger firing. See §2b/§6
+    for the full caution and BUG-C23 for a concrete reproduction of the
+    resulting race.
+    Fields: date, runs, totalMoved, totalTrashed, totalArchived,
+            globalPurgeMoved, globalPurgeTrashed,
+            inboxPurgeMoved,  inboxPurgeTrashed,
+            labels{} (same shape as per-run labels). Notably absent: any
+            errors field — see §6's note on S-N12.
+
+  creditStat() routing:
+    - isGlobalPurge → globalPurgeMoved / globalPurgeTrashed
+    - isInboxPurge  → inboxPurgeMoved  / inboxPurgeTrashed
+    - everything else → stats.labels[lbl]
+    CAUTION (BUG-C22, open — see AUTOTRASH_BUG_PLAN.txt, flagged 2026-09-02,
+    ninth pass): creditStat() itself is correct — the gap is upstream. Both
+    callers only invoke creditStat() with whatever executeActions() managed
+    to RETURN, and executeActions() returns nothing at all (it throws
+    instead) if any chunk after the first one fails — so a rule whose first
+    chunk succeeded and second chunk failed gets creditStat() called zero
+    times for that burst/cycle, even though the first chunk's action really
+    happened. See §2b and §6 for the same caution from the executeActions()
+    and email-reporting angles respectively.
+
+  NOTE (2026-09-01, fifth pass): stats.labels is a plain object keyed by
+  string label text, with nothing enforcing uniqueness across custom label
+  rules and enabled categories. Two rules that happen to produce the same
+  key (identical custom label text, or a custom label that happens to match
+  an enabled category's uppercase display name) silently merge their counts
+  into one stats.labels entry and one row in the per-rule email table and
+  digest. This does not affect what Gmail actually does — each rule's
+  buildQuery()/action still runs correctly and independently — only the
+  reporting layer conflates the two. Not fixed; see S-N11 in
+  AUTOTRASH_SUGGESTIONS.txt for options.
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+8. UI / FRONTEND BEHAVIOUR
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  Header        : Version badge, last-run timestamp (updated after each run).
+                  An amber "(DRY)" tag follows the timestamp when the run that
+                  just finished was a simulation.
+  Stats row     : Actioned / Trashed / Archived / Rules Left / Elapsed.
+                  Counters flash on update. "live" class animates colour bar.
+                  Rules Left = activeQueue.length from the last burst response;
+                  seeded with the full queue size at launch, 0 at completion.
+  Panels        : System Config and Gmail Categories start COLLAPSED on load;
+                  Custom Label Rules starts open (most actively managed).
+  Terminal      : Scrolling log. Each line: timestamp | badge | message.
+                  BATCH lines are emitted ONCE per action type per burst, not
+                  once per 100-thread chunk (a 500-thread rule logs one line).
+                  Badge colours: SEARCH=blue, RESULT=amber, ACTION/DONE=green,
+                  DRYRUN=amber, ERROR=red, INFO=dim-green (g3), BATCH=dim-green.
+                  SEP level renders as a faint full-width horizontal rule with no
+                  badge, no timestamp, and no text — purely visual section divider.
+                  Banners (ok/warn/err) shown at key milestones.
+                  Terminal is capped at 300 nodes; oldest 50 trimmed on overflow.
+  Rule display  : Top-right of terminal shows the CURRENT rule being processed.
+                  Updates after each burst response (round-robin tracking).
+  Progress bars : One bar per rule. Width advances as threads are actioned.
+                  Turns solid green + "done" class when rule ejects cleanly.
+                  Purge bars read globalPurgeMoved/inboxPurgeMoved for width
+                  and globalPurgeDone/inboxPurgeDone for the done state.
+                  A ✓ is prefixed to the rule name once it ejects clean.
+                  All bars jump to 100% on run completion.
+                  Bars are keyed by cid(label) — see S-N6 in
+                  AUTOTRASH_SUGGESTIONS.txt for a rare label-collision edge case.
+  Orb           : Green pulsing dot = engine running. Dim = idle/stopped.
+  Traffic dots  : Red + yellow opacity raised during run, dimmed when stopped.
+  Dry Run tag   : Amber "DRY RUN" badge shown in status bar when active.
+  Save Config   : Saves rules + category states + all system settings.
+                  Does NOT trigger a run.
+  Abort button  : Only visible while engine is running. Disabled after click
+                  while abort RPC is in flight. Sends `lastStats` (the full
+                  server-returned stats object, see §4) rather than the
+                  reduced on-screen `runStats` (2026-08-31, BUG-H13).
+  Add Rule      : addRule() validates the label + day count before pushing a
+                  new custom label rule. As of 2026-09-01 (BUG-H15) it also
+                  refuses a label that would strip down to an empty string
+                  once buildQuery() removes every literal " character from
+                  it (mirroring that exact sanitization client-side) — a
+                  label made only of " characters would otherwise save
+                  successfully but search Gmail with an empty label term
+                  forever. Any label with at least one non-quote character
+                  is unaffected.
+  Category days : getCatState() (backs the toggle/render/save paths for the
+                  Gmail Category Rules panel) floors any parsed "Days" value
+                  under 1 back to the category's documented default, the
+                  same guard addRule() already applies to custom label
+                  rules. As of 2026-09-01 (BUG-H16) this also catches a
+                  negative value typed directly into the field — the
+                  input's `min="1"` HTML attribute alone does not block
+                  keystrokes, only form-level validation, so a manually
+                  typed negative number previously sailed through
+                  unclamped into the saved rule and from there into
+                  buildQuery()'s `older_than:${days}d` term.
+  Completion banner : Shown in the terminal when a run ends. Both the live
+                  ("✓ COMPLETE") and dry-run ("[DRY RUN COMPLETE]") variants
+                  report the same figures — total actioned/scanned, the
+                  trash/archive split, how many rules actually moved
+                  something (ruleCount), and elapsed time. Before
+                  2026-09-01 (BUG-H14) the live banner omitted ruleCount
+                  even though it was already computed for exactly this
+                  purpose and the dry-run banner right next to it already
+                  used it — a plain oversight, now fixed so both banners
+                  carry the same detail.
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+9. SAFETY RULES — WHAT AUTOTRASH WILL NEVER TOUCH
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  - Starred emails (-is:starred in all queries). No exceptions. This is a
+    hard guarantee — do not add per-rule overrides without revisiting §9.
+  - A live run with Global Purge active cannot start without an explicit
+    confirm() from the user (see §1d).
+  - Emails already in trash (-in:trash in all queries except global purge,
+    where the scope already excludes trash via Gmail's search behaviour).
+  - Emails matched by rule A that have already been actioned by rule A
+    or any earlier rule in the same run (seenIds dedup).
+  - The user's drafts, sent mail, chats — none of these appear in the
+    label/category/inbox searches used by AutoTrash.
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+10. CONFIG STORAGE (UserProperties keys)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  AUTOTRASH_RULES   — JSON array of custom label rule objects. Read
+                      defensively in backgroundRun() and getUISettings() —
+                      a corrupted value falls back to [] rather than
+                      throwing (2026-08-31, BUG-C18).
+  CATEGORY_RULES    — JSON array of category rule objects. Same defensive
+                      parsing as AUTOTRASH_RULES.
+  TRIGGER_MODE      — string: OFF / 1MIN / 5MIN / 15MIN / HOURLY / DAILY
+  SUMMARY_FREQ      — string: EACH_RUN / DAILY / ALT_DAYS / WEEKLY /
+                               BIWEEKLY / ERRORS_ONLY / NEVER
+  GLOBAL_PURGE_DAYS — string: OFF or number of days
+  INBOX_PURGE_DAYS  — string: OFF or number of days
+  DIGEST_HOUR       — string: hour number (6–20)
+  LAST_RUN_TIME     — string: human-readable timestamp of last run
+  LAST_DIGEST_DATE  — string: ISO date of last digest email sent
+  DAILY_STATS       — JSON: accumulated stats for current digest period.
+                      Already parsed defensively (try/catch → {}) since
+                      before this pass — accumulateDailyStats() and
+                      sendDailyDigest() both guard it. CAUTION (BUG-C23,
+                      open, flagged 2026-09-02): defensive PARSING is not
+                      the same as safe CONCURRENT access — the two writers
+                      of this key (accumulateDailyStats() and
+                      sendDailyDigest()) share no lock with each other; see
+                      §2b/§6/§7 for the resulting race.
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+11. DATA FLOW: CLIENT ↔ SERVER
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Client sends payload to processLiveBurst():
+    {
+      dryRun:          bool,
+      rules:           [...],           // saved label rules
+      categoryRules:   [...],           // all category states
+      globalPurgeDays: 'OFF' | string,
+      inboxPurgeDays:  'OFF' | string,
+      activeQueue:     [...] | null,    // null on first burst, server builds it
+      seenIds:         [...],           // thread IDs already processed this run
+      stats:           { ... }          // running totals, carried across bursts
+    }
+
+  Server returns:
+    {
+      payload: { ...updated payload },  // returned for next burst call
+      log:     [ {t, level, msg} ],     // log lines to render in terminal
+      done:    bool,                    // true when all rules ejected
+      ejected: bool,                    // true when a rule was just removed
+      moved:   number,                  // threads actioned this burst
+      error:   bool,                    // true on exception
+      msg:     string                   // status message
+    }
+
+  The entire run state lives in payload, passed back and forth.
+  Server is stateless between bursts — all state must be in payload.
+
+  "server builds it" (2026-08-31, BUG-C16): processLiveBurst() now actually
+  does this — previously a null activeQueue just short-circuited to
+  done:true with nothing processed, contradicting this paragraph. The client
+  (burst() in index.html) has always pre-built the queue before the first
+  call regardless, so this had no effect on the shipped UI; it matters for
+  any other caller, including the test suite, that sends null as documented.
+
+  Separately from this per-burst payload, the client also keeps a
+  `lastStats` reference — a plain mirror of the most recent
+  `res.payload.stats` object, used only when the user aborts (see §4). It
+  is not sent back to the server as part of the next burst; it exists
+  purely so abortRun() has the same full stats shape finalizeAndEmail()
+  already gets.
+
+  Scale note (S-N10 in AUTOTRASH_SUGGESTIONS.txt): because seenIds is a
+  field of `payload` (not `stats`) and the whole payload round-trips on
+  every burst, seenIds is the one field in this contract whose size is
+  unbounded by design across a very large run. See §2a for the detail; not
+  fixed, flagged as a suggestion for a future design decision.
+
+
+════════════════════════════════════════════════════════════════════
+12. TEST SUITE  (project doc: Tests — deploy as AutoTrash_Tests.gs)
+════════════════════════════════════════════════════════════════════
+
+  Run       : Execute runAllTests() from the Apps Script editor. Results are
+              logged to the execution console AND compiled into an HTML
+              report emailed to the script owner. Subject line reports
+              pass/fail totals so a broken build is visible without opening
+              the log.
+  Count     : 89 tests — unchanged since the eleventh pass (2026-09-01).
+              Treat the live TEST_FNS array in claude/Tests as the one
+              source of truth for the count, not any number quoted in
+              prose here or in the bug plan. The twelfth pass (2026-09-01)
+              rebuilt and ran an actual local Node harness
+              (vm.createContext(), not just reasoned about one) and
+              reconfirmed the full 89-test suite passes against the live
+              Code.gs/Tests before making any change — see the "Isolation"
+              paragraph below and the bug plan's twelfth-pass update. No
+              new tests were added this pass: the one new finding
+              (BUG-E18, dead code in buildEmailHtml()'s color selector —
+              see §6) has no observable behavior to write a regression
+              test against, per this project's own "don't write a test
+              that can't distinguish broken from fixed" standard.
+
+  Two layers:
+    1. Pure logic — buildQuery, resolveRuleAction, buildQueue, ensureStat,
+       creditStat, accumulateDailyStats, fmtNum, fmtMs, buildAsciiChart,
+       plainBody, chunkArray, getAppUrl, escHtml, email subject-line logic,
+       and abortRun()'s daily-stat accumulation and the defensive-parse
+       behaviour of backgroundRun()/getUISettings().
+    2. Fake-thread/fake-trigger integration — processLiveBurst() and
+       backgroundRun() driven by in-memory fake threads with a GmailApp
+       spy; updateSystem() driven by a fake ScriptApp trigger registry.
+       No real mail is ever touched, and no real Apps Script trigger is
+       ever created.
+
+  Isolation : PropertiesService tests save the live value and restore it in a
+              try/finally (withSavedProps() helper). GmailApp and LockService
+              are stubbed by REASSIGNING THE GLOBAL BINDING (e.g.
+              `GmailApp = fakeObject`) rather than mutating individual method
+              properties on the real service object — Apps Script's built-in
+              services are host-backed and their methods are not reliably
+              writable, but the top-level script identifier is. Every spy
+              install is paired with a .restore() call in a finally block;
+              this was verified end-to-end in a local Node harness with all
+              five Apps Script globals stubbed (PropertiesService, ScriptApp,
+              Session, GmailApp, LockService — plus HtmlService for doGet())
+              before being written back to this project. The twelfth pass
+              rebuilt this harness once more (Code.gs and claude/Tests
+              concatenated into one vm.createContext() sandbox, same five
+              stubbed globals) and got 89/89 with zero prior edits before
+              this pass's own review, and 89/89 again afterward since no
+              code changed. See earlier passes' write-ups in
+              AUTOTRASH_BUG_PLAN.txt for the full lineage of this harness
+              being rebuilt from scratch pass after pass to independently
+              re-confirm prior claims rather than take them on faith — that
+              practice continued this pass.
+
+  IMPORTANT — a test can encode a bug. test_accumulate_resetsOnNewDay asserted
+  runs === 1 after a calendar-day change, which was the exact behaviour of
+  BUG-C13. It passed for the whole life of that bug. When a test and this
+  reference disagree, THIS FILE is correct and the test is the thing to fix.
+  The test is now test_accumulate_doesNotResetOnNewDay.
+
+  Regression tests worth knowing about by name:
+    test_processLiveBurst_errorDuringLiveRun_recordsErrorAndEmailsWithoutCrashing
+    test_processLiveBurst_errorDuringDryRun_emailReportsProjectedCounts
+      — these two guard BUG-C15 (a ReferenceError inside processLiveBurst's
+      own catch block that silently ate every live-run error) and BUG-E13
+      (dry-run error emails showing 0/0). Both were confirmed to actually
+      FAIL against a reverted copy of the pre-fix Code.gs before being
+      accepted into the suite — not just written to pass against the fix.
+    test_processLiveBurst_nonErrorObjectThrown_doesNotCrashErrorReporting
+    test_backgroundRun_nonErrorObjectThrown_doesNotCrashCycle
+      — guard BUG-C24 (§6/§7): a thrown value with no `.message` property
+      (a bare `throw 'string'` rather than `throw new Error(...)`) must not
+      crash sendErrorEmail() itself — the same "an error-reporting path
+      throws a NEW error and hides the original one" failure shape as
+      BUG-C15, just via malformed input instead of a scoping bug. Both
+      confirmed to FAIL against a reverted copy of Code.gs (the errMsg
+      normalization removed) before being accepted.
+    test_processLiveBurst_errorEmail_categoryRuleWithoutLabelField_showsCorrectRuleName
+    test_backgroundRun_errorEmail_categoryRuleWithoutLabelField_showsCorrectRuleName
+      — guard BUG-E16 (§6/§7): sendErrorEmail()'s "Rule:" line must name the
+      SAME rule as the stats.errors[] entry recorded for the same failure,
+      including for a category rule with no `.label` field (which both
+      call sites already fall back to `category.toUpperCase()` for when
+      building stats.errors[], but sendErrorEmail() itself used to ignore
+      that fallback and print "unknown" instead). Both confirmed to FAIL
+      against a reverted copy of Code.gs (the explicit `ruleLabel` argument
+      and both call-site updates removed) before being accepted.
+    test_processLiveBurst_builtNullQueueServerSide
+      — guards BUG-C16 (§11's documented null-activeQueue contract).
+    test_abortRun_liveRun_accumulatesDailyStats
+    test_abortRun_dryRun_doesNotAccumulateDailyStats
+      — guard BUG-C17 (§4/§7): an aborted live run's real actions must still
+      reach DAILY_STATS, but a dry-run abort must not touch it at all.
+    test_backgroundRun_corruptRulesProperty_doesNotThrow
+    test_backgroundRun_corruptCategoryRulesProperty_doesNotThrow
+    test_getUISettings_corruptRulesProperty_returnsEmptyArraysNotThrow
+    test_getUISettings_validRulesProperty_stillParsesNormally
+      — guard BUG-C18 (§10): a corrupted rules/category-rules property must
+      degrade to an empty list, not crash backgroundRun() or the settings
+      load; the last test confirms the fix didn't also break normal parsing.
+    test_escHtml_escapesAngleBracketsAmpersandsAndQuotes
+    test_escHtml_plainTextUnchanged
+    test_buildEmailHtml_escapesRuleNameInPerRuleTable
+      — guard BUG-E15 (§6/§1a): a Gmail label/rule name containing HTML
+      metacharacters must render as literal text in the per-rule breakdown
+      table of every summary/digest/abort/error email, never as live markup.
+      The last one was confirmed to FAIL (raw unescaped markup present in
+      the generated email HTML) against a reverted copy of buildEmailHtml()
+      with the escHtml() call removed, before being accepted into the suite.
+    test_buildQuery_labelWithEmbeddedQuote_doesNotBreakOutOfQuotedTerm
+    test_buildQuery_labelWithoutQuotes_unaffectedByFix
+      — guard BUG-C20 (§1a): a label containing a literal " must not break
+      out of the quoted Gmail search term and widen the match; the second
+      test guards the fix against being over-broad for ordinary labels.
+    test_buildQuery_labelAllQuoteCharacters_producesEmptyQuotedTerm
+      — documents the input that motivated BUG-H15 (§1a/§8): a label made
+      ONLY of " characters strips down to an empty quoted search term in
+      buildQuery() itself. This test intentionally does NOT assert Code.gs
+      behaves differently — the actual fix lives in index.html's addRule(),
+      which now refuses to save such a label in the first place (no JS test
+      harness exists for index.html; see below). The test exists so a future
+      change to buildQuery()'s stripping logic can't silently drift away
+      from what the UI-level guard assumes without a test noticing.
+    test_buildQuery_negativeDays_isNotValidatedOrClamped
+      — documents the input that motivated BUG-H16 (§1b/§8): buildQuery()
+      does not validate or clamp a negative `days` value at all — it is
+      interpolated verbatim into the `older_than:${d}d` term. The actual
+      fix lives in index.html's getCatState(), which now floors a
+      non-positive parsed value to the category's default before it can
+      ever be saved (no JS test harness exists for index.html; see below).
+      Same "document the degenerate input here, guard it at the one
+      client-side entry point" pattern as the BUG-H15 test above.
+    test_updateSystem_deletesStaleAutoTrashTriggersButPreservesUnrelatedOnes
+      — Confirms updateSystem()'s pre-recreation cleanup sweep deletes
+      stale backgroundRun/sendDailyDigest triggers but leaves any OTHER
+      project trigger untouched. Confirmed to actually FAIL (the unrelated
+      trigger got deleted too) against a temporarily broadened cleanup
+      filter before being accepted.
+    test_updateSystem_summaryFreqErrorsOnlyOrEachRun_createsNoDigestTrigger
+    test_updateSystem_summaryFreqAllDigestShapes_createExactlyOneDigestTrigger
+      — Pin down the BUG-C6/BUG-C12 history (§6): a sendDailyDigest trigger
+      must exist for exactly the four digest-shaped frequencies (DAILY/
+      ALT_DAYS/WEEKLY/BIWEEKLY) and none of the other three (EACH_RUN/
+      ERRORS_ONLY/NEVER).
+
+  NOT YET COVERED BY A TEST (flagged 2026-08-31, third pass; still true as of
+  the twelfth pass): the Spam category's Archive-action behaviour (BUG-C19
+  in AUTOTRASH_BUG_PLAN.txt) has no regression test, because the fake-thread
+  GmailApp spy in claude/Tests models moveThreadsToArchive as an
+  unconditional label flip (`t.__archived = true`) rather than modelling
+  real Gmail's "remove INBOX label only" semantics — so a test against the
+  current spy could not actually distinguish "correctly archived" from
+  "no-op that Spam would suffer from" the way a live account would. Once
+  BUG-C19 is verified and a fix direction is chosen, the spy itself may
+  need to grow INBOX/SPAM label tracking before a meaningful regression
+  test can be written for it. Also not covered: the dry-run 500-thread
+  undercount described in §3/BUG-C21 (the fake spy has no notion of a
+  "true" match count larger than what it's told to return, so it cannot
+  currently distinguish "500 because that's really all there is" from "500
+  because that's the cap" — a meaningful test would need the spy to model
+  an underlying larger corpus and truncate its own return value, which is a
+  spy change, not just a new test, pending a fix direction for BUG-C21
+  itself); the executeActions() partial-chunk-failure accounting gap
+  described in §2b/§6/§7/BUG-C22 (reproduced in a throwaway script — see
+  the bug plan entry — but deliberately not committed as a permanent test
+  until a fix direction is chosen, per the same "don't encode an accepted
+  bug as correct behaviour" reasoning as BUG-C13/BUG-C14); abortRun()'s
+  SUMMARY_FREQ gating gap described in §4/§6/BUG-E17 (same reasoning —
+  reproduced, not yet committed); the DAILY_STATS concurrency race between
+  accumulateDailyStats() and sendDailyDigest() described in
+  §2b/§6/§7/§10/BUG-C23 (same reasoning — reproduced in a throwaway script,
+  not committed; a permanent test for this would also need a way to model
+  two "concurrent" calls against the same in-memory PropertiesService stub
+  in a controlled interleaving, which the current harness's single-threaded
+  Node execution can only simulate by manually sequencing the two
+  functions' internal steps rather than truly running them in parallel —
+  worth deciding as part of any eventual fix); the stats.labels
+  key-collision case described in §7's NOTE and tracked as S-N11 (would
+  need a spy/harness change to model two rules sharing a key
+  meaningfully); the dead-code branch in buildEmailHtml()'s color selector
+  described in §6/BUG-E18 (deliberately NOT tested — there is no observable
+  output difference for a test to distinguish, since the branch can never
+  execute against any real caller); and index.html's client-side JS in
+  general — this project has no browser/JS test harness, only the Node
+  harness for Code.gs described above (see this section's own header and
+  the Tests doc's header for why). BUG-H15's and BUG-H16's actual fixes (in
+  addRule() and getCatState() respectively) fall into this last category —
+  they are verified by reading the code and by the buildQuery()-side
+  documentation tests above, not by a direct index.html test.
+
+  Any change to Code.gs behaviour must be mirrored here in the same pass.

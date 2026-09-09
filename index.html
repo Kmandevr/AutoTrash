@@ -1,0 +1,1051 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <base target="_top">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AutoTrash v26</title>
+  <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Exo+2:wght@300;600;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg:    #020802; --surf:  #050e05; --surf2: #071407;
+      --bord:  #1a3a1a; --bord2: #0e1e0e;
+      --green: #00ff88; --g2: #00cc66; --g3: #44bb77; --g4: #aaffcc;
+      --dim:   #336633; --dimmer: #1b2b1b;
+      --red:   #ff4455; --amber: #ffbb44; --blue: #44aaff;
+      --mono: 'Share Tech Mono', monospace;
+      --disp: 'Exo 2', sans-serif;
+      --glow:    0 0 10px rgba(0,255,136,.35), 0 0 26px rgba(0,255,136,.12);
+      --glow-sm: 0 0 6px rgba(0,255,136,.3);
+    }
+    *, *::before, *::after { box-sizing:border-box; margin:0; padding:0; }
+    html { background:var(--bg); }
+    body {
+      font-family:var(--mono); background:var(--bg); color:var(--g4);
+      min-height:100vh; display:flex; justify-content:center;
+      padding:24px 14px 64px; overflow-x:hidden; position:relative;
+    }
+    body::before {
+      content:''; position:fixed; inset:0; pointer-events:none; z-index:9999;
+      background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,.06) 2px,rgba(0,0,0,.06) 4px);
+    }
+    body::after {
+      content:''; position:fixed; top:-200px; left:50%; transform:translateX(-50%);
+      width:1000px; height:400px; pointer-events:none; z-index:0;
+      background:radial-gradient(ellipse,rgba(0,255,136,.03) 0%,transparent 65%);
+    }
+
+    .app { width:100%; max-width:760px; display:flex; flex-direction:column; gap:12px; position:relative; z-index:1; }
+    .app > * { opacity:0; transform:translateY(10px); animation:fadeUp .36s ease forwards; }
+    .app>*:nth-child(1){animation-delay:.04s}.app>*:nth-child(2){animation-delay:.09s}
+    .app>*:nth-child(3){animation-delay:.14s}.app>*:nth-child(4){animation-delay:.19s}
+    .app>*:nth-child(5){animation-delay:.24s}.app>*:nth-child(6){animation-delay:.28s}
+    .app>*:nth-child(7){animation-delay:.32s}.app>*:nth-child(8){animation-delay:.36s}
+    .app>*:nth-child(9){animation-delay:.40s}
+    @keyframes fadeUp { to { opacity:1; transform:translateY(0); } }
+
+    /* HEADER */
+    .hdr { display:flex; align-items:center; gap:12px; padding-bottom:13px; border-bottom:1px solid var(--bord); }
+    .logo { font-family:var(--disp); font-weight:800; font-size:22px; color:var(--green); text-shadow:var(--glow); letter-spacing:2px; text-transform:uppercase; }
+    .logo em { color:var(--dimmer); font-weight:300; font-style:normal; }
+    .vbadge { font-size:9px; background:var(--green); color:var(--bg); padding:2px 7px; border-radius:2px; letter-spacing:1px; }
+    .hdr-ts { margin-left:auto; font-size:10px; color:var(--dim); }
+    .cursor { display:inline-block; width:8px; height:13px; background:var(--green); margin-left:3px; vertical-align:middle; animation:blink 1s step-end infinite; }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+
+    /* STATS */
+    .stats { display:grid; grid-template-columns:repeat(5,1fr); gap:8px; }
+    .stat { background:var(--surf); border:1px solid var(--bord2); border-radius:4px; padding:11px 6px 9px; text-align:center; position:relative; overflow:hidden; transition:border-color .3s; }
+    .stat-bar { position:absolute; top:0; left:0; right:0; height:2px; background:var(--green); transform:scaleX(0); transform-origin:left; transition:transform .44s cubic-bezier(.4,0,.2,1); }
+    .stat.live .stat-bar { transform:scaleX(1); }
+    .stat.live { border-color:var(--bord); }
+    .stat-v { font-family:var(--disp); font-size:21px; font-weight:800; color:var(--green); line-height:1; text-shadow:var(--glow-sm); }
+    .stat-v.flash { animation:statFlash .26s ease; }
+    /* BUG-A1 FIX: Glow-only flash — no color in keyframe so red/blue/amber stats don't glitch green */
+    @keyframes statFlash { 0%{opacity:.4;text-shadow:0 0 16px rgba(255,255,255,.9)} 100%{opacity:1;text-shadow:inherit} }
+    .stat-k { font-size:8px; color:var(--dim); margin-top:4px; text-transform:uppercase; letter-spacing:1.2px; }
+
+    /* TERMINAL */
+    .term-wrap { background:var(--surf); border:1px solid var(--bord); border-radius:5px; overflow:hidden; }
+    .term-bar { display:flex; align-items:center; gap:6px; padding:7px 13px; background:var(--surf2); border-bottom:1px solid var(--bord); }
+    .dot { width:8px; height:8px; border-radius:50%; }
+    .dot-r { background:#ff4455; opacity:.35; transition:opacity .3s; }
+    .dot-y { background:#ffbb44; opacity:.35; transition:opacity .3s; }
+    .dot-g { background:var(--green); box-shadow:var(--glow-sm); }
+    .term-lbl { font-size:10px; color:var(--dim); margin-left:4px; letter-spacing:1px; text-transform:uppercase; }
+    .term-right { margin-left:auto; display:flex; align-items:center; gap:10px; font-size:10px; color:var(--dim); }
+    #trule { color:var(--g3); max-width:180px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    #telapsed { font-variant-numeric:tabular-nums; min-width:40px; text-align:right; }
+    .term { background:#010601; padding:12px 15px; height:340px; overflow-y:auto; font-size:12px; line-height:1.75; }
+    .term::-webkit-scrollbar { width:4px; }
+    .term::-webkit-scrollbar-thumb { background:var(--bord); border-radius:2px; }
+    .term:empty::before { content:'> AUTOTRASH v26 READY'; color:var(--dimmer); }
+
+    /* BUG-A5 FIX (c): logIn animation removed — with hundreds of nodes it causes
+       compositor freeze. The terminal cap (below in tl()) keeps the list short. */
+    .ll { display:flex; gap:8px; align-items:flex-start; }
+    .lts { color:var(--dimmer); flex-shrink:0; min-width:64px; font-size:11px; }
+    .lbadge { flex-shrink:0; font-size:9px; font-weight:700; padding:2px 5px; border-radius:2px; min-width:64px; text-align:center; letter-spacing:.4px; margin-top:1px; }
+    .lmsg { word-break:break-word; }
+    .b-SEARCH  {background:rgba(68,170,255,.11);color:var(--blue);border:1px solid rgba(68,170,255,.2)}
+    .b-RESULT  {background:rgba(255,187,68,.11);color:var(--amber);border:1px solid rgba(255,187,68,.2)}
+    .b-ACTION  {background:rgba(0,255,136,.09);color:var(--green);border:1px solid rgba(0,255,136,.18)}
+    /* BUG-R2 FIX: Raised opacity from .07/.14 to .13/.22 so BATCH lines are distinguishable */
+    .b-BATCH   {background:rgba(0,204,102,.13);color:var(--g2);border:1px solid rgba(0,204,102,.22)}
+    .b-DONE    {background:rgba(0,255,136,.13);color:var(--green);border:1px solid rgba(0,255,136,.28)}
+    .b-COMPLETE{background:rgba(0,255,136,.18);color:var(--green);border:1px solid rgba(0,255,136,.38);font-weight:900}
+    .b-DRYRUN  {background:rgba(255,187,68,.13);color:var(--amber);border:1px solid rgba(255,187,68,.28)}
+    /* BUG-R1 FIX: INFO text raised from var(--dim) #336633 (~2.5:1) to var(--g3) #44bb77 (≥4.5:1) */
+    .b-INFO    {background:rgba(18,38,18,.9);color:var(--g3);border:1px solid var(--dimmer)}
+    .b-ERROR   {background:rgba(255,68,85,.13);color:var(--red);border:1px solid rgba(255,68,85,.28)}
+    /* BUG-R4 FIX: SEP level — full-width faint line, no badge */
+    .b-SEP     {display:none}
+    .ll.sep    {border-top:1px solid var(--bord2);margin:3px 0;padding-top:3px}
+    .ll.sep .lts, .ll.sep .lmsg { display:none }
+
+    .banner { margin:7px 0 2px; padding:9px 13px; border-radius:3px; font-size:12px; font-weight:bold; }
+    .banner.ok   {background:rgba(0,255,136,.06);border:1px solid rgba(0,255,136,.22);color:var(--green)}
+    .banner.err  {background:rgba(255,68,85,.06);border:1px solid rgba(255,68,85,.22);color:var(--red)}
+    .banner.warn {background:rgba(255,187,68,.06);border:1px solid rgba(255,187,68,.22);color:var(--amber)}
+
+    /* BUG-R3 FIX: sbmsg color raised from var(--dim) to var(--g4) for legibility */
+    .sbar { display:flex; align-items:center; gap:9px; padding:7px 13px; border-top:1px solid var(--bord2); background:var(--surf2); font-size:11px; color:var(--g4); }
+    .orb { width:8px; height:8px; border-radius:50%; background:var(--dimmer); flex-shrink:0; transition:background .4s,box-shadow .4s; }
+    .orb.live { background:var(--green); box-shadow:0 0 6px var(--green),0 0 14px rgba(0,255,136,.35); animation:orbPulse 1.2s ease-in-out infinite; }
+    @keyframes orbPulse { 0%,100%{box-shadow:0 0 4px var(--green),0 0 10px rgba(0,255,136,.28)} 50%{box-shadow:0 0 8px var(--green),0 0 20px rgba(0,255,136,.5)} }
+    .sbmsg { flex:1; }
+    .drytag { font-size:9px; color:var(--amber); background:rgba(255,187,68,.08); border:1px solid rgba(255,187,68,.2); padding:1px 7px; border-radius:2px; display:none; }
+
+    /* PROGRESS */
+    .prog { background:var(--surf); border:1px solid var(--bord2); border-radius:5px; padding:14px; display:none; }
+    .prog-title { font-size:9px; color:var(--dim); text-transform:uppercase; letter-spacing:2px; margin-bottom:10px; }
+    .lp { margin-bottom:9px; }
+    .lp:last-child { margin-bottom:0; }
+    .lp-hd { display:flex; justify-content:space-between; font-size:11px; margin-bottom:4px; }
+    .lp-nm { color:var(--g3); } .lp-ct { color:var(--dim); font-size:10px; }
+    .lp-trk { height:3px; background:var(--bord2); border-radius:2px; overflow:hidden; }
+    .lp-bar { height:100%; background:linear-gradient(90deg,var(--g2),var(--green)); border-radius:2px; width:0%; transition:width .5s cubic-bezier(.4,0,.2,1); position:relative; }
+    .lp-bar::after { content:''; position:absolute; right:0; top:0; bottom:0; width:16px; background:linear-gradient(90deg,transparent,rgba(255,255,255,.3)); animation:shimmer 1.4s ease-in-out infinite; }
+    .lp-bar.done::after { display:none; }
+    .lp-bar.done { background:var(--green); box-shadow:0 0 4px rgba(0,255,136,.4); }
+    @keyframes shimmer { 0%,100%{opacity:0} 50%{opacity:1} }
+
+    /* PANELS */
+    .panel { background:var(--surf); border:1px solid var(--bord2); border-radius:5px; overflow:hidden; }
+    .phead { display:flex; align-items:center; gap:8px; padding:9px 14px; background:var(--surf2); border-bottom:1px solid var(--bord2); cursor:pointer; user-select:none; transition:background .15s; }
+    .phead:hover { background:#091509; }
+    .ph-lbl { font-size:9px; color:var(--dim); text-transform:uppercase; letter-spacing:2px; }
+    /* BUG-A4 FIX: Keep '▼' always; rotate -90deg with CSS transition when panel is closed */
+    .ph-arr { margin-left:auto; color:var(--dimmer); font-size:10px; transition:transform .18s; display:inline-block; }
+    .ph-arr.closed { transform:rotate(-90deg); }
+    .pbody { padding:14px; }
+    .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+    .grid3 { display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; }
+    .flbl { display:block; font-size:9px; color:var(--dim); text-transform:uppercase; letter-spacing:1.4px; margin-bottom:4px; }
+    .fgrp { margin-bottom:11px; }
+    .fgrp:last-child { margin-bottom:0; }
+    .field { background:var(--bg); border:1px solid var(--bord); border-radius:3px; padding:8px 11px; font-family:var(--mono); font-size:12px; color:var(--g4); outline:none; width:100%; transition:border-color .2s,box-shadow .2s; }
+    .field:focus { border-color:var(--g2); box-shadow:0 0 0 2px rgba(0,255,136,.07); }
+    .field::placeholder { color:var(--dimmer); }
+    select.field { cursor:pointer; }
+    select.field option { background:#0a140a; }
+    .hint { font-size:10px; color:var(--dimmer); line-height:1.55; margin-top:9px; }
+    .hint b { color:var(--dim); }
+
+    /* CATEGORY CARDS */
+    .cat-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(210px,1fr)); gap:8px; margin-bottom:12px; }
+    .cat-card { background:var(--bg); border:1px solid var(--bord2); border-radius:4px; padding:10px 12px; display:flex; flex-direction:column; gap:7px; transition:border-color .2s; }
+    .cat-card.on { border-color:var(--bord); }
+    .cat-head { display:flex; align-items:center; gap:8px; }
+    .cat-icon { font-size:14px; flex-shrink:0; }
+    .cat-name { font-size:11px; color:var(--g4); font-weight:bold; flex:1; text-transform:uppercase; letter-spacing:.5px; }
+    .tog { position:relative; width:32px; height:17px; flex-shrink:0; background:var(--bord2); border-radius:9px; cursor:pointer; transition:background .2s; border:1px solid var(--bord2); }
+    .tog::after { content:''; position:absolute; top:2px; left:2px; width:11px; height:11px; border-radius:50%; background:var(--dim); transition:transform .2s,background .2s; }
+    .tog.on { background:rgba(0,255,136,.15); border-color:var(--g2); }
+    .tog.on::after { transform:translateX(15px); background:var(--green); }
+    .cat-fields { display:none; gap:6px; }
+    .cat-fields.show { display:flex; }
+    .csf { flex:1; background:var(--bg); border:1px solid var(--bord2); border-radius:3px; padding:5px 8px; font-family:var(--mono); font-size:11px; color:var(--g4); outline:none; transition:border-color .2s; }
+    .csf:focus { border-color:var(--g2); }
+    select.csf option { background:#0a140a; }
+
+    /* LABEL RULES */
+    .ri { display:flex; align-items:center; gap:9px; background:var(--bg); border:1px solid var(--bord2); border-radius:3px; padding:8px 11px; margin-bottom:5px; font-size:12px; animation:fadeUp .2s ease; transition:border-color .15s; }
+    .ri:hover { border-color:var(--bord); }
+    .rl { flex:1; color:var(--g3); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .rd { color:var(--amber); min-width:34px; text-align:right; flex-shrink:0; }
+    .ra { font-size:9px; color:var(--bg); padding:2px 6px; border-radius:2px; min-width:52px; text-align:center; flex-shrink:0; }
+    .ra.tr { background:rgba(255,68,85,.75); } .ra.ar { background:rgba(68,170,255,.75); }
+    .rdel { background:none; border:none; color:var(--dimmer); cursor:pointer; font-size:12px; padding:2px 5px; border-radius:2px; transition:color .14s,background .14s; }
+    .rdel:hover { color:var(--red); background:rgba(255,68,85,.1); }
+
+    /* BUTTONS */
+    .brow { display:flex; gap:9px; }
+    .btn { flex:1; font-family:var(--mono); font-size:11px; font-weight:bold; letter-spacing:1px; text-transform:uppercase; padding:11px 12px; border-radius:3px; border:none; cursor:pointer; transition:opacity .14s,transform .1s,box-shadow .2s; }
+    .btn:hover { opacity:.85; } .btn:active { transform:scale(.98); }
+    .btn:disabled { opacity:.28; cursor:not-allowed; }
+    .btn-save { background:var(--surf2); color:var(--g3); border:1px solid var(--bord); }
+    .btn-save:hover:not(:disabled) { border-color:var(--g2); }
+    .btn-dry  { background:var(--surf2); color:var(--amber); border:1px solid rgba(255,187,68,.18); }
+    .btn-dry:hover:not(:disabled) { border-color:var(--amber); }
+    .btn-dry.on { background:rgba(255,187,68,.09); border-color:var(--amber); box-shadow:0 0 8px rgba(255,187,68,.18); }
+    .btn-abort { background:rgba(255,68,85,.12); color:var(--red); border:1px solid rgba(255,68,85,.25); display:none; animation:fadeUp .18s ease; }
+    .btn-abort:hover:not(:disabled) { background:rgba(255,68,85,.22); }
+    .btn-go {
+      background:var(--green); color:var(--bg); border:1px solid var(--green);
+      position:relative; overflow:hidden;
+      box-shadow:0 0 12px rgba(0,255,136,.22);
+      animation:lPulse 2.6s ease-in-out infinite;
+    }
+    /* BUG-A3 FIX: Kill pulse animation while button is disabled — pulsing-dim looks "almost ready" */
+    .btn-go:disabled { animation:none; box-shadow:none; }
+    @keyframes lPulse { 0%,100%{box-shadow:0 0 8px rgba(0,255,136,.18)} 50%{box-shadow:0 0 18px rgba(0,255,136,.4)} }
+    .btn-go::after { content:''; position:absolute; inset:0; background:linear-gradient(90deg,transparent,rgba(255,255,255,.12),transparent); transform:translateX(-100%); }
+    .btn-go:hover:not(:disabled)::after { animation:sweep .42s ease forwards; }
+    @keyframes sweep { to { transform:translateX(100%); } }
+    /* BUG-A2 FIX: +ADD gets its own class — solid green, no pulse, no glow sweep */
+    .btn-add {
+      background:var(--g2); color:var(--bg); border:1px solid var(--g2);
+      flex:0; min-width:56px; padding:8px 12px;
+    }
+    .btn-add:hover:not(:disabled) { background:var(--green); border-color:var(--green); }
+
+    .toast { position:fixed; bottom:18px; right:18px; background:var(--surf2); border:1px solid var(--bord); color:var(--g4); font-family:var(--mono); font-size:11px; padding:9px 14px; border-radius:3px; opacity:0; transform:translateY(7px); transition:opacity .2s,transform .2s; pointer-events:none; z-index:9998; max-width:300px; }
+    .toast.show { opacity:1; transform:translateY(0); }
+  </style>
+</head>
+<body>
+<div class="app">
+
+  <!-- HEADER -->
+  <div class="hdr">
+    <div class="logo">AUTO<em>/</em>TRASH <span class="cursor"></span></div>
+    <div class="vbadge">v26</div>
+    <div class="hdr-ts" id="lastRun">LAST RUN: —</div>
+  </div>
+
+  <!-- STATS ROW -->
+  <div class="stats">
+    <div class="stat" id="sb0"><div class="stat-bar"></div><div class="stat-v" id="sv0">0</div><div class="stat-k">Actioned</div></div>
+    <div class="stat" id="sb1"><div class="stat-bar" style="background:var(--red)"></div><div class="stat-v" id="sv1" style="color:var(--red)">0</div><div class="stat-k">Trashed</div></div>
+    <div class="stat" id="sb2"><div class="stat-bar" style="background:var(--blue)"></div><div class="stat-v" id="sv2" style="color:var(--blue)">0</div><div class="stat-k">Archived</div></div>
+    <div class="stat" id="sb3"><div class="stat-bar" style="background:var(--amber)"></div><div class="stat-v" id="sv3" style="color:var(--amber)">—</div><div class="stat-k">Rules Left</div></div>
+    <div class="stat" id="sb4"><div class="stat-bar" style="background:var(--g3)"></div><div class="stat-v" id="sv4" style="color:var(--g3);font-size:17px">0s</div><div class="stat-k">Elapsed</div></div>
+  </div>
+
+  <!-- TERMINAL -->
+  <div class="term-wrap">
+    <div class="term-bar">
+      <div class="dot dot-r" id="dr"></div>
+      <div class="dot dot-y" id="dy"></div>
+      <div class="dot dot-g"></div>
+      <div class="term-lbl">OPS // LIVE FEED</div>
+      <div class="term-right">
+        <span id="trule">IDLE</span>
+        <span id="telapsed"></span>
+      </div>
+    </div>
+    <div class="term" id="term"></div>
+    <div class="sbar">
+      <div class="orb" id="orb"></div>
+      <div class="sbmsg" id="sbmsg">System ready — configure rules and engage engine.</div>
+      <div class="drytag" id="drytag">DRY RUN</div>
+    </div>
+  </div>
+
+  <!-- PROGRESS -->
+  <div class="prog" id="prog">
+    <div class="prog-title">Rule Progress</div>
+    <div id="pbars"></div>
+  </div>
+
+  <!-- SYSTEM CONFIG -->
+  <div class="panel">
+    <div class="phead" onclick="togglePanel(this)">
+      <div class="dot dot-g" style="width:6px;height:6px"></div>
+      <div class="ph-lbl">System Config</div>
+      <div class="ph-arr closed">▼</div><!-- S-U4: collapsed by default -->
+    </div>
+    <div class="pbody" style="display:none">
+      <div class="grid3">
+        <div class="fgrp">
+          <label class="flbl">Inbox Purge <span style="color:var(--dimmer)">(unarchived only)</span></label>
+          <select id="inboxPurgeDays" class="field">
+            <option value="OFF">Disabled</option>
+            <option value="30">Older than 30 days</option>
+            <option value="60">Older than 60 days</option>
+            <option value="90">Older than 90 days</option>
+            <option value="180">Older than 180 days</option>
+            <option value="365">Older than 1 year</option>
+            <option value="730">Older than 2 years</option>
+          </select>
+        </div>
+        <div class="fgrp">
+          <label class="flbl">Global Purge <span style="color:var(--dimmer)">(all inbox)</span></label>
+          <select id="globalPurgeDays" class="field">
+            <option value="OFF">Disabled</option>
+            <option value="30">Older than 30 days</option>
+            <option value="180">Older than 180 days</option>
+            <option value="365">Older than 1 year</option>
+            <option value="3650">Older than 10 years</option>
+          </select>
+        </div>
+        <div class="fgrp">
+          <label class="flbl">Background Trigger</label>
+          <select id="triggerMode" class="field">
+            <option value="OFF">Manual only</option>
+            <option value="1MIN">Every 1 min ⚡ fastest</option>
+            <option value="5MIN">Every 5 min</option>
+            <option value="15MIN">Every 15 min</option>
+            <option value="HOURLY">Every hour</option>
+            <option value="DAILY">Daily at 1am</option>
+          </select>
+        </div>
+      </div>
+      <div class="grid3">
+        <div class="fgrp">
+          <label class="flbl">Summary Emails</label>
+          <select id="summaryFreq" class="field">
+            <option value="EACH_RUN">After every run</option>
+            <option value="DAILY">Daily digest</option>
+            <option value="ALT_DAYS">Every other day</option>
+            <option value="WEEKLY">Weekly digest</option>
+            <option value="BIWEEKLY">Bi-weekly digest</option>
+            <option value="ERRORS_ONLY">Errors only</option>
+            <option value="NEVER">Never</option>
+          </select>
+        </div>
+        <div class="fgrp">
+          <label class="flbl">Digest Send Time</label>
+          <!-- FIX 43 (S-N5): full 6am-8pm range exposed. The backend
+               (getUISettings/updateSystem/sendDailyDigest) has always accepted
+               any integer 6-20; the dropdown previously only offered 7 of the
+               15 documented hours (6,7,8,9,12,18,20), so a user wanting e.g.
+               10am or 3pm had no way to pick it. Purely additive UI change —
+               no server-side behaviour changes. See AUTOTRASH_SUGGESTIONS.txt. -->
+          <select id="digestHour" class="field">
+            <option value="6">6:00 AM</option>
+            <option value="7">7:00 AM</option>
+            <option value="8" selected>8:00 AM</option>
+            <option value="9">9:00 AM</option>
+            <option value="10">10:00 AM</option>
+            <option value="11">11:00 AM</option>
+            <option value="12">12:00 PM</option>
+            <option value="13">1:00 PM</option>
+            <option value="14">2:00 PM</option>
+            <option value="15">3:00 PM</option>
+            <option value="16">4:00 PM</option>
+            <option value="17">5:00 PM</option>
+            <option value="18">6:00 PM</option>
+            <option value="19">7:00 PM</option>
+            <option value="20">8:00 PM</option>
+          </select>
+        </div>
+      </div>
+      <div class="hint">
+        <b>⚡ Large backlog?</b> Set trigger to <b>Every 1 min</b> — runs 55 s bursts continuously 24/7, even with this tab closed.
+        <b>Inbox Purge</b> = unarchived inbox only (won't touch archived mail).
+        <b>Global Purge</b> = all inbox including archived.
+      </div>
+    </div>
+  </div>
+
+  <!-- GMAIL CATEGORY RULES -->
+  <div class="panel">
+    <div class="phead" onclick="togglePanel(this)">
+      <div class="dot dot-g" style="width:6px;height:6px"></div>
+      <div class="ph-lbl">Gmail Category Rules</div>
+      <div class="ph-arr closed">▼</div><!-- S-U4: collapsed by default -->
+    </div>
+    <div class="pbody" style="display:none">
+      <div id="catgrid" class="cat-grid"></div>
+      <div class="hint">Toggle Gmail's auto-sort categories. When on, set the age and action. <b>Starred emails are always spared.</b> <b>Spam:</b> Trash actually removes spam mail; Archive only removes the Inbox label and will not clear a message out of Spam, so spam threads set to Archive keep matching every run — Trash is strongly recommended for this category (see BUG-C19 in AUTOTRASH_BUG_PLAN.txt).</div>
+    </div>
+  </div>
+
+  <!-- CUSTOM LABEL RULES -->
+  <div class="panel">
+    <div class="phead" onclick="togglePanel(this)">
+      <div class="dot dot-g" style="width:6px;height:6px"></div>
+      <div class="ph-lbl">Custom Label Rules</div>
+      <div class="ph-arr">▼</div>
+    </div>
+    <div class="pbody">
+      <div id="rlist"></div>
+      <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
+        <input type="text"   id="nL" class="field" placeholder="Label name"  style="flex:2;min-width:110px">
+        <input type="number" id="nD" class="field" placeholder="Days"        style="flex:1;min-width:60px">
+        <select              id="nA" class="field"                            style="flex:1;min-width:82px">
+          <option value="trash">Trash</option>
+          <option value="archive">Archive</option>
+        </select>
+        <button onclick="addRule()" class="btn btn-add">+ADD</button>
+      </div>
+      <div class="hint" style="margin-top:8px">
+        <b>Archive rules</b> only look at in-inbox threads. Once archived the thread leaves the search and won't be re-processed.
+      </div>
+    </div>
+  </div>
+
+  <!-- BUTTONS -->
+  <div class="brow">
+    <button class="btn btn-save"  onclick="saveConfig()">Save Config</button>
+    <button class="btn btn-dry"   id="btndry"   onclick="toggleDry()">Dry Run</button>
+    <button class="btn btn-abort" id="btnabort" onclick="doAbort()">⛔ Abort</button>
+    <button class="btn btn-go"    id="btngo"    onclick="launchEngine()">⚡ Engage Engine</button>
+  </div>
+
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+// ── CATEGORY DEFINITIONS ───────────────────────────────────────
+const CATS = [
+  {id:'promotions', icon:'🏷️', name:'Promotions', defDays:30,  defAct:'trash'},
+  {id:'social',     icon:'👥', name:'Social',     defDays:60,  defAct:'archive'},
+  {id:'updates',    icon:'🔔', name:'Updates',    defDays:30,  defAct:'trash'},
+  {id:'forums',     icon:'💬', name:'Forums',     defDays:60,  defAct:'archive'},
+  {id:'spam',       icon:'🚫', name:'Spam',       defDays:7,   defAct:'trash'},
+];
+
+// ── STATE ──────────────────────────────────────────────────────
+let rules = [], catState = {}, running = false, isDry = false;
+let aborted = false, startTime = 0, timerH = null;
+let runStats = {totalMoved:0, totalTrashed:0, totalArchived:0};
+// BUG-H13: full-fidelity mirror of the last stats object the server actually
+// returned (labels, purge sub-counts, errors — everything runStats leaves
+// out). runStats only ever carries the three display totals, swapped for
+// dry-run projections when needed; it was the only thing passed to
+// abortRun(), so an aborted run's email had no per-rule breakdown table and
+// (before FIX 41 in Code.gs) no way to correctly attribute daily-stat
+// accumulation either. lastStats is updated every burst and handed to
+// abortRun() instead — see doAbort() below.
+let lastStats = null;
+
+// ── INIT ───────────────────────────────────────────────────────
+window.onload = () => {
+  renderCats([]);
+  google.script.run
+    .withSuccessHandler(d => {
+      rules = d.rules || [];
+      (d.categoryRules || []).forEach(r => catState[r.category] = r);
+      sv('inboxPurgeDays',  d.inboxPurgeDays  || 'OFF');
+      sv('globalPurgeDays', d.globalPurgeDays || 'OFF');
+      sv('triggerMode',     d.triggerMode     || 'OFF');
+      sv('summaryFreq',     d.summaryFreq     || 'EACH_RUN');
+      sv('digestHour',      d.digestHour      || '8');
+      document.getElementById('lastRun').textContent = 'LAST RUN: ' + d.lastRun;
+      renderCats(d.categoryRules || []);
+      renderRules();
+      tl('INFO', 'Initialized · ' + rules.length + ' label rule(s) · ' +
+        Object.values(catState).filter(r=>r.enabled).length + ' category rule(s) active.');
+    })
+    .withFailureHandler(e => tl('ERROR', 'Load failed: ' + e.message))
+    .getUISettings();
+};
+
+function sv(id, v) { const el = document.getElementById(id); if (el) el.value = v; }
+function gv(id)    { return document.getElementById(id)?.value || ''; }
+
+// ── PANEL TOGGLE ──────────────────────────────────────────────
+// BUG-A4 FIX: Toggle .closed class on arrow to trigger CSS rotation
+// instead of swapping characters (which bypassed transition:transform).
+function togglePanel(h) {
+  const b = h.nextElementSibling, arr = h.querySelector('.ph-arr');
+  const open = b.style.display !== 'none';
+  b.style.display = open ? 'none' : 'block';
+  arr.classList.toggle('closed', open); // closed = rotated -90deg via CSS
+}
+
+// ── CATEGORY UI ───────────────────────────────────────────────
+function renderCats(saved) {
+  const map = {};
+  (saved || []).forEach(r => map[r.category] = r);
+  document.getElementById('catgrid').innerHTML = CATS.map(c => {
+    const s   = map[c.id] || catState[c.id] || {};
+    const on  = !!s.enabled;
+    const d   = s.days   || c.defDays;
+    const act = s.action || c.defAct;
+    return `<div class="cat-card${on?' on':''}" id="cc-${c.id}">
+      <div class="cat-head">
+        <span class="cat-icon">${c.icon}</span>
+        <span class="cat-name">${c.name}</span>
+        <div class="tog${on?' on':''}" id="tog-${c.id}" onclick="toggleCat('${c.id}')"></div>
+      </div>
+      <div class="cat-fields${on?' show':''}" id="cf-${c.id}">
+        <input type="number" class="csf" id="cd-${c.id}" value="${d}" min="1" placeholder="Days">
+        <select class="csf" id="ca-${c.id}">
+          <option value="trash"   ${act==='trash'  ?'selected':''}>Trash</option>
+          <option value="archive" ${act==='archive'?'selected':''}>Archive</option>
+        </select>
+      </div>
+    </div>`;
+  }).join('');
+  CATS.forEach(c => catState[c.id] = getCatState(c.id));
+}
+
+function toggleCat(id) {
+  const tog = document.getElementById('tog-' + id);
+  const on  = !tog.classList.contains('on');
+  tog.classList.toggle('on', on);
+  document.getElementById('cf-' + id).classList.toggle('show', on);
+  document.getElementById('cc-' + id).classList.toggle('on', on);
+  catState[id] = getCatState(id);
+  tl('INFO', `Category "${id}" ${on ? 'ENABLED' : 'DISABLED'}`);
+}
+
+function getCatState(id) {
+  const c   = CATS.find(x => x.id === id) || {};
+  const on  = document.getElementById('tog-' + id)?.classList.contains('on') || false;
+  // BUG-H16: the "Days" number input carries a min="1" HTML attribute, but
+  // that's only enforced by form-level validation (checkValidity()) — never
+  // by blocking the actual keystrokes. A user can still type e.g. "-5" and
+  // have it read straight out of .value. The old fallback
+  // `parseInt(...) || c.defDays || 30` only ever caught 0 or NaN (both
+  // falsy); a negative integer is truthy, so it sailed through unchanged and
+  // would have been saved as the rule's `days` and interpolated verbatim
+  // into buildQuery()'s `older_than:${days}d` term — Code.gs has no clamp on
+  // this either. addRule() already guards the equivalent case for custom
+  // label rules (`d < 1` rejects the save outright); category rules had no
+  // matching guard until now. Reject non-positive integers the same way,
+  // falling back to the category's documented default.
+  let d = parseInt(document.getElementById('cd-' + id)?.value);
+  if (!d || d < 1) d = c.defDays || 30;
+  const act = document.getElementById('ca-' + id)?.value || c.defAct || 'trash';
+  return {
+    category: id,
+    label: (c.name || id).toUpperCase(),
+    enabled: on,
+    days: d,
+    action: act,
+    isTrash: act === 'trash',   // FIX: explicit boolean, never undefined
+    isCategory: true
+  };
+}
+
+function getCatArr() { return CATS.map(c => getCatState(c.id)); }
+
+// ── LABEL RULES ───────────────────────────────────────────────
+function renderRules() {
+  const el = document.getElementById('rlist');
+  if (!rules.length) {
+    el.innerHTML = '<div style="font-size:11px;color:var(--dimmer)">No custom label rules.</div>';
+    return;
+  }
+  // BUG-H7 FIX: Store index in data-idx so a re-render between render and click
+  // can't cause the wrong rule to be deleted due to shifted indices.
+  el.innerHTML = rules.map((r,i) => `
+    <div class="ri">
+      <span class="rl">${esc(r.label)}</span>
+      <span class="rd">${r.days}d</span>
+      <span class="ra ${r.isTrash?'tr':'ar'}">${r.isTrash?'TRASH':'ARCHIVE'}</span>
+      <button class="rdel" data-idx="${i}" onclick="delRule(this)">✕</button>
+    </div>`).join('');
+}
+
+function addRule() {
+  const l = document.getElementById('nL').value.trim();
+  const d = parseInt(document.getElementById('nD').value);
+  const a = document.getElementById('nA').value;
+  if (!l || !d || d < 1) { toast('Enter a label name and day count.'); return; }
+  // BUG-H15: Code.gs's buildQuery() strips every literal " from a label
+  // before it goes into the quoted Gmail search term (the BUG-C20 fix, for
+  // labels like `Foo"Bar` that would otherwise break out of the quoted
+  // phrase). A label consisting ONLY of " characters (e.g. `"` or `""`)
+  // passes the check above — it's non-empty text — but strips down to an
+  // empty string server-side, producing a degenerate `label:"" in:inbox
+  // ...` query every time the rule runs. Reject that case here, at the one
+  // point that already knows what "sanitizes to nothing" means, instead of
+  // silently saving a rule that searches Gmail with an empty label term.
+  if (!l.replace(/"/g, '')) { toast('Label name can\'t consist only of " characters.'); return; }
+  rules.push({ label: l, days: d, isTrash: a === 'trash' }); // FIX: always explicit boolean
+  document.getElementById('nL').value = '';
+  document.getElementById('nD').value = '';
+  renderRules();
+  tl('INFO', `Rule added: "${l}" → ${a} after ${d}d`);
+}
+
+// BUG-H7 FIX: Accept button element; read self-contained index from data-idx.
+function delRule(btn) {
+  const i = +btn.dataset.idx;
+  const r = rules.splice(i, 1)[0];
+  renderRules();
+  tl('INFO', `Rule removed: "${r.label}"`);
+}
+
+// ── SAVE ──────────────────────────────────────────────────────
+function saveConfig() {
+  // BUG-H8 FIX: Warn user if saving while engine is running. The in-flight
+  // run is unaffected (rules are in payload memory), but the user may not know.
+  const toastMsg = running
+    ? 'Config saved. Changes apply on next run — current run unaffected.'
+    : 'Saved ✓';
+  google.script.run
+    .withSuccessHandler(() => { toast(toastMsg); tl('INFO', 'Config saved.'); })
+    .withFailureHandler(e  => toast('Save failed: ' + e.message))
+    .updateSystem({
+      rules,
+      categoryRules:   getCatArr(),
+      triggerMode:     gv('triggerMode'),
+      summaryFreq:     gv('summaryFreq'),
+      globalPurgeDays: gv('globalPurgeDays'),
+      inboxPurgeDays:  gv('inboxPurgeDays'),
+      digestHour:      gv('digestHour')
+    });
+}
+
+// ── DRY RUN ───────────────────────────────────────────────────
+// BUG-H17: toggleDry() flips the module-level `isDry` variable, which is
+// read live throughout the run — handleRes() (to pick dryTrashed/dryArchived
+// vs totalTrashed/totalArchived for the on-screen counters), finishEng()
+// (for the completion banner AND, critically, the `dryRun` flag it passes to
+// finalizeAndEmail()), and doAbort() (the `dryRun` flag it passes to
+// abortRun()). But the ACTUAL dry-vs-live behaviour for the run already in
+// flight is fixed the moment launchEngine() builds the payload
+// (`payload.dryRun = isDry`, captured once) — the server never re-reads a
+// live `isDry` value; every burst just keeps honouring whatever
+// payload.dryRun was at launch. Before this fix, nothing stopped a user from
+// clicking this button WHILE a run was already in progress, desyncing the
+// client's now-changed `isDry` from the run's actual, immutable
+// payload.dryRun. Concretely: start a LIVE run, then click Dry Run mid-run —
+// handleRes() starts reading s.dryTrashed/s.dryArchived (always 0 for a
+// genuinely live run, since the live path never populates them), so the
+// on-screen counters silently drop to 0 while real trashing/archiving keeps
+// happening; and when the run finishes, finishEng() calls
+// finalizeAndEmail(stats, elapsedMs, 'Dry Run Complete', true) even though
+// the run was 100% live — server-side, `if (!dryRun) accumulateDailyStats()`
+// then SKIPS accumulation entirely, so real Gmail actions silently vanish
+// from every digest, and the summary email itself reports the run as having
+// trashed/archived 0 (it swaps in stats.dryTrashed/dryArchived, both 0)
+// despite mail having genuinely moved. The reverse toggle (LIVE→mid-dry-run)
+// produces a similarly nonsensical, though less harmful, report. Reproduced
+// by tracing the exact call chain before fixing — see BUG-H17 in
+// AUTOTRASH_BUG_PLAN.txt. Fix: disable the Dry Run button for the duration
+// of a run, exactly like every other run-affecting control (btngo) already
+// is — see launchEngine()/stopEng() below. This removes the desync at its
+// one source instead of threading a run-scoped "isDry as of launch" value
+// through every later read site.
+function toggleDry() {
+  isDry = !isDry;
+  document.getElementById('btndry').classList.toggle('on', isDry);
+  document.getElementById('drytag').style.display = isDry ? 'inline-block' : 'none';
+  toast(isDry ? 'Dry run ON — will scan but not delete.' : 'Dry run OFF.');
+  tl('INFO', isDry ? '[DRY RUN] Engine will scan each rule once and report — no deletions.' : '[LIVE] Dry run off.');
+}
+
+// ── ABORT ─────────────────────────────────────────────────────
+function doAbort() {
+  if (!running) return;
+  aborted = true; running = false;
+  clearInterval(timerH);
+  setSbar('Aborting…');
+  tl('ERROR', 'ABORT — stopping after current burst.');
+  document.getElementById('btnabort').disabled = true;
+  // BUG-H13 FIX: Send the full last-known server stats object (labels,
+  // purge sub-counts, errors) instead of the stripped-down runStats, which
+  // only ever carried totalMoved/totalTrashed/totalArchived (plus dry
+  // mirrors). Without this the abort email's per-rule table was always
+  // empty and — after FIX 41 (BUG-C17) added daily-stat accumulation to
+  // abortRun() server-side — the digest would still have missed every
+  // per-rule and purge breakdown for an aborted run even though the top-line
+  // totals were now correct. Falls back to runStats if no burst has
+  // completed yet (abort clicked immediately after launch).
+  google.script.run
+    .withSuccessHandler(() => { banner('warn', '⚠ Aborted. Partial-run email dispatched.'); stopEng(true); })
+    .withFailureHandler(() => { banner('warn', '⚠ Aborted (email may not have sent).'); stopEng(true); })
+    .abortRun(lastStats || runStats, Date.now() - startTime, isDry);  // FIX 11: pass isDry
+}
+
+// ── ENGINE ────────────────────────────────────────────────────
+function launchEngine() {
+  if (running) return;
+
+  const catArr = getCatArr();
+  const global = gv('globalPurgeDays');
+  const inbox  = gv('inboxPurgeDays');
+
+  // Build preview queue client-side (mirrors server buildQueue)
+  const q = [...rules.map(r => ({...r}))];
+  catArr.filter(r => r.enabled).forEach(r => q.push(r));
+  if (inbox  !== 'OFF') q.push({ label:'INBOX PURGE',  isInboxPurge:true,  isTrash:true, days:+inbox  });
+  if (global !== 'OFF') q.push({ label:'GLOBAL PURGE', isGlobalPurge:true, isTrash:true, days:+global }); // BUG-R5
+
+  if (!q.length) { tl('ERROR', 'No rules. Add a label rule or enable a category/purge.'); return; }
+
+  // S-N1 SAFETY: Global Purge trashes ALL mail older than N days across All Mail,
+  // including everything deliberately archived. Require an explicit confirmation
+  // on live runs only — a dry run moves nothing, so it needs no gate.
+  if (!isDry && global !== 'OFF') {
+    const ok = confirm(
+      '⚠ GLOBAL PURGE IS ACTIVE\n\n' +
+      'This will trash ALL mail older than ' + global + ' days — including ' +
+      'archived mail, not just your inbox.\n\n' +
+      'Starred mail is still spared. Trashed mail stays in Trash for 30 days.\n\n' +
+      'Continue with the live run?'
+    );
+    if (!ok) { tl('INFO', 'Run cancelled — Global Purge confirmation declined.'); return; }
+  }
+
+  // Reset
+  running = true; aborted = false; startTime = Date.now();
+  runStats = { totalMoved:0, totalTrashed:0, totalArchived:0 };
+  document.getElementById('term').innerHTML = '';
+  ['sv0','sv1','sv2'].forEach(id => ss(id, '0'));
+  ss('sv3', String(q.length)); // S-U3: seed Rules Left with the full queue
+  ss('sv4', '0s');
+  document.getElementById('btngo').disabled = true;
+  // BUG-H17: freeze the Dry Run toggle for the duration of this run. isDry
+  // was just captured into payload.dryRun below and is read live by
+  // handleRes()/finishEng()/doAbort() for the rest of this run — letting the
+  // user flip it mid-flight desyncs those displays (and, worse,
+  // finalizeAndEmail()/abortRun()'s dryRun flag) from what the run is
+  // actually doing server-side. See toggleDry()'s comment for the full
+  // mechanism. Re-enabled in stopEng() once the run ends.
+  document.getElementById('btndry').disabled = true;
+  document.getElementById('btnabort').style.display = 'flex';
+  document.getElementById('btnabort').disabled = false;
+  document.getElementById('orb').classList.add('live');
+  document.getElementById('dr').style.opacity = '1';
+  document.getElementById('dy').style.opacity = '1';
+  ['sb0','sb1','sb2','sb3','sb4'].forEach(id => document.getElementById(id).classList.add('live'));
+
+  // Build per-label stats skeleton — skip purge rules (BUG-H3 FIX).
+  // Purge stats live in globalPurgeMoved/inboxPurgeMoved, not stats.labels.
+  // Including them here creates zero-entries that never get populated.
+  const labelStats = {};
+  q.forEach(r => {
+    if (r.isInboxPurge || r.isGlobalPurge) return; // skip purge rules
+    const lbl = r.label || (r.category ? r.category.toUpperCase() : '?');
+    labelStats[lbl] = { moved:0, trashed:0, archived:0, finished:false };
+  });
+
+  const payload = {
+    dryRun: isDry,
+    rules,
+    categoryRules: catArr,
+    globalPurgeDays: global,
+    inboxPurgeDays:  inbox,
+    // BUG-R (readability, sixth pass): this used to be commented "built on
+    // first burst server-side", which is backwards — burst() below builds
+    // it CLIENT-SIDE (mirroring buildQueue()) before the payload is ever
+    // sent to processLiveBurst(), exactly as AUTOTRASH_FEATURE_REFERENCE.txt
+    // §2a/§11 describes. The server's own "build it when null" branch in
+    // Code.gs (BUG-C16) is a defensive fallback for other callers — the
+    // shipped UI here never actually sends a null activeQueue.
+    activeQueue: null, // built client-side in burst(), just below, before the first RPC call
+    seenIds: [],       // FIX: initialise here so first burst doesn't need to create it
+    stats: {
+      totalMoved:0, totalTrashed:0, totalArchived:0,
+      globalPurgeMoved:0, globalPurgeTrashed:0,
+      inboxPurgeMoved:0,  inboxPurgeTrashed:0,
+      dryTrashed:0, dryArchived:0,
+      labels: labelStats, errors:[]
+    }
+  };
+
+  // BUG-H13: seed lastStats with the same skeleton so an abort clicked before
+  // the first burst response still has something valid (all zeros) to send.
+  lastStats = payload.stats;
+
+  renderBars(q);
+  startTimer();
+  setRule(q[0]);
+  setSbar('Engine engaged — ' + (isDry ? 'DRY RUN' : 'LIVE'));
+  tl('SEP'); // BUG-R4 FIX: visual divider line
+  tl('INFO', `START · ${q.length} rule(s) · ${isDry ? 'DRY RUN' : 'LIVE'}`);
+  if (isDry) tl('INFO', 'Dry run: each rule scanned once, then ejected — no deletions.');
+  tl('SEP'); // BUG-R4 FIX: visual divider line
+
+  burst(payload);
+}
+
+function burst(payload) {
+  if (!running || aborted) return;
+
+  // Build activeQueue on first call, mirroring server buildQueue exactly
+  if (!payload.activeQueue) {
+    const q = [];
+    (payload.rules || []).forEach(r => q.push({...r}));
+    (payload.categoryRules || []).filter(r => r.enabled).forEach(r => q.push({...r})); // getCatState() already sets isCategory:true
+    if (payload.inboxPurgeDays  !== 'OFF') q.push({isInboxPurge:true,  isTrash:true, days:+payload.inboxPurgeDays,  label:'INBOX PURGE'});
+    if (payload.globalPurgeDays !== 'OFF') q.push({isGlobalPurge:true, isTrash:true, days:+payload.globalPurgeDays, label:'GLOBAL PURGE'});
+    payload.activeQueue = q;
+  }
+
+  if (!payload.activeQueue.length) { finishEng(payload.stats); return; }
+
+  // FIX: update displayed rule name to current head of queue
+  setRule(payload.activeQueue[0]);
+
+  google.script.run
+    .withSuccessHandler(res => handleRes(res))
+    .withFailureHandler(err => {
+      tl('ERROR', 'RPC failure: ' + err.message);
+      banner('err', 'Engine halted — check Apps Script logs.');
+      stopEng(false);
+    })
+    .processLiveBurst(payload);
+}
+
+function handleRes(res) {
+  if (aborted) return;
+
+  // BUG-A5 FIX (a): Batch all log lines into a DocumentFragment, then do ONE
+  // appendChild and ONE scrollTop. Previously each tl() call forced a layout
+  // reflow via scrollHeight, causing jank with 10+ lines per burst.
+  if ((res.log || []).length) {
+    const term = document.getElementById('term');
+    const frag = document.createDocumentFragment();
+    res.log.forEach(e => tl(e.level, e.msg, e.t, frag));
+    // BUG-A5 FIX (b): Trim oldest nodes BEFORE appending new batch.
+    if (term.childElementCount > 300) {
+      for (let i = 0; i < 50 && term.firstChild; i++) term.removeChild(term.firstChild);
+    }
+    term.appendChild(frag);
+    term.scrollTop = term.scrollHeight; // ONE scroll after all lines
+  }
+
+  if (res.payload?.stats) {
+    const s = res.payload.stats;
+    // BUG-H13: keep a full-fidelity reference to the latest server stats
+    // object (labels/purge sub-counts/errors included) so an abort mid-run
+    // can report the same detail a normal completion does. See doAbort().
+    lastStats = s;
+    runStats.totalMoved    = s.totalMoved    || 0;
+    // Use dryTrashed/dryArchived during dry runs so counters show projected counts.
+    runStats.totalTrashed  = isDry ? (s.dryTrashed  || 0) : (s.totalTrashed  || 0);
+    runStats.totalArchived = isDry ? (s.dryArchived || 0) : (s.totalArchived || 0);
+    // BUG-H9 FIX: Also mirror raw dry fields into runStats so abortRun()
+    // server-side can read stats.dryTrashed directly (it doesn't re-read totalTrashed).
+    if (isDry) {
+      runStats.dryTrashed  = s.dryTrashed  || 0;
+      runStats.dryArchived = s.dryArchived || 0;
+    }
+    animStat('sv0', fmt(runStats.totalMoved));
+    animStat('sv1', fmt(runStats.totalTrashed));
+    animStat('sv2', fmt(runStats.totalArchived));
+    updateBars(s);
+  }
+
+  // FIX: update rule label display after round-robin rotation.
+  // S-U3: the Rules Left counter comes from the same queue read — unlike the
+  // old rate counter it is always accurate, including on the very first burst.
+  const left = res.payload?.activeQueue?.length || 0;
+  ss('sv3', String(left));
+  if (left) setRule(res.payload.activeQueue[0]);
+
+  if (res.error)  { banner('err', 'Engine halted: ' + res.msg); stopEng(false); return; }
+  // BUG-H2 FIX: Guard against null payload — fall back to last known runStats.
+  if (res.done || !res.payload?.activeQueue?.length) { finishEng(res.payload?.stats || runStats); return; }
+  burst(res.payload);
+}
+
+function finishEng(stats) {
+  stopEng(false);
+  const secs = ((Date.now() - startTime) / 1000).toFixed(1);
+  // BUG-H10 FIX: Only count rules that actually moved threads.
+  // Previously zero-moved rules still had a stats.labels entry (finished:true),
+  // inflating the count in the completion banner.
+  const ruleCount = Object.values(stats.labels||{})
+    .filter(v => v.moved > 0).length
+    + (stats.globalPurgeMoved > 0 ? 1 : 0)
+    + (stats.inboxPurgeMoved  > 0 ? 1 : 0);
+  tl('SEP'); // BUG-R4 FIX: visual separator line, no badge
+  if (isDry) {
+    const dT = stats.dryTrashed  || 0;
+    const dA = stats.dryArchived || 0;
+    banner('warn', `[DRY RUN COMPLETE] ~${fmt(stats.totalMoved)} threads scanned · ${fmt(dT)} would trash · ${fmt(dA)} would archive · ${ruleCount} rule(s) · ${secs}s`);
+  } else {
+    // BUG-H14: the live/"ok" completion banner used to omit ruleCount even
+    // though it's computed right above for exactly this purpose (and the
+    // dry-run banner directly below already uses it) — a plain oversight,
+    // not an intentional difference. Both completion banners now report the
+    // same "N rule(s)" figure.
+    banner('ok', `✓ COMPLETE · ${fmt(stats.totalMoved)} actioned · ${fmt(stats.totalTrashed||0)} trashed · ${fmt(stats.totalArchived||0)} archived · ${ruleCount} rule(s) · ${secs}s`);
+  }
+  // BUG-H4 FIX: Add withFailureHandler so a Gmail quota error on the summary
+  // email is surfaced to the user rather than silently swallowed.
+  google.script.run
+    .withFailureHandler(e => tl('ERROR', 'Summary email failed: ' + e.message))
+    .finalizeAndEmail(
+      stats,
+      Date.now() - startTime,
+      isDry ? 'Dry Run Complete' : 'Live Run Complete',
+      isDry
+    );
+  // S-U6: flag the header when the run that just finished was a simulation,
+  // so a dry run and a live run aren't indistinguishable after the fact.
+  document.getElementById('lastRun').innerHTML = 'LAST RUN: just now' +
+    (isDry ? ' <span style="color:var(--amber)">(DRY)</span>' : '');
+  ss('sv3', '0'); // S-U3: queue is empty
+  markBarsDone();
+  setRule(null);
+}
+
+function stopEng(wasAbort) {
+  running = false; clearInterval(timerH);
+  document.getElementById('btngo').disabled    = false;
+  // BUG-H17: re-enable the Dry Run toggle once the run has fully ended (or
+  // aborted) — see launchEngine()'s comment for why it gets disabled in the
+  // first place. stopEng() is the single function every run-ending path
+  // (normal completion via finishEng(), abort via doAbort(), and an RPC
+  // failure in burst()) already funnels through, so this is the one place
+  // that needs the re-enable.
+  document.getElementById('btndry').disabled  = false;
+  document.getElementById('btnabort').style.display = 'none';
+  document.getElementById('orb').classList.remove('live');
+  document.getElementById('dr').style.opacity = '.35';
+  document.getElementById('dy').style.opacity = '.35';
+  ['sb0','sb1','sb2','sb3','sb4'].forEach(id => document.getElementById(id).classList.remove('live'));
+  setSbar(wasAbort ? 'Aborted.' : 'Idle.');
+  document.getElementById('telapsed').textContent = '';
+}
+
+// ── TIMER ─────────────────────────────────────────────────────
+function startTimer() {
+  timerH = setInterval(() => {
+    const s = ((Date.now() - startTime) / 1000).toFixed(1);
+    document.getElementById('sv4').textContent    = s + 's';
+    document.getElementById('telapsed').textContent = s + 's';
+  }, 200);
+}
+
+// S-U3: updateRate() removed. It needed two samples 6s apart, but runs move in
+// bursts rather than a steady stream, so the counter sat at "—" for most of a
+// run. Replaced by the Rules Left readout updated in handleRes().
+
+// ── TERMINAL ──────────────────────────────────────────────────
+// BUG-A5 FIX: tl() now accepts an optional parent to append to (for batching),
+// and caps the terminal at 300 nodes, trimming the oldest 50 when exceeded.
+// BUG-R4 FIX: SEP level renders as a faint horizontal rule with no badge.
+function tl(level, msg, offsetMs, parent) {
+  const term = parent || document.getElementById('term');
+
+  // BUG-A5 FIX (b): Cap terminal at 300 nodes — trim oldest 50 to keep recent output.
+  // Only trim from the live terminal, not when writing to a DocumentFragment.
+  if (!parent && term.childElementCount > 300) {
+    for (let i = 0; i < 50 && term.firstChild; i++) term.removeChild(term.firstChild);
+  }
+
+  // BUG-R4 FIX: SEP renders as a full-width faint line — no timestamp, no badge, no text.
+  if (level === 'SEP') {
+    const d = document.createElement('div');
+    d.className = 'll sep';
+    d.innerHTML = '<span></span>'; // flex placeholder keeps layout happy
+    term.appendChild(d);
+    if (!parent) term.scrollTop = term.scrollHeight;
+    return;
+  }
+
+  const ts = offsetMs != null
+    ? ('+' + String(offsetMs).padStart(5) + 'ms')
+    : new Date().toLocaleTimeString('en-US', {hour12:false});
+  const d = document.createElement('div');
+  d.className = 'll';
+  d.innerHTML = `<span class="lts">${ts}</span><span class="lbadge b-${esc(level)}">${esc(level)}</span><span class="lmsg">${esc(msg)}</span>`;
+  term.appendChild(d);
+  // Only scroll when writing directly — batch callers scroll once after all lines.
+  if (!parent) term.scrollTop = term.scrollHeight;
+}
+
+function banner(type, msg) {
+  const term = document.getElementById('term');
+  const d = document.createElement('div');
+  d.className = 'banner ' + type;
+  d.textContent = msg;
+  term.appendChild(d);
+  term.scrollTop = term.scrollHeight;
+}
+
+function setSbar(msg) { document.getElementById('sbmsg').textContent = msg; }
+function setRule(r) {
+  const name = r ? (r.label || (r.category ? r.category.toUpperCase() : '?')) : 'IDLE';
+  document.getElementById('trule').textContent = name.substring(0, 22).toUpperCase();
+}
+
+// ── STATS ─────────────────────────────────────────────────────
+function ss(id, v)     { document.getElementById(id).textContent = v; }
+function animStat(id, v) {
+  const el = document.getElementById(id);
+  if (el.textContent === v) return;
+  el.textContent = v;
+  el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash');
+}
+
+// ── PROGRESS BARS ─────────────────────────────────────────────
+function renderBars(queue) {
+  const prog = document.getElementById('prog');
+  const bars = document.getElementById('pbars');
+  if (!queue.length) { prog.style.display = 'none'; return; }
+  prog.style.display = 'block';
+  bars.innerHTML = queue.map(r => {
+    const lbl = r.label || (r.category ? r.category.toUpperCase() : '?');
+    const id  = cid(lbl);
+    return `<div class="lp">
+      <div class="lp-hd"><span class="lp-nm" id="ln-${id}">${esc(lbl)}</span><span class="lp-ct" id="lc-${id}">waiting…</span></div>
+      <div class="lp-trk"><div class="lp-bar" id="lb-${id}"></div></div>
+    </div>`;
+  }).join('');
+}
+
+function updateBars(stats) {
+  // FIX: update label-based rule bars
+  Object.entries(stats.labels || {}).forEach(([lbl, v]) => {
+    const id  = cid(lbl);
+    const ct  = document.getElementById('lc-' + id);
+    const bar = document.getElementById('lb-' + id);
+    if (ct)  ct.textContent = fmt(v.moved||0) + ' actioned';
+    // S-N2: prefix a ✓ once the rule ejects clean, so a finished rule is
+    // distinguishable from one that simply hasn't had its turn yet.
+    const nm = document.getElementById('ln-' + id);
+    if (nm && v.finished && nm.textContent.charAt(0) !== '✓') nm.textContent = '✓ ' + lbl;
+    if (bar) {
+      // FIX: better progress formula — each 100 threads = 20%, caps at 90% until done
+      bar.style.width = v.finished ? '100%' : Math.min(((v.moved||0) / 100) * 20, 90) + '%';
+      if (v.finished) bar.classList.add('done');
+    }
+  });
+
+  // FIX: update purge rule bars — these don't go into stats.labels so
+  // we have to read from their dedicated stat fields
+  // BUG-H6 FIX: purge rules carry their own done flags (set server-side when
+  // the rule ejects) because they never get a stats.labels entry to hold
+  // finished:true. Without them the bar only turned green at markBarsDone().
+  const purgeMap = {
+    'GLOBAL PURGE': { moved: stats.globalPurgeMoved || 0, done: !!stats.globalPurgeDone },
+    'INBOX PURGE':  { moved: stats.inboxPurgeMoved  || 0, done: !!stats.inboxPurgeDone  }
+  };
+  Object.entries(purgeMap).forEach(([lbl, p]) => {
+    if (!p.moved && !p.done) return;
+    const id  = cid(lbl);
+    const ct  = document.getElementById('lc-' + id);
+    const bar = document.getElementById('lb-' + id);
+    const nm  = document.getElementById('ln-' + id);
+    if (ct)  ct.textContent = fmt(p.moved) + ' actioned';
+    if (nm && p.done && nm.textContent.charAt(0) !== '✓') nm.textContent = '✓ ' + lbl; // S-N2
+    if (bar && !bar.classList.contains('done')) {
+      // FIX: advance bar width for purge rules (was stuck at 0% before)
+      bar.style.width = p.done ? '100%' : Math.min((p.moved / 100) * 20, 90) + '%';
+      if (p.done) bar.classList.add('done');
+    }
+  });
+}
+
+function markBarsDone() {
+  document.querySelectorAll('.lp-bar').forEach(b => { b.style.width = '100%'; b.classList.add('done'); });
+}
+
+// ── UTILITIES ─────────────────────────────────────────────────
+function fmt(n)  { return (n||0).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ','); }
+function esc(s)  { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function cid(s)  { return String(s).replace(/[^a-zA-Z0-9_-]/g, '_'); }
+
+let _tt = null;
+function toast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg; el.classList.add('show');
+  clearTimeout(_tt); _tt = setTimeout(() => el.classList.remove('show'), 2800);
+}
+</script>
+</body>
+</html>

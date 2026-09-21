@@ -815,7 +815,7 @@ function test_backgroundRun_nonErrorObjectThrown_doesNotCrashCycle() {
 // text "undefined" in the terminal's ERROR line and the halted-run banner,
 // even though the already-fixed stats.errors[] entry for the very same
 // failure correctly shows the stringified thrown value. See BUG-C25 in
-// AUTOTRASH_BUG_PLAN.txt for the full mechanism and reproduction.
+// GitHub Issues for the full mechanism and reproduction.
 function test_processLiveBurst_nullThrown_doesNotCrashErrorReporting() {
   const spy = installGmailSpy(function () { throw null; });
   try {

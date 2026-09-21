@@ -359,7 +359,7 @@
     </div>
     <div class="pbody" style="display:none">
       <div id="catgrid" class="cat-grid"></div>
-      <div class="hint">Toggle Gmail's auto-sort categories. When on, set the age and action. <b>Starred emails are always spared.</b> <b>Spam:</b> Trash actually removes spam mail; Archive only removes the Inbox label and will not clear a message out of Spam, so spam threads set to Archive keep matching every run — Trash is strongly recommended for this category (see BUG-C19 in AUTOTRASH_BUG_PLAN.txt).</div>
+      <div class="hint">Toggle Gmail's auto-sort categories. When on, set the age and action. <b>Starred emails are always spared.</b> <b>Spam:</b> Trash actually removes spam mail; Archive only removes the Inbox label and will not clear a message out of Spam, so spam threads set to Archive keep matching every run — Trash is strongly recommended for this category (see BUG-C19 in GitHub Issues).</div>
     </div>
   </div>
 
@@ -620,7 +620,7 @@ function saveConfig() {
 // despite mail having genuinely moved. The reverse toggle (LIVE→mid-dry-run)
 // produces a similarly nonsensical, though less harmful, report. Reproduced
 // by tracing the exact call chain before fixing — see BUG-H17 in
-// AUTOTRASH_BUG_PLAN.txt. Fix: disable the Dry Run button for the duration
+// GitHub Issues. Fix: disable the Dry Run button for the duration
 // of a run, exactly like every other run-affecting control (btngo) already
 // is — see launchEngine()/stopEng() below. This removes the desync at its
 // one source instead of threading a run-scoped "isDry as of launch" value

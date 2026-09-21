@@ -28,7 +28,7 @@ reviewing either Code.gs or index.html.
             ever puts it inside a quoted Gmail search term, but if this text
             is ever rendered as HTML (the email per-rule breakdown table is
             the one place it is), it must be HTML-escaped first. See §6's
-            note on escHtml() — BUG-E15 in AUTOTRASH_BUG_PLAN.txt is the
+            note on escHtml() — BUG-E15 in GitHub Issues is the
             regression history for why this matters. Separately, since
             2026-09-01 (BUG-C20), a literal " character inside the label is
             stripped before it goes into the quoted search term itself —
@@ -81,7 +81,7 @@ reviewing either Code.gs or index.html.
             negative day count would have been saved and interpolated
             verbatim into buildQuery()'s `older_than:${days}d` term with no
             clamp anywhere server-side either.
-  CAUTION (BUG-C19, open — see AUTOTRASH_BUG_PLAN.txt): "Archive" for the
+  CAUTION (BUG-C19, open — see GitHub Issues): "Archive" for the
             Spam category is suspected to be a silent no-op. Every other
             category is scoped `in:inbox`, so its threads carry the INBOX
             label and "archive" (= remove INBOX label) does what it says.
@@ -163,7 +163,7 @@ reviewing either Code.gs or index.html.
   note above (S-N10) does not apply to this path, only to the live/manual
   burst path in §2a.
 
-  CAUTION (BUG-C22, open — see AUTOTRASH_BUG_PLAN.txt, flagged 2026-09-02,
+  CAUTION (BUG-C22, open — see GitHub Issues, flagged 2026-09-02,
   ninth pass): step 5's "execute" sub-step (both here and in the live path,
   §2a) calls executeActions(), which chunks its input into GMAIL_CHUNK
   (100)-sized batches and only credits its running trashed/archived
@@ -181,7 +181,7 @@ reviewing either Code.gs or index.html.
   that "each iteration: search → dedup seenIds → execute → rotate" fully
   and accurately reports what "execute" did.
 
-  CAUTION (BUG-C23, open — see AUTOTRASH_BUG_PLAN.txt, flagged 2026-09-02,
+  CAUTION (BUG-C23, open — see GitHub Issues, flagged 2026-09-02,
   tenth pass): step 6's "accumulateDailyStats" call happens while
   backgroundRun() still holds the ScriptLock from step 3 — so it is
   correctly serialized against a SECOND backgroundRun() execution. It is
@@ -239,7 +239,7 @@ reviewing either Code.gs or index.html.
     consistently on BOTH the normal-completion path (finalizeAndEmail) and
     the abort path (abortRun), see §4.
   - After run, isDry state is preserved — user must toggle off manually.
-  - CAUTION (BUG-C21, open — see AUTOTRASH_BUG_PLAN.txt, flagged
+  - CAUTION (BUG-C21, open — see GitHub Issues, flagged
     2026-09-01, eighth pass): because a dry-run rule is processed exactly
     once and never rotated (unlike a live rule — see §2c), its reported
     "would trash/archive" count is capped at whatever ONE
@@ -271,7 +271,7 @@ reviewing either Code.gs or index.html.
     unsynchronized-DAILY_STATS caution as backgroundRun()'s own call — see
     BUG-C23 in §2b/§6/§7.
   - Server sends abort email if SUMMARY_FREQ !== 'NEVER'. CAUTION (BUG-E17,
-    open — see AUTOTRASH_BUG_PLAN.txt, flagged 2026-09-02, ninth pass): this
+    open — see GitHub Issues, flagged 2026-09-02, ninth pass): this
     is the ONLY gate abortRun() applies — unlike maybeSendRunEmail() (§6),
     which only sends an email immediately for an error-free run when
     SUMMARY_FREQ is literally EACH_RUN, and otherwise defers to the next
@@ -322,10 +322,10 @@ reviewing either Code.gs or index.html.
     - This lock ONLY ever guards backgroundRun() against a second
       backgroundRun() execution overlapping it. It does NOT guard against
       sendDailyDigest() (§6) reading/resetting DAILY_STATS concurrently —
-      see BUG-C23 (AUTOTRASH_BUG_PLAN.txt, flagged 2026-09-02, tenth pass)
+      see BUG-C23 (GitHub Issues, flagged 2026-09-02, tenth pass)
       and the CAUTION note in §2b for the resulting race.
 
-  KNOWN GAP (tracked as BUG-E14, not yet fixed — see AUTOTRASH_BUG_PLAN.txt):
+  KNOWN GAP (tracked as BUG-E14, not yet fixed — see GitHub Issues):
     a rule that throws inside backgroundRun()'s loop sends an immediate
     per-error email AND is still counted in the end-of-cycle summary email
     (which fires whenever stats.errors is non-empty, regardless of
@@ -361,7 +361,7 @@ reviewing either Code.gs or index.html.
       idle account sends nothing.
     - Reads accumulated DAILY_STATS from UserProperties.
     - After sending, resets DAILY_STATS for the next period.
-    - CAUTION (BUG-C23, open — see AUTOTRASH_BUG_PLAN.txt, flagged
+    - CAUTION (BUG-C23, open — see GitHub Issues, flagged
       2026-09-02, tenth pass): this read-then-send-then-reset sequence
       shares no lock with accumulateDailyStats() (called by backgroundRun()
       and finalizeAndEmail()/abortRun()), which performs its own
@@ -417,7 +417,7 @@ reviewing either Code.gs or index.html.
       `lines[]` array this function receives (only plainBody()'s separate
       plain-text output gets it), that branch is permanently unreachable.
       This is harmless dead code, not a behavior bug — see BUG-E18 in
-      AUTOTRASH_BUG_PLAN.txt for the full trace; logged there rather than
+      GitHub Issues for the full trace; logged there rather than
       fixed since there is no observable output to change either way.
     - Plain text fallback (built by plainBody()) included in all emails.
     - Digest plain-text now includes per-rule breakdown lines matching the HTML table.
@@ -430,7 +430,7 @@ reviewing either Code.gs or index.html.
       everywhere else in this file). Both callers (processLiveBurst() and
       backgroundRun()) pass their own already-correct rule name into
       sendErrorEmail() explicitly now, rather than letting it re-derive one
-      without that fallback — see AUTOTRASH_BUG_PLAN.txt BUG-E16. CAUTION
+      without that fallback — see GitHub Issues BUG-E16. CAUTION
       (BUG-C22, open, flagged 2026-09-02): this "Rule:" line's own "Moved:"
       figure is sourced from stats.totalMoved, which — per §2b/§7's note —
       can itself under-report by however many threads a partially-succeeded
@@ -449,7 +449,7 @@ reviewing either Code.gs or index.html.
       sendErrorEmail() itself with a TypeError before it ever reported the
       real failure, the same failure shape as BUG-C15 (an error-reporting
       path that throws a new, unrelated error and hides the original one).
-      See BUG-C24 in AUTOTRASH_BUG_PLAN.txt for the full mechanism.
+      See BUG-C24 in GitHub Issues for the full mechanism.
 
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -500,7 +500,7 @@ reviewing either Code.gs or index.html.
     boundary, or ALT_DAYS / WEEKLY / BIWEEKLY periods would lose every day
     but the last one. accumulateDailyStats() updates the date field as a
     last-updated marker and initialises only when the stored object is empty.
-    CAUTION (BUG-C23, open — see AUTOTRASH_BUG_PLAN.txt, flagged
+    CAUTION (BUG-C23, open — see GitHub Issues, flagged
     2026-09-02, tenth pass): accumulateDailyStats() (called from
     backgroundRun(), finalizeAndEmail(), and abortRun()) and
     sendDailyDigest()'s own read-send-reset cycle both perform unsynchronized
@@ -519,7 +519,7 @@ reviewing either Code.gs or index.html.
     - isGlobalPurge → globalPurgeMoved / globalPurgeTrashed
     - isInboxPurge  → inboxPurgeMoved  / inboxPurgeTrashed
     - everything else → stats.labels[lbl]
-    CAUTION (BUG-C22, open — see AUTOTRASH_BUG_PLAN.txt, flagged 2026-09-02,
+    CAUTION (BUG-C22, open — see GitHub Issues, flagged 2026-09-02,
     ninth pass): creditStat() itself is correct — the gap is upstream. Both
     callers only invoke creditStat() with whatever executeActions() managed
     to RETURN, and executeActions() returns nothing at all (it throws
@@ -760,7 +760,7 @@ reviewing either Code.gs or index.html.
               stubbed globals) and got 89/89 with zero prior edits before
               this pass's own review, and 89/89 again afterward since no
               code changed. See earlier passes' write-ups in
-              AUTOTRASH_BUG_PLAN.txt for the full lineage of this harness
+              GitHub Issues for the full lineage of this harness
               being rebuilt from scratch pass after pass to independently
               re-confirm prior claims rather than take them on faith — that
               practice continued this pass.
@@ -858,7 +858,7 @@ reviewing either Code.gs or index.html.
 
   NOT YET COVERED BY A TEST (flagged 2026-08-31, third pass; still true as of
   the twelfth pass): the Spam category's Archive-action behaviour (BUG-C19
-  in AUTOTRASH_BUG_PLAN.txt) has no regression test, because the fake-thread
+  in GitHub Issues) has no regression test, because the fake-thread
   GmailApp spy in claude/Tests models moveThreadsToArchive as an
   unconditional label flip (`t.__archived = true`) rather than modelling
   real Gmail's "remove INBOX label only" semantics — so a test against the

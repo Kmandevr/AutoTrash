@@ -53,11 +53,13 @@ docs/
   AUTOTRASH_FEATURE_REFERENCE.txt  Source of truth for how every feature
                                     is meant to behave — read this before
                                     changing any code
-  AUTOTRASH_BUG_PLAN.txt           Full history of fixed bugs (with root
-                                    cause) and every currently open issue
   AUTOTRASH_SUGGESTIONS.txt        Proposed features and improvements,
                                     not yet built
 ```
+
+Bug history lives in this repo's [GitHub Issues](../../issues) — closed
+issues (labeled `status-fixed`) are the fixed-bug record, open issues
+(labeled `bug`) are the currently known ones.
 
 ## Running the tests
 
@@ -69,8 +71,9 @@ in-memory fake `GmailApp` — no real mail is touched by the tests.
 
 ## Known limitations
 
-See `docs/AUTOTRASH_BUG_PLAN.txt` for the full list with root-cause
-detail. At a glance, the currently open items are all reporting-accuracy
+See this repo's [open Issues](../../issues?q=is%3Aissue+is%3Aopen+label%3Abug)
+for the full list with root-cause detail. At a glance, the currently open
+items are all reporting-accuracy
 or notification-timing edge cases (e.g. a dry-run preview can undercount
 a rule with a very large backlog; a digest email doesn't currently
 surface error counts) — none of them cause mail to be moved incorrectly.

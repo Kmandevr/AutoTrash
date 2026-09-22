@@ -60,9 +60,11 @@ docs/
                             built
 ```
 
-Bug history lives in this repo's [GitHub Issues](../../issues) — closed
-issues (labeled `status-fixed`) are the fixed-bug record, open issues
-(labeled `bug`) are the currently known ones.
+Bugs, tasks, and features are tracked in this repo's
+[GitHub Issues](../../issues) — closed issues (labeled `status-fixed`) are
+the fixed-bug record, open ones are current work. Labels stack (type,
+severity, area, time estimate) — see [`CLAUDE.md`](CLAUDE.md) for the
+full breakdown.
 
 ## Running the tests
 

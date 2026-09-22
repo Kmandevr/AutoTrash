@@ -1,0 +1,12 @@
+# clasp (local Apps Script CLI deploys) — never commit these
+.clasp.json
+.clasprc.json
+
+# OS cruft
+.DS_Store
+Thumbs.db
+
+# Editor cruft
+.vscode/
+.idea/
+*.swp

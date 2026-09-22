@@ -322,7 +322,7 @@
                any integer 6-20; the dropdown previously only offered 7 of the
                15 documented hours (6,7,8,9,12,18,20), so a user wanting e.g.
                10am or 3pm had no way to pick it. Purely additive UI change —
-               no server-side behaviour changes. See AUTOTRASH_SUGGESTIONS.txt. -->
+               no server-side behaviour changes. See suggestions.txt. -->
           <select id="digestHour" class="field">
             <option value="6">6:00 AM</option>
             <option value="7">7:00 AM</option>
@@ -359,7 +359,7 @@
     </div>
     <div class="pbody" style="display:none">
       <div id="catgrid" class="cat-grid"></div>
-      <div class="hint">Toggle Gmail's auto-sort categories. When on, set the age and action. <b>Starred emails are always spared.</b> <b>Spam:</b> Trash actually removes spam mail; Archive only removes the Inbox label and will not clear a message out of Spam, so spam threads set to Archive keep matching every run — Trash is strongly recommended for this category (see BUG-C19 in AUTOTRASH_BUG_PLAN.txt).</div>
+      <div class="hint">Toggle Gmail's auto-sort categories. When on, set the age and action. <b>Starred emails are always spared.</b> <b>Spam:</b> Trash actually removes spam mail; Archive only removes the Inbox label and will not clear a message out of Spam, so spam threads set to Archive keep matching every run — Trash is strongly recommended for this category (see BUG-C19 in GitHub Issues).</div>
     </div>
   </div>
 
@@ -620,7 +620,7 @@ function saveConfig() {
 // despite mail having genuinely moved. The reverse toggle (LIVE→mid-dry-run)
 // produces a similarly nonsensical, though less harmful, report. Reproduced
 // by tracing the exact call chain before fixing — see BUG-H17 in
-// AUTOTRASH_BUG_PLAN.txt. Fix: disable the Dry Run button for the duration
+// GitHub Issues. Fix: disable the Dry Run button for the duration
 // of a run, exactly like every other run-affecting control (btngo) already
 // is — see launchEngine()/stopEng() below. This removes the desync at its
 // one source instead of threading a run-scoped "isDry as of launch" value
@@ -728,7 +728,7 @@ function launchEngine() {
     // BUG-R (readability, sixth pass): this used to be commented "built on
     // first burst server-side", which is backwards — burst() below builds
     // it CLIENT-SIDE (mirroring buildQueue()) before the payload is ever
-    // sent to processLiveBurst(), exactly as AUTOTRASH_FEATURE_REFERENCE.txt
+    // sent to processLiveBurst(), exactly as feature-reference.txt
     // §2a/§11 describes. The server's own "build it when null" branch in
     // Code.gs (BUG-C16) is a defensive fallback for other callers — the
     // shipped UI here never actually sends a null activeQueue.

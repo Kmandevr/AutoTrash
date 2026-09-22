@@ -29,7 +29,7 @@ STILL OPEN (need a decision before any code is written):
   S-N6  cid() can collide for two rules whose labels differ only in
         characters it strips — progress bars would then overwrite each other
   S-N8  no cross-tab/cross-session coordination for live (manual) runs
-  S-N9  see BUG-C19 in AUTOTRASH_BUG_PLAN.txt — Spam category "Archive" is
+  S-N9  see BUG-C19 in GitHub Issues — Spam category "Archive" is
         likely a silent no-op; needs live-account verification + a fix
         decision, not a suggestions-file build-or-don't call
   S-N10 seenIds array grows unbounded across a long-running live burst
@@ -39,25 +39,25 @@ STILL OPEN (need a decision before any code is written):
         their reported counts, see below
   S-N12 digest emails (DAILY/ALT_DAYS/WEEKLY/BIWEEKLY) never report
         accumulated error counts for the period — see below
-  S-N13 see BUG-C21 in AUTOTRASH_BUG_PLAN.txt — dry run undercounts any
+  S-N13 see BUG-C21 in GitHub Issues — dry run undercounts any
         single rule whose true backlog exceeds the 500-thread
         GmailApp.search cap; needs a decision on surfacing vs. closing the
         truncation, not a suggestions-file build-or-don't call
-  S-N14 see BUG-C22 in AUTOTRASH_BUG_PLAN.txt — executeActions() loses
+  S-N14 see BUG-C22 in GitHub Issues — executeActions() loses
         already-succeeded chunk counts when a later chunk throws, so real
         Gmail actions can go unreported in stats/DAILY_STATS/the error
         email; needs a decision on how invasive a fix to accept
-  S-N15 see BUG-E17 in AUTOTRASH_BUG_PLAN.txt — abortRun() ignores
+  S-N15 see BUG-E17 in GitHub Issues — abortRun() ignores
         SUMMARY_FREQ's digest/ERRORS_ONLY gating that every other email in
         this project respects, always emailing immediately unless NEVER;
         needs a decision on whether that's a feature or an inconsistency
-  S-N16 see BUG-C23 in AUTOTRASH_BUG_PLAN.txt — accumulateDailyStats() and
+  S-N16 see BUG-C23 in GitHub Issues — accumulateDailyStats() and
         sendDailyDigest() share no lock, so a backgroundRun() accumulation
         and a concurrent digest send can race and silently corrupt
         DAILY_STATS (double-counting or dropping a period's totals); needs
         a decision on whether to share backgroundRun()'s ScriptLock, use a
         narrower dedicated lock, or leave as-is
-  S-N17 see BUG-E18 in AUTOTRASH_BUG_PLAN.txt — buildEmailHtml()'s per-line
+  S-N17 see BUG-E18 in GitHub Issues — buildEmailHtml()'s per-line
         color selector still checks for ASCII-chart-only glyphs ('─', '▓')
         that can never appear in any lines[] array reaching it, a harmless
         leftover from before the chart was removed from the HTML email
@@ -151,7 +151,7 @@ S-N5  [IMPLEMENTED — FIX 43] Digest send-hour dropdown covers only 7 of the
   server-side (already fully supported), and needed no further product-taste
   call beyond "expose what the backend already does." The dropdown now
   lists 6:00 AM through 8:00 PM in order (15 options); default stays 8:00 AM.
-  See FIX 43 in AUTOTRASH_BUG_PLAN.txt for the implementation note.
+  See FIX 43 in GitHub Issues for the implementation note.
 
 S-N6  cid() can collide for two rules with different labels
   Found: 2026-08-31 review. index.html's cid() turns a rule label into a
@@ -192,7 +192,7 @@ S-N8  Live (manual) runs have no cross-tab/cross-session coordination
 
 S-N10 seenIds grows unbounded across a long-running live burst session
   Found: 2026-09-01, fourth automated review pass this session (scheduled
-  bug-sweep task), while re-reading §2d/§11 of AUTOTRASH_FEATURE_REFERENCE.txt
+  bug-sweep task), while re-reading §2d/§11 of feature-reference.txt
   against processLiveBurst()'s actual implementation.
   Current : payload.seenIds is a plain array that every burst appends to
   (`threads.forEach(t => payload.seenIds.push(t.getId()))`, both the dry and
@@ -249,7 +249,7 @@ S-N11 stats.labels is keyed by plain label text — two rules with matching
   keys silently merge their reported counts
   Found: 2026-09-01, fifth automated review pass this session (scheduled
   bug-sweep task), while re-examining creditStat()/ensureStat() and §7 of
-  AUTOTRASH_FEATURE_REFERENCE.txt alongside the BUG-C20 fix (which addressed
+  feature-reference.txt alongside the BUG-C20 fix (which addressed
   a different problem in the same neighbourhood — a label breaking the
   Gmail search query, not the stats keying).
   Current : stats.labels (both the per-run object in Code.gs and its
@@ -299,14 +299,14 @@ S-N11 stats.labels is keyed by plain label text — two rules with matching
       client's cid()/updateBars() would need the same key scheme to stay in
       sync — so this is the "think it through" option, not a quick patch.
   Not fixed — needs your call on whether this is worth guarding against at
-  all before any code changes here; see AUTOTRASH_FEATURE_REFERENCE.txt §7
+  all before any code changes here; see feature-reference.txt §7
   for where this is cross-referenced.
 
 S-N12 Digest emails never report accumulated error counts for the period
   Found: 2026-09-01, seventh automated review pass this session (scheduled
   "look for bugs, fix bugs, write features, write tests, test the code, run
   a final pass" task), while cross-checking §6/§7 of
-  AUTOTRASH_FEATURE_REFERENCE.txt against accumulateDailyStats()'s actual
+  feature-reference.txt against accumulateDailyStats()'s actual
   field list.
   Current : the per-run stats object always carries an `errors[]` array
   (`{label, error}` for any rule that threw), and every non-digest email
@@ -318,7 +318,7 @@ S-N12 Digest emails never report accumulated error counts for the period
   BIWEEKLY) builds its lines[] purely from those fields, so a digest can
   never say "3 errors this period" even if every single run in that window
   hit one.
-  Why this might be fine as-is: BUG-E14 (AUTOTRASH_BUG_PLAN.txt, still
+  Why this might be fine as-is: BUG-E14 (GitHub Issues, still
   open) already documents that a background-run error fires an immediate
   per-error email the moment it happens, independent of SUMMARY_FREQ. A
   user who wants to know about errors already gets told in real time (for
@@ -327,7 +327,7 @@ S-N12 Digest emails never report accumulated error counts for the period
   reaching a digest-eligible completion). So the digest's silence on
   errors could be a deliberate "digest = volume summary, errors are a
   separate immediate concern" design rather than an oversight — but
-  nothing in AUTOTRASH_FEATURE_REFERENCE.txt says so explicitly, and nobody
+  nothing in feature-reference.txt says so explicitly, and nobody
   has flagged it as an intentional choice before now.
   Options : (a) Do nothing — the immediate per-error email path already
       covers the "so I actually knew about it" need; adding error counts
@@ -355,7 +355,7 @@ S-N13 Dry run undercounts any single rule whose true backlog exceeds the
   "look for bugs, fix bugs, write features, write tests, test the code,
   run a final pass" task), while re-reading processLiveBurst()'s dry-run
   branch alongside the GMAIL_SEARCH=500 constant. Full mechanism, root-cause
-  reasoning, and fix options live in AUTOTRASH_BUG_PLAN.txt as BUG-C21
+  reasoning, and fix options live in GitHub Issues as BUG-C21
   rather than duplicated here — filed as a bug (not just a suggestion)
   because the reported "would trash/archive" number can understate the
   true impact of running the same rule live by a wide margin once a rule's
@@ -374,7 +374,7 @@ S-N14 executeActions() loses already-succeeded chunk counts when a later
   task), while re-reading executeActions() and its two call sites for what
   happens when a GmailApp trash/archive call throws mid-batch. Full
   mechanism, root-cause reasoning, reproduction, and fix options live in
-  AUTOTRASH_BUG_PLAN.txt as BUG-C22 rather than duplicated here — filed as
+  GitHub Issues as BUG-C22 rather than duplicated here — filed as
   a bug (not just a suggestion) because real Gmail actions that already
   happened (earlier chunks that succeeded before a later one threw) become
   silently invisible to stats.totalTrashed/totalMoved, creditStat(),
@@ -393,10 +393,10 @@ S-N15 abortRun() ignores SUMMARY_FREQ's digest/ERRORS_ONLY gating —
   task), while comparing abortRun()'s email-sending gate against
   maybeSendRunEmail()'s (the equivalent gate for a normal run completion)
   side by side. Full mechanism, reproduction, and options live in
-  AUTOTRASH_BUG_PLAN.txt as BUG-E17 rather than duplicated here — filed as
+  GitHub Issues as BUG-E17 rather than duplicated here — filed as
   a bug (not just a suggestion) because it's a genuine behavioural
   inconsistency between two code paths that are supposed to respect the
-  same user setting, even though AUTOTRASH_FEATURE_REFERENCE.txt §4
+  same user setting, even though feature-reference.txt §4
   already documents the CURRENT behaviour as-is without flagging the
   inconsistency. Listed here too per this file's own header instruction.
   Needs a decision on whether "abort always notifies" is the intended
@@ -413,14 +413,14 @@ S-N16 accumulateDailyStats() and sendDailyDigest() share no lock — a
   "look for bugs, fix bugs, write features, write tests, test the code,
   run a final pass" task), while looking specifically for concurrency gaps
   beyond the one ScriptLock already documented in §5 of
-  AUTOTRASH_FEATURE_REFERENCE.txt — that lock only guards two
+  feature-reference.txt — that lock only guards two
   backgroundRun() executions against each other, never against a
   DIFFERENT trigger function (sendDailyDigest()) touching the same
   UserProperties key at the same time. Full mechanism, a concrete Node
   reproduction of the exact corruption (a digest's reset getting silently
   overwritten by a stale backgroundRun() accumulation, re-including
   already-emailed totals in the next period), and three fix options with
-  their tradeoffs live in AUTOTRASH_BUG_PLAN.txt as BUG-C23 rather than
+  their tradeoffs live in GitHub Issues as BUG-C23 rather than
   duplicated here — filed as a bug (not just a suggestion) because the
   reproduction shows a real, silent double-count/data-loss mechanism, not
   just a hypothetical. Listed here too per this file's own header
@@ -440,7 +440,7 @@ S-N17 buildEmailHtml()'s per-line color selector checks for two ASCII-chart
   an angle no prior pass's notes mention comparing directly. Full
   mechanism (a per-caller trace confirming none of the four `lines[]`
   arrays buildEmailHtml() actually receives can ever contain a line
-  starting with '─' or '▓') lives in AUTOTRASH_BUG_PLAN.txt as BUG-E18
+  starting with '─' or '▓') lives in GitHub Issues as BUG-E18
   rather than duplicated here. Unlike every other entry in this "STILL
   OPEN" list, this one needs no product-taste decision to act on — there
   is no user-visible behavior difference between leaving the dead branch
@@ -600,7 +600,7 @@ S-N6  [see Section 1 — cid() collision edge case]
 
 S-N7  Background error emails can double up with the end-of-cycle summary
   Found: 2026-08-31 review. This is a real behavioural question, tracked
-  as BUG-E14 in AUTOTRASH_BUG_PLAN.txt rather than duplicated here in full
+  as BUG-E14 in GitHub Issues rather than duplicated here in full
   — see that entry for the mechanism and options. Listed here too because
   it was found during the same suggestions/bug sweep and affects anyone on
   an aggressive background trigger (1MIN/5MIN) with a persistently failing
@@ -612,7 +612,7 @@ S-N8  [see Section 1 — live-run cross-tab coordination gap]
 S-N9  Spam category "Archive" likely a silent no-op — tracked as BUG-C19
   Found: 2026-08-31, third automated review pass this session (scheduled
   bug-sweep task). Full mechanism, root-cause reasoning, and fix options
-  live in AUTOTRASH_BUG_PLAN.txt as BUG-C19 rather than duplicated here —
+  live in GitHub Issues as BUG-C19 rather than duplicated here —
   filed as a bug (not just a suggestion) because if the reasoning there is
   correct, the current behaviour silently fails to do what the UI says it
   does (reports "archived" progress that never actually leaves Spam),

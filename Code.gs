@@ -12,12 +12,12 @@
  * The 35-entry fix log that used to sit here has moved, so there is exactly
  * one canonical copy of that history instead of two that drift apart:
  *
- *   AUTOTRASH_FEATURE_REFERENCE.txt  How every feature is MEANT to behave.
+ *   feature-reference.txt  How every feature is MEANT to behave.
  *                                    Read before changing anything.
- *   AUTOTRASH_BUG_PLAN.txt           Every fix with its root cause. The
+ *   GitHub Issues                    Every fix with its root cause. The
  *                                    inline "FIX n (BUG-XX)" comments below
- *                                    resolve to BUG-XX entries in that file.
- *   AUTOTRASH_SUGGESTIONS.txt        Proposed work, plus what has shipped.
+ *                                    resolve to a BUG-XX issue there.
+ *   suggestions.txt        Proposed work, plus what has shipped.
  *                                    "FIX n (S-XX)" comments resolve there.
  *
  * Inline comments are deliberately kept wherever the code is non-obvious, or
@@ -186,13 +186,13 @@ function processLiveBurst(payload) {
   // failure, and the client only ever saw a confusing RPC failure
   // ("lbl is not defined") instead of the real cause — silently defeating
   // the BUG-H12 fix it sits right next to. Verified with a plain Node
-  // reproduction before patching; see AUTOTRASH_BUG_PLAN.txt.
+  // reproduction before patching; see GitHub Issues.
   let lbl = 'unknown';
   let dry = false;
 
   try {
     // FIX 40 (BUG-C16): Build the queue server-side when the caller hasn't
-    // supplied one. AUTOTRASH_FEATURE_REFERENCE.txt §11 documents
+    // supplied one. feature-reference.txt §11 documents
     // activeQueue as "null on first burst, server builds it" — in practice
     // the client (burst() in index.html) has always pre-built it before the
     // first call, so this path was normally dead code, but any caller that
@@ -355,7 +355,7 @@ function processLiveBurst(payload) {
     // undefined` specifically, `e.message` throws its own TypeError —
     // uncaught, escaping this catch block entirely — the same crash shape
     // as BUG-C15/BUG-C24, just one line further down. See BUG-C25 in
-    // AUTOTRASH_BUG_PLAN.txt for the full reproduction.
+    // GitHub Issues for the full reproduction.
     const errMsg = (e && e.message) ? e.message : String(e);
     payload.stats.errors.push({ label: lbl, error: errMsg });
     // FIX 39 (BUG-E13): Pass dry through so sendErrorEmail can report
@@ -732,7 +732,7 @@ function sendErrorEmail(err, payload, source, dryRun, ruleLabel) {
   // errMsg normalizes any thrown value to a string once, used everywhere
   // err.message was read raw below. Reproduced directly (GmailApp.search
   // spy throwing a bare string) against the pre-fix code before patching;
-  // see AUTOTRASH_BUG_PLAN.txt BUG-C24 and the regression test in
+  // see BUG-C24 in GitHub Issues and the regression test in
   // claude/Tests.
   const errMsg = (err && err.message) ? err.message : String(err);
   // FIX 49 (BUG-C25): errStack mirrors errMsg's null-safety — the line right
@@ -747,7 +747,7 @@ function sendErrorEmail(err, payload, source, dryRun, ruleLabel) {
   // already closed a few lines up; this closes the matching gap for
   // err.stack. Reproduced directly (GmailApp.search spy doing `throw null`)
   // against the pre-fix code before patching — see BUG-C25 in
-  // AUTOTRASH_BUG_PLAN.txt.
+  // GitHub Issues.
   const errStack = (err && err.stack) ? err.stack : '(none)';
   const lines = [
     `⚠ ENGINE ERROR${dryRun ? ' [DRY RUN]' : ''}`, '',
@@ -808,7 +808,7 @@ function plainBody(lines, stats) {
 // them) are free-text the user types into the "Label name" field in
 // index.html — nothing on the server validates or restricts that text. See
 // the escHtml() call inside buildEmailHtml()'s tableRows for the one place
-// this closes a gap; AUTOTRASH_BUG_PLAN.txt BUG-E15 has the full story.
+// this closes a gap; BUG-E15 in GitHub Issues has the full story.
 function escHtml(s) {
   return String(s)
     .replace(/&/g, '&amp;')

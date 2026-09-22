@@ -28,11 +28,15 @@ continuously in the background via a time trigger.
 ## Setup
 
 1. Create a new [Google Apps Script](https://script.google.com) project.
-2. Add `Code.gs`, `Utils.gs`, `RuleEngine.gs`, `Runner.gs`, `EmailSend.gs`,
-   `EmailTemplates.gs`, `index.html`, and `Tests.gs` as files in that
-   project (the test file is optional but recommended — see below). The
-   `.gs` files share one global scope, so it doesn't matter what order
-   Apps Script lists them in.
+2. Add every file under [`app/`](app/) — `Code.gs`, `Utils.gs`,
+   `RuleEngine.gs`, `Runner.gs`, `EmailSend.gs`, `EmailTemplates.gs`,
+   `index.html` — plus [`tests/Tests.gs`](tests/Tests.gs) (optional but
+   recommended — see below) as files in that project. Apps Script has no
+   real folders and shares one global scope across every `.gs` file
+   regardless of name or push order, so it doesn't matter what these end
+   up named/ordered in the Apps Script editor, or whether you drop the
+   `app/`/`tests/` grouping — this repo layout is purely for organizing
+   the GitHub side.
 3. Deploy as a **Web App** (Deploy → New deployment → Web app), with
    access set to yourself. This gives `doGet()` a URL that serves the
    dashboard.
@@ -44,22 +48,32 @@ continuously in the background via a time trigger.
 No external dependencies — this runs entirely on Apps Script's built-in
 `GmailApp`, `PropertiesService`, `LockService`, and `ScriptApp` services.
 
+**Deploying with `clasp` instead of copy-paste:** point `.clasp.json`'s
+`rootDir` at the repo root (or leave it unset) rather than at `app/` —
+`clasp push` includes `app/` and `tests/` as nested folders automatically,
+which is fine (Apps Script's own editor displays `/` in a pushed file's
+name as a folder), and this way `tests/Tests.gs` gets pushed too. Pointing
+`rootDir` at `app/` directly would deploy the app fine but silently skip
+`Tests.gs`, since it lives outside that directory.
+
 Working on this with an AI coding agent? See [`CLAUDE.md`](CLAUDE.md) for
 repo conventions and workflow.
 
 ## Repo layout
 
 ```
-Code.gs             Entry point (doGet) + settings read/write
-Utils.gs            Small shared helpers (formatting, mail, props)
-RuleEngine.gs        Rule → Gmail query, action resolution, queue build
-Runner.gs            Live/background run execution, abort, finalize
-EmailSend.gs          When/whether to send a run or digest email
-EmailTemplates.gs    HTML/plain-text email rendering
-index.html          Web app UI (served by doGet())
-Tests.gs            Test suite — run runAllTests() from the Apps
-                    Script editor; emails a pass/fail report to
-                    the script owner
+app/
+  Code.gs             Entry point (doGet) + settings read/write
+  Utils.gs            Small shared helpers (formatting, mail, props)
+  RuleEngine.gs        Rule → Gmail query, action resolution, queue build
+  Runner.gs            Live/background run execution, abort, finalize
+  EmailSend.gs          When/whether to send a run or digest email
+  EmailTemplates.gs    HTML/plain-text email rendering
+  index.html          Web app UI (served by doGet())
+tests/
+  Tests.gs            Test suite — run runAllTests() from the Apps
+                      Script editor; emails a pass/fail report to
+                      the script owner
 docs/
   feature-reference.txt     Source of truth for how every feature is
                             meant to behave — read this before changing
@@ -76,11 +90,12 @@ full breakdown.
 
 ## Running the tests
 
-From the Apps Script editor, select `runAllTests` and run it. Results go
-to the execution log and are also emailed to the script owner as an HTML
-report. The suite covers query-building, stats accumulation, email
-content, and both the live-burst and background-run engines against an
-in-memory fake `GmailApp` — no real mail is touched by the tests.
+From the Apps Script editor, select `runAllTests` (from `tests/Tests.gs`)
+and run it. Results go to the execution log and are also emailed to the
+script owner as an HTML report. The suite covers query-building, stats
+accumulation, email content, and both the live-burst and background-run
+engines against an in-memory fake `GmailApp` — no real mail is touched by
+the tests.
 
 ## Known limitations
 

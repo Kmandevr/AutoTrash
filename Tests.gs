@@ -1,7 +1,7 @@
 /**
  * ████████████████████████████████████████████████████████████████
  * AUTOTRASH — TEST SUITE
- * Deploy as AutoTrash_Tests.gs, alongside Code.gs and index.html, in the
+ * Deploy as Tests.gs, alongside Code.gs and index.html, in the
  * same Apps Script project (it calls helpers — fmtNum, safeMail, ownerEmail,
  * buildQuery, etc. — directly from Code.gs, so it cannot run standalone).
  * ████████████████████████████████████████████████████████████████

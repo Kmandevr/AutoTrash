@@ -12,12 +12,12 @@
  * The 35-entry fix log that used to sit here has moved, so there is exactly
  * one canonical copy of that history instead of two that drift apart:
  *
- *   AUTOTRASH_FEATURE_REFERENCE.txt  How every feature is MEANT to behave.
+ *   feature-reference.txt  How every feature is MEANT to behave.
  *                                    Read before changing anything.
  *   GitHub Issues                    Every fix with its root cause. The
  *                                    inline "FIX n (BUG-XX)" comments below
  *                                    resolve to a BUG-XX issue there.
- *   AUTOTRASH_SUGGESTIONS.txt        Proposed work, plus what has shipped.
+ *   suggestions.txt        Proposed work, plus what has shipped.
  *                                    "FIX n (S-XX)" comments resolve there.
  *
  * Inline comments are deliberately kept wherever the code is non-obvious, or
@@ -192,7 +192,7 @@ function processLiveBurst(payload) {
 
   try {
     // FIX 40 (BUG-C16): Build the queue server-side when the caller hasn't
-    // supplied one. AUTOTRASH_FEATURE_REFERENCE.txt §11 documents
+    // supplied one. feature-reference.txt §11 documents
     // activeQueue as "null on first burst, server builds it" — in practice
     // the client (burst() in index.html) has always pre-built it before the
     // first call, so this path was normally dead code, but any caller that

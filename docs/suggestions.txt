@@ -192,7 +192,7 @@ S-N8  Live (manual) runs have no cross-tab/cross-session coordination
 
 S-N10 seenIds grows unbounded across a long-running live burst session
   Found: 2026-09-01, fourth automated review pass this session (scheduled
-  bug-sweep task), while re-reading §2d/§11 of AUTOTRASH_FEATURE_REFERENCE.txt
+  bug-sweep task), while re-reading §2d/§11 of feature-reference.txt
   against processLiveBurst()'s actual implementation.
   Current : payload.seenIds is a plain array that every burst appends to
   (`threads.forEach(t => payload.seenIds.push(t.getId()))`, both the dry and
@@ -249,7 +249,7 @@ S-N11 stats.labels is keyed by plain label text — two rules with matching
   keys silently merge their reported counts
   Found: 2026-09-01, fifth automated review pass this session (scheduled
   bug-sweep task), while re-examining creditStat()/ensureStat() and §7 of
-  AUTOTRASH_FEATURE_REFERENCE.txt alongside the BUG-C20 fix (which addressed
+  feature-reference.txt alongside the BUG-C20 fix (which addressed
   a different problem in the same neighbourhood — a label breaking the
   Gmail search query, not the stats keying).
   Current : stats.labels (both the per-run object in Code.gs and its
@@ -299,14 +299,14 @@ S-N11 stats.labels is keyed by plain label text — two rules with matching
       client's cid()/updateBars() would need the same key scheme to stay in
       sync — so this is the "think it through" option, not a quick patch.
   Not fixed — needs your call on whether this is worth guarding against at
-  all before any code changes here; see AUTOTRASH_FEATURE_REFERENCE.txt §7
+  all before any code changes here; see feature-reference.txt §7
   for where this is cross-referenced.
 
 S-N12 Digest emails never report accumulated error counts for the period
   Found: 2026-09-01, seventh automated review pass this session (scheduled
   "look for bugs, fix bugs, write features, write tests, test the code, run
   a final pass" task), while cross-checking §6/§7 of
-  AUTOTRASH_FEATURE_REFERENCE.txt against accumulateDailyStats()'s actual
+  feature-reference.txt against accumulateDailyStats()'s actual
   field list.
   Current : the per-run stats object always carries an `errors[]` array
   (`{label, error}` for any rule that threw), and every non-digest email
@@ -327,7 +327,7 @@ S-N12 Digest emails never report accumulated error counts for the period
   reaching a digest-eligible completion). So the digest's silence on
   errors could be a deliberate "digest = volume summary, errors are a
   separate immediate concern" design rather than an oversight — but
-  nothing in AUTOTRASH_FEATURE_REFERENCE.txt says so explicitly, and nobody
+  nothing in feature-reference.txt says so explicitly, and nobody
   has flagged it as an intentional choice before now.
   Options : (a) Do nothing — the immediate per-error email path already
       covers the "so I actually knew about it" need; adding error counts
@@ -396,7 +396,7 @@ S-N15 abortRun() ignores SUMMARY_FREQ's digest/ERRORS_ONLY gating —
   GitHub Issues as BUG-E17 rather than duplicated here — filed as
   a bug (not just a suggestion) because it's a genuine behavioural
   inconsistency between two code paths that are supposed to respect the
-  same user setting, even though AUTOTRASH_FEATURE_REFERENCE.txt §4
+  same user setting, even though feature-reference.txt §4
   already documents the CURRENT behaviour as-is without flagging the
   inconsistency. Listed here too per this file's own header instruction.
   Needs a decision on whether "abort always notifies" is the intended
@@ -413,7 +413,7 @@ S-N16 accumulateDailyStats() and sendDailyDigest() share no lock — a
   "look for bugs, fix bugs, write features, write tests, test the code,
   run a final pass" task), while looking specifically for concurrency gaps
   beyond the one ScriptLock already documented in §5 of
-  AUTOTRASH_FEATURE_REFERENCE.txt — that lock only guards two
+  feature-reference.txt — that lock only guards two
   backgroundRun() executions against each other, never against a
   DIFFERENT trigger function (sendDailyDigest()) touching the same
   UserProperties key at the same time. Full mechanism, a concrete Node

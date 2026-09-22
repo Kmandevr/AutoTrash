@@ -127,7 +127,7 @@ reviewing either Code.gs or index.html.
   2026-08-31, BUG-C16) for any caller that doesn't pre-build it, but the
   shipped UI never actually exercises that fallback.
 
-  Coordination note (S-N8 in AUTOTRASH_SUGGESTIONS.txt): unlike
+  Coordination note (S-N8 in suggestions.txt): unlike
   backgroundRun() (§2b), there is no lock across concurrent live runs. Two
   browser tabs/devices signed into the same account both clicking "Engage
   Engine" would each track their own payload/seenIds independently. Gmail's
@@ -135,7 +135,7 @@ reviewing either Code.gs or index.html.
   loss — the only effect is double-counted, overlapping totals in each
   tab's own stats and summary email. Not fixed; low priority.
 
-  Scale note (S-N10 in AUTOTRASH_SUGGESTIONS.txt): payload.seenIds is a
+  Scale note (S-N10 in suggestions.txt): payload.seenIds is a
   plain array that grows for the entire life of one run and is serialized
   in both directions on every single burst RPC (see §11's data-flow
   contract) — nothing trims it. For the great majority of runs this is
@@ -377,7 +377,7 @@ reviewing either Code.gs or index.html.
     - digestHour controls the send time (6am–8pm, configurable). The UI
       dropdown now offers all 15 valid hours (6–20) — a former gap
       (previously only 6, 7, 8, 9, 12, 18, 20 were offered) closed
-      2026-08-31 (FIX 43 / S-N5 in AUTOTRASH_SUGGESTIONS.txt). Purely a UI
+      2026-08-31 (FIX 43 / S-N5 in suggestions.txt). Purely a UI
       change; the backend has always accepted any integer 6–20.
     - An aborted LIVE run's real actions now correctly contribute to
       DAILY_STATS too (2026-08-31, BUG-C17/BUG-H13) — previously an abort
@@ -387,7 +387,7 @@ reviewing either Code.gs or index.html.
       (see accumulateDailyStats() in §10). A digest email therefore never
       reports how many errors occurred during its period, even though the
       per-run stats object it's built from always carries one. Flagged as
-      S-N12 in AUTOTRASH_SUGGESTIONS.txt (2026-09-01) rather than fixed —
+      S-N12 in suggestions.txt (2026-09-01) rather than fixed —
       immediate per-error emails already exist (see the BUG-E14 gap just
       above in §5), so this may be intentional; needs a decision.
 
@@ -471,7 +471,7 @@ reviewing either Code.gs or index.html.
                       literal "PROMOTIONS" custom label alongside the
                       Promotions category) shares one entry and one email
                       row between two logically distinct rules; tracked as
-                      S-N11 in AUTOTRASH_SUGGESTIONS.txt.
+                      S-N11 in suggestions.txt.
     globalPurgeDone / inboxPurgeDone
                     — bool, set when a purge rule ejects. Purge rules get no
                       stats.labels entry, so these are the only "finished"
@@ -538,7 +538,7 @@ reviewing either Code.gs or index.html.
   digest. This does not affect what Gmail actually does — each rule's
   buildQuery()/action still runs correctly and independently — only the
   reporting layer conflates the two. Not fixed; see S-N11 in
-  AUTOTRASH_SUGGESTIONS.txt for options.
+  suggestions.txt for options.
 
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -572,7 +572,7 @@ reviewing either Code.gs or index.html.
                   A ✓ is prefixed to the rule name once it ejects clean.
                   All bars jump to 100% on run completion.
                   Bars are keyed by cid(label) — see S-N6 in
-                  AUTOTRASH_SUGGESTIONS.txt for a rare label-collision edge case.
+                  suggestions.txt for a rare label-collision edge case.
   Orb           : Green pulsing dot = engine running. Dim = idle/stopped.
   Traffic dots  : Red + yellow opacity raised during run, dimmed when stopped.
   Dry Run tag   : Amber "DRY RUN" badge shown in status bar when active.
@@ -700,7 +700,7 @@ reviewing either Code.gs or index.html.
   purely so abortRun() has the same full stats shape finalizeAndEmail()
   already gets.
 
-  Scale note (S-N10 in AUTOTRASH_SUGGESTIONS.txt): because seenIds is a
+  Scale note (S-N10 in suggestions.txt): because seenIds is a
   field of `payload` (not `stats`) and the whole payload round-trips on
   every burst, seenIds is the one field in this contract whose size is
   unbounded by design across a very large run. See §2a for the detail; not
@@ -708,7 +708,7 @@ reviewing either Code.gs or index.html.
 
 
 ════════════════════════════════════════════════════════════════════
-12. TEST SUITE  (project doc: Tests — deploy as AutoTrash_Tests.gs)
+12. TEST SUITE  (project doc: Tests — deploy as Tests.gs)
 ════════════════════════════════════════════════════════════════════
 
   Run       : Execute runAllTests() from the Apps Script editor. Results are

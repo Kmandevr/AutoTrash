@@ -322,7 +322,7 @@
                any integer 6-20; the dropdown previously only offered 7 of the
                15 documented hours (6,7,8,9,12,18,20), so a user wanting e.g.
                10am or 3pm had no way to pick it. Purely additive UI change —
-               no server-side behaviour changes. See AUTOTRASH_SUGGESTIONS.txt. -->
+               no server-side behaviour changes. See suggestions.txt. -->
           <select id="digestHour" class="field">
             <option value="6">6:00 AM</option>
             <option value="7">7:00 AM</option>
@@ -728,7 +728,7 @@ function launchEngine() {
     // BUG-R (readability, sixth pass): this used to be commented "built on
     // first burst server-side", which is backwards — burst() below builds
     // it CLIENT-SIDE (mirroring buildQueue()) before the payload is ever
-    // sent to processLiveBurst(), exactly as AUTOTRASH_FEATURE_REFERENCE.txt
+    // sent to processLiveBurst(), exactly as feature-reference.txt
     // §2a/§11 describes. The server's own "build it when null" branch in
     // Code.gs (BUG-C16) is a defensive fallback for other callers — the
     // shipped UI here never actually sends a null activeQueue.

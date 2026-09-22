@@ -28,7 +28,7 @@ continuously in the background via a time trigger.
 ## Setup
 
 1. Create a new [Google Apps Script](https://script.google.com) project.
-2. Add `Code.gs`, `index.html`, and `AutoTrash_Tests.gs` as files in that
+2. Add `Code.gs`, `index.html`, and `Tests.gs` as files in that
    project (the test file is optional but recommended — see below).
 3. Deploy as a **Web App** (Deploy → New deployment → Web app), with
    access set to yourself. This gives `doGet()` a URL that serves the
@@ -44,17 +44,17 @@ No external dependencies — this runs entirely on Apps Script's built-in
 ## Repo layout
 
 ```
-Code.gs                          Apps Script backend — the engine
-index.html                       Web app UI (served by doGet())
-AutoTrash_Tests.gs                Test suite — run runAllTests() from the
-                                  Apps Script editor; emails a pass/fail
-                                  report to the script owner
+Code.gs             Apps Script backend — the engine
+index.html          Web app UI (served by doGet())
+Tests.gs            Test suite — run runAllTests() from the Apps
+                    Script editor; emails a pass/fail report to
+                    the script owner
 docs/
-  AUTOTRASH_FEATURE_REFERENCE.txt  Source of truth for how every feature
-                                    is meant to behave — read this before
-                                    changing any code
-  AUTOTRASH_SUGGESTIONS.txt        Proposed features and improvements,
-                                    not yet built
+  feature-reference.txt     Source of truth for how every feature is
+                            meant to behave — read this before changing
+                            any code
+  suggestions.txt           Proposed features and improvements, not yet
+                            built
 ```
 
 Bug history lives in this repo's [GitHub Issues](../../issues) — closed

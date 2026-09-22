@@ -903,7 +903,10 @@ function buildEmailHtml(title, lines, accent, stats, elapsedMs, dryRun) {
             : l.startsWith('✓') ? '#00ff88'
             // FIX 29 (BUG-E10): #2a5a2a (~2.5:1) failed and #5a7a5a (~4.2:1)
             // was marginal on #010601. Indented lines are the bulk of the body.
-            : l.startsWith('─') || l.startsWith('▓') ? '#3f7f3f'
+            // BUG-E18: dropped the dead '─'/'▓' chart-glyph branch — none of
+            // this function's four callers ever pass a line starting with
+            // either character (the ASCII chart lives only in plainBody(),
+            // never in `lines`), so it never executed.
             : l.startsWith('  ') ? '#88bb99'
             : '#aaffcc';
     return `<div style="padding:1px 0;font-family:'Courier New',monospace;font-size:11px;color:${c};line-height:1.6;white-space:pre;">${l.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div>`;

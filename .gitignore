@@ -1,3 +1,6 @@
+# AI agent personal overrides — never shared/committed
+CLAUDE.local.md
+
 # clasp (local Apps Script CLI deploys) — never commit these
 .clasp.json
 .clasprc.json

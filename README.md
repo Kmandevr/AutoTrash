@@ -28,8 +28,11 @@ continuously in the background via a time trigger.
 ## Setup
 
 1. Create a new [Google Apps Script](https://script.google.com) project.
-2. Add `Code.gs`, `index.html`, and `Tests.gs` as files in that
-   project (the test file is optional but recommended — see below).
+2. Add `Code.gs`, `Utils.gs`, `RuleEngine.gs`, `Runner.gs`, `EmailSend.gs`,
+   `EmailTemplates.gs`, `index.html`, and `Tests.gs` as files in that
+   project (the test file is optional but recommended — see below). The
+   `.gs` files share one global scope, so it doesn't matter what order
+   Apps Script lists them in.
 3. Deploy as a **Web App** (Deploy → New deployment → Web app), with
    access set to yourself. This gives `doGet()` a URL that serves the
    dashboard.
@@ -47,7 +50,12 @@ repo conventions and workflow.
 ## Repo layout
 
 ```
-Code.gs             Apps Script backend — the engine
+Code.gs             Entry point (doGet) + settings read/write
+Utils.gs            Small shared helpers (formatting, mail, props)
+RuleEngine.gs        Rule → Gmail query, action resolution, queue build
+Runner.gs            Live/background run execution, abort, finalize
+EmailSend.gs          When/whether to send a run or digest email
+EmailTemplates.gs    HTML/plain-text email rendering
 index.html          Web app UI (served by doGet())
 Tests.gs            Test suite — run runAllTests() from the Apps
                     Script editor; emails a pass/fail report to

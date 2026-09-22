@@ -5,20 +5,36 @@ anything below from the files themselves — it's already known.
 
 ## What this is
 
-A self-hosted Gmail cleanup engine on Google Apps Script (`Code.gs` +
-`index.html`, served via `doGet()`). No build step, no package manager,
-no external dependencies — everything runs on Apps Script's built-in
-services (`GmailApp`, `PropertiesService`, `LockService`, `ScriptApp`).
+A self-hosted Gmail cleanup engine on Google Apps Script (several `.gs`
+files + `index.html`, served via `doGet()`). No build step, no package
+manager, no external dependencies — everything runs on Apps Script's
+built-in services (`GmailApp`, `PropertiesService`, `LockService`,
+`ScriptApp`).
 
 ## Layout
 
-    Code.gs                  backend
-    index.html                web UI
-    Tests.gs                  test suite (runAllTests(), Apps Script editor only)
+    Code.gs                   entry point (doGet) + settings read/write
+    Utils.gs                  small shared helpers (formatting, mail, props)
+    RuleEngine.gs              rule → Gmail query, action resolution, queue build
+    Runner.gs                  processLiveBurst()/backgroundRun()/abort/
+                               finalize/daily-stats bookkeeping
+    EmailSend.gs                when/whether to send a run or digest email
+    EmailTemplates.gs          HTML/plain-text email rendering
+    index.html                 web UI
+    Tests.gs                   test suite (runAllTests(), Apps Script editor only)
     docs/feature-reference.txt  how each feature is MEANT to behave — read
                                before changing behavior, not just style
     docs/suggestions.txt        proposed, unbuilt — don't implement without
                                being asked to
+
+`Code.gs` used to hold the entire backend (~1060 lines); it was split by
+purpose on 2026-09-22 into the six files above. Apps Script shares one
+global scope across every `.gs` file regardless of name or push order, so
+this is a pure reorganization — nothing about behavior, execution order,
+or what's callable from `index.html` via `google.script.run` changed.
+When adding backend code: put it in the file whose purpose matches (new
+rule-matching logic → `RuleEngine.gs`, a new email → `EmailSend.gs` +
+`EmailTemplates.gs`, etc.) rather than defaulting to `Code.gs`.
 
 ## Rules
 

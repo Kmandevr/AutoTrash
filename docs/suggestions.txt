@@ -15,29 +15,29 @@ history — do not re-apply them. Everything else is still untouched
 code-wise and needs explicit approval first.
 
 STILL OPEN (need a decision before any code is written):
-  S-U2  terminal vs progress-bar roles — direction only, no spec yet
-  S-E3  per-rule query in email — <details> is unreliable in Gmail
-  S-L1  per-rule "last cleaned" timestamp
-  S-L2  per-rule "ignore starred" override — CONFLICTS with feature
+  S-U2  (Issue #72) terminal vs progress-bar roles — direction only, no spec yet
+  S-E3  (Issue #73) per-rule query in email — <details> is unreliable in Gmail
+  S-L1  (Issue #74) per-rule "last cleaned" timestamp
+  S-L2  (Issue #75) per-rule "ignore starred" override — CONFLICTS with feature
         reference §9, which states starred mail is spared with "No
         exceptions". Needs that guarantee rewritten before it is built.
-  S-L3  minimum thread count before sending a run email
-  S-L4  undo window / pending-trash label
-  S-L5  per-rule sender/subject exclusions
-  S-N3  poll for background-run results while the tab is open
-  S-N4  drag-to-reorder queue ordering
-  S-N6  cid() can collide for two rules whose labels differ only in
+  S-L3  (Issue #76) minimum thread count before sending a run email
+  S-L4  (Issue #77) undo window / pending-trash label
+  S-L5  (Issue #78) per-rule sender/subject exclusions
+  S-N3  (Issue #79) poll for background-run results while the tab is open
+  S-N4  (Issue #80) drag-to-reorder queue ordering
+  S-N6  (Issue #81) cid() can collide for two rules whose labels differ only in
         characters it strips — progress bars would then overwrite each other
-  S-N8  no cross-tab/cross-session coordination for live (manual) runs
+  S-N8  (Issue #82) no cross-tab/cross-session coordination for live (manual) runs
   S-N9  see BUG-C19 in GitHub Issues — Spam category "Archive" is
         likely a silent no-op; needs live-account verification + a fix
         decision, not a suggestions-file build-or-don't call
-  S-N10 seenIds array grows unbounded across a long-running live burst
+  S-N10 (Issue #83) seenIds array grows unbounded across a long-running live burst
         session — a scalability question, see below
-  S-N11 stats.labels is keyed by plain label text with no uniqueness
+  S-N11 (Issue #84) stats.labels is keyed by plain label text with no uniqueness
         enforcement — two rules that produce the same key silently merge
         their reported counts, see below
-  S-N12 digest emails (DAILY/ALT_DAYS/WEEKLY/BIWEEKLY) never report
+  S-N12 (Issue #85) digest emails (DAILY/ALT_DAYS/WEEKLY/BIWEEKLY) never report
         accumulated error counts for the period — see below
   S-N13 see BUG-C21 in GitHub Issues — dry run undercounts any
         single rule whose true backlog exceeds the 500-thread

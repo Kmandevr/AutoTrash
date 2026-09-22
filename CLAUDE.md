@@ -13,28 +13,40 @@ built-in services (`GmailApp`, `PropertiesService`, `LockService`,
 
 ## Layout
 
-    Code.gs                   entry point (doGet) + settings read/write
-    Utils.gs                  small shared helpers (formatting, mail, props)
-    RuleEngine.gs              rule → Gmail query, action resolution, queue build
-    Runner.gs                  processLiveBurst()/backgroundRun()/abort/
-                               finalize/daily-stats bookkeeping
-    EmailSend.gs                when/whether to send a run or digest email
-    EmailTemplates.gs          HTML/plain-text email rendering
-    index.html                 web UI
-    Tests.gs                   test suite (runAllTests(), Apps Script editor only)
-    docs/feature-reference.txt  how each feature is MEANT to behave — read
-                               before changing behavior, not just style
-    docs/suggestions.txt        proposed, unbuilt — don't implement without
-                               being asked to
+    app/
+      Code.gs                   entry point (doGet) + settings read/write
+      Utils.gs                  small shared helpers (formatting, mail, props)
+      RuleEngine.gs              rule → Gmail query, action resolution, queue build
+      Runner.gs                  processLiveBurst()/backgroundRun()/abort/
+                                 finalize/daily-stats bookkeeping
+      EmailSend.gs                when/whether to send a run or digest email
+      EmailTemplates.gs          HTML/plain-text email rendering
+      index.html                 web UI
+    tests/
+      Tests.gs                   test suite (runAllTests(), Apps Script editor only)
+    docs/
+      feature-reference.txt      how each feature is MEANT to behave — read
+                                 before changing behavior, not just style
+      suggestions.txt            proposed, unbuilt — don't implement without
+                                 being asked to
 
-`Code.gs` used to hold the entire backend (~1060 lines); it was split by
-purpose on 2026-09-22 into the six files above. Apps Script shares one
-global scope across every `.gs` file regardless of name or push order, so
-this is a pure reorganization — nothing about behavior, execution order,
-or what's callable from `index.html` via `google.script.run` changed.
-When adding backend code: put it in the file whose purpose matches (new
-rule-matching logic → `RuleEngine.gs`, a new email → `EmailSend.gs` +
-`EmailTemplates.gs`, etc.) rather than defaulting to `Code.gs`.
+This GitHub layout is a pure repo-organization convenience — Apps Script
+itself has no real folders and shares one global scope across every `.gs`
+file regardless of name, path, or push order. Deploying (clasp or manual
+copy-paste) still ends up with every `app/` and `tests/` file flat in one
+Apps Script project; nothing about behavior, execution order, or what's
+callable from `index.html` via `google.script.run` changes because of
+where a file sits in this repo. Only `README.md`, `LICENSE`, `.gitignore`,
+and `CLAUDE.md` belong at repo root — everything else goes in `app/`,
+`tests/`, or `docs/`.
+
+`Code.gs` used to hold the entire backend (~1060 lines) at repo root; it
+was split by purpose on 2026-09-22 into the files under `app/` above, then
+those files (plus `index.html`) were grouped into `app/` and `Tests.gs`
+into `tests/` the same day. When adding backend code: put it in the file
+whose purpose matches (new rule-matching logic → `RuleEngine.gs`, a new
+email → `EmailSend.gs` + `EmailTemplates.gs`, etc.) rather than defaulting
+to `Code.gs`.
 
 ## Rules
 

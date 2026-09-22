@@ -1,9 +1,12 @@
 /**
  * ████████████████████████████████████████████████████████████████
  * AUTOTRASH — TEST SUITE
- * Deploy as Tests.gs, alongside Code.gs and index.html, in the
- * same Apps Script project (it calls helpers — fmtNum, safeMail, ownerEmail,
- * buildQuery, etc. — directly from Code.gs, so it cannot run standalone).
+ * Deploy in the same Apps Script project as the app/ files (it calls
+ * helpers — fmtNum, safeMail, ownerEmail, buildQuery, etc. — from those
+ * files directly via Apps Script's shared global scope, so it cannot run
+ * standalone). Repo location is tests/Tests.gs; Apps Script itself has no
+ * folders, so this and every app/ file end up flat in one project either
+ * way — the split only organizes the GitHub repo.
  * ████████████████████████████████████████████████████████████████
  *
  * RUN: execute runAllTests() from the Apps Script editor (Run ▶ on this
@@ -12,7 +15,8 @@
  * subject line reports pass/fail/skip totals so a broken build is visible
  * without opening the log.
  *
- * Any change to Code.gs behaviour must be mirrored here in the same pass.
+ * Any change to backend behaviour (the app/ files) must be mirrored here
+ * in the same pass.
  */
 
 // ════════════════════════════════════════════════════════════════════════

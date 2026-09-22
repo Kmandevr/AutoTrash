@@ -41,6 +41,9 @@ continuously in the background via a time trigger.
 No external dependencies — this runs entirely on Apps Script's built-in
 `GmailApp`, `PropertiesService`, `LockService`, and `ScriptApp` services.
 
+Working on this with an AI coding agent? See [`CLAUDE.md`](CLAUDE.md) for
+repo conventions and workflow.
+
 ## Repo layout
 
 ```

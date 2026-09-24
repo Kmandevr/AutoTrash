@@ -2,9 +2,29 @@
  * AutoTrash tests — app/Code.gs. As of 2026-09-24, Code.gs holds only
  * CONSTANTS and doGet(); its settings/trigger tests moved to
  * tests/Config.test.gs alongside the app/Config.gs they now test.
- * doGet() itself isn't unit-tested — it just wires an HtmlOutput, which the
- * Node harness's HtmlService mock (tests/mocks/apps-script-globals.js)
- * doesn't model meaningfully; CODE_TESTS is kept as an empty array so
- * RunAll.gs's .concat() chain doesn't need touching if that changes later.
  */
-const CODE_TESTS = [];
+
+// doGet() must set the viewport through HtmlOutput.addMetaTag(): HtmlService
+// ignores a <meta name="viewport"> written inside index.html, which is what
+// made the dashboard render as a shrunken desktop page on phones.
+function test_doGet_setsMobileViewportMetaTag() {
+  const real = HtmlService;
+  const tags = {};
+  const out = {
+    setTitle: function () { return out; },
+    setXFrameOptionsMode: function () { return out; },
+    addMetaTag: function (name, content) { tags[name] = content; return out; }
+  };
+  HtmlService = {
+    createHtmlOutputFromFile: function () { return out; },
+    XFrameOptionsMode: real.XFrameOptionsMode
+  };
+  try {
+    doGet();
+    assert(/width=device-width/.test(tags.viewport || ''), 'doGet() must add a device-width viewport meta tag');
+  } finally { HtmlService = real; }
+}
+
+const CODE_TESTS = [
+  test_doGet_setsMobileViewportMetaTag
+];

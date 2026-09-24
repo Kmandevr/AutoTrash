@@ -88,12 +88,19 @@ tests/Engine.test.gs          → tests app/Engine.gs       (22 tests —
 tests/Stats.test.gs           → tests app/Stats.gs        (9 tests)
 tests/EmailTemplates.test.gs  → tests app/EmailTemplates.gs (10 tests)
 tests/EmailSend.test.gs       → tests app/EmailSend.gs     (6 tests)
-tests/Code.test.gs            → tests app/Code.gs          (0 tests — see
-                                 that file's own header)
+tests/Code.test.gs            → tests app/Code.gs          (1 test —
+                                 doGet() sets the mobile viewport)
 tests/Config.test.gs          → tests app/Config.gs        (13 tests)
 tests/Runner.test.gs          → tests app/Runner.gs        (25 tests,
                                  the largest suite — almost all of the
                                  fake-thread integration tests live here)
+tests/RunState.test.gs        → tests app/RunState.gs      (19 tests —
+                                 the cross-device run registry plus the
+                                 registry-aware paths it adds to
+                                 processLiveBurst()/abortRun()/
+                                 backgroundRun(); every test runs inside
+                                 withRunProps() so no test leaks a
+                                 live-looking run into another)
 
 Each of these files ends with its own array, e.g.:
     const RULEENGINE_TESTS = [ test_buildQuery_labelRule, ... ];
@@ -111,14 +118,18 @@ tests/RunAll.gs
         .concat(EMAILSEND_TESTS)
         .concat(CODE_TESTS)
         .concat(CONFIG_TESTS)
-        .concat(RUNNER_TESTS);
+        .concat(RUNNER_TESTS)
+        .concat(RUNSTATE_TESTS);
   and defines runAllTests() — the single implementation both the Apps
   Script editor and the Node harness call. Iterates TEST_FNS, times each,
   collects {name, status, ms, error, stack}, logs to the console, emails
   an HTML+plain-text report via safeMail(ownerEmail(), ...), and returns
   {passed, failed, total, results}.
 
-  Current total: 119 tests (1+10+23+22+9+10+6+0+13+25), as of the
+  Current total: 139 tests (1+10+23+22+9+10+6+1+13+25+19), as of the
+  2026-09-24 cross-device run registry (app/RunState.gs), which added
+  tests/RunState.test.gs (19) and the first tests/Code.test.gs test (1).
+  Before that: 119 tests, as of the
   2026-09-24 split of Config.gs/Stats.gs out of Code.gs/RuleEngine.gs/
   Runner.gs, which moved 5 ensureStat/creditStat tests and 4
   accumulateDailyStats tests into the new tests/Stats.test.gs, moved 10
@@ -186,17 +197,17 @@ run-node-tests.js:
   1. Builds a Node `vm` context (a Node built-in — not a dependency) via
      vm.createContext(sandbox), where sandbox = createGlobals() from
      tests/mocks/apps-script-globals.js (GmailApp, PropertiesService,
-     LockService, ScriptApp, Session, HtmlService, console).
+     LockService, ScriptApp, Session, HtmlService, CacheService, console).
   2. Reads every app/*.gs file, then every tests/*.gs file, and
      concatenates ALL of their source text into ONE string — in this
      order: app/Code.gs, app/Utils.gs, app/Config.gs, app/RuleEngine.gs,
-     app/Engine.gs, app/Stats.gs, app/Runner.gs, app/EmailSend.gs,
+     app/Engine.gs, app/Stats.gs, app/RunState.gs, app/Runner.gs, app/EmailSend.gs,
      app/EmailTemplates.gs, then
      tests/TestFramework.gs, tests/Utils.test.gs,
      tests/RuleEngine.test.gs, tests/Engine.test.gs, tests/Stats.test.gs,
      tests/EmailTemplates.test.gs,
      tests/EmailSend.test.gs, tests/Code.test.gs, tests/Config.test.gs,
-     tests/Runner.test.gs,
+     tests/Runner.test.gs, tests/RunState.test.gs,
      tests/RunAll.gs (RunAll.gs must be last — see the note below on
      why).
   3. Runs that single concatenated string as one vm.Script via

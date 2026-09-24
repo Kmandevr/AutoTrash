@@ -22,7 +22,8 @@ const TEST_FNS = []
   .concat(EMAILSEND_TESTS)
   .concat(CODE_TESTS)
   .concat(CONFIG_TESTS)
-  .concat(RUNNER_TESTS);
+  .concat(RUNNER_TESTS)
+  .concat(RUNSTATE_TESTS);
 
 function runAllTests() {
   const results = [];

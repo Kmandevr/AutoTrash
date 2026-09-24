@@ -13,20 +13,27 @@
       --green: #00ff88; --g2: #00cc66; --g3: #44bb77; --g4: #aaffcc;
       --dim:   #336633; --dimmer: #1b2b1b;
       --red:   #ff4455; --amber: #ffbb44; --blue: #44aaff;
-      --mono: 'Share Tech Mono', monospace;
-      --disp: 'Exo 2', sans-serif;
+      /* Explicit fallbacks so a blocked/slow Google Fonts load degrades to
+         the same look on every OS instead of each browser's own default. */
+      --mono: 'Share Tech Mono', ui-monospace, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace;
+      --disp: 'Exo 2', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
       --glow:    0 0 10px rgba(0,255,136,.35), 0 0 26px rgba(0,255,136,.12);
       --glow-sm: 0 0 6px rgba(0,255,136,.3);
     }
     *, *::before, *::after { box-sizing:border-box; margin:0; padding:0; }
-    html { background:var(--bg); }
+    /* CROSS-BROWSER BASELINE (2026-09-24): color-scheme makes native
+       controls (select pop-ups, scrollbars, date/number widgets) render dark
+       in Chrome, Safari and Firefox alike instead of each browser's own light
+       default; text-size-adjust stops iOS Safari inflating fonts in
+       landscape. */
+    html { background:var(--bg); color-scheme:dark; -webkit-text-size-adjust:100%; text-size-adjust:100%; }
     body {
       font-family:var(--mono); background:var(--bg); color:var(--g4);
-      min-height:100vh; display:flex; justify-content:center;
+      min-height:100vh; min-height:100dvh; display:flex; justify-content:center;
       padding:24px 14px 64px; overflow-x:hidden; position:relative;
     }
     body::before {
-      content:''; position:fixed; inset:0; pointer-events:none; z-index:9999;
+      content:''; position:fixed; top:0; right:0; bottom:0; left:0; pointer-events:none; z-index:9999;
       background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,.06) 2px,rgba(0,0,0,.06) 4px);
     }
     body::after {
@@ -77,6 +84,7 @@
     #trule { color:var(--g3); max-width:180px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
     #telapsed { font-variant-numeric:tabular-nums; min-width:40px; text-align:right; }
     .term { background:#010601; padding:12px 15px; height:340px; overflow-y:auto; font-size:12px; line-height:1.75; }
+    .term { scrollbar-width:thin; scrollbar-color:var(--bord) transparent; } /* Firefox */
     .term::-webkit-scrollbar { width:4px; }
     .term::-webkit-scrollbar-thumb { background:var(--bord); border-radius:2px; }
     .term:empty::before { content:'> AUTOTRASH v26 READY'; color:var(--dimmer); }
@@ -132,7 +140,7 @@
 
     /* PANELS */
     .panel { background:var(--surf); border:1px solid var(--bord2); border-radius:5px; overflow:hidden; }
-    .phead { display:flex; align-items:center; gap:8px; padding:9px 14px; background:var(--surf2); border-bottom:1px solid var(--bord2); cursor:pointer; user-select:none; transition:background .15s; }
+    .phead { display:flex; align-items:center; gap:8px; padding:9px 14px; background:var(--surf2); border-bottom:1px solid var(--bord2); cursor:pointer; -webkit-user-select:none; user-select:none; transition:background .15s; }
     .phead:hover { background:#091509; }
     .ph-lbl { font-size:9px; color:var(--dim); text-transform:uppercase; letter-spacing:2px; }
     /* BUG-A4 FIX: Keep '▼' always; rotate -90deg with CSS transition when panel is closed */
@@ -181,7 +189,7 @@
 
     /* BUTTONS */
     .brow { display:flex; gap:9px; }
-    .btn { flex:1; font-family:var(--mono); font-size:11px; font-weight:bold; letter-spacing:1px; text-transform:uppercase; padding:11px 12px; border-radius:3px; border:none; cursor:pointer; transition:opacity .14s,transform .1s,box-shadow .2s; }
+    .btn { flex:1; display:flex; align-items:center; justify-content:center; text-align:center; font-family:var(--mono); font-size:11px; font-weight:bold; letter-spacing:1px; text-transform:uppercase; padding:11px 12px; border-radius:3px; border:none; cursor:pointer; transition:opacity .14s,transform .1s,box-shadow .2s; }
     .btn:hover { opacity:.85; } .btn:active { transform:scale(.98); }
     .btn:disabled { opacity:.28; cursor:not-allowed; }
     .btn-save { background:var(--surf2); color:var(--g3); border:1px solid var(--bord); }
@@ -200,7 +208,7 @@
     /* BUG-A3 FIX: Kill pulse animation while button is disabled — pulsing-dim looks "almost ready" */
     .btn-go:disabled { animation:none; box-shadow:none; }
     @keyframes lPulse { 0%,100%{box-shadow:0 0 8px rgba(0,255,136,.18)} 50%{box-shadow:0 0 18px rgba(0,255,136,.4)} }
-    .btn-go::after { content:''; position:absolute; inset:0; background:linear-gradient(90deg,transparent,rgba(255,255,255,.12),transparent); transform:translateX(-100%); }
+    .btn-go::after { content:''; position:absolute; top:0; right:0; bottom:0; left:0; background:linear-gradient(90deg,transparent,rgba(255,255,255,.12),transparent); transform:translateX(-100%); }
     .btn-go:hover:not(:disabled)::after { animation:sweep .42s ease forwards; }
     @keyframes sweep { to { transform:translateX(100%); } }
     /* BUG-A2 FIX: +ADD gets its own class — solid green, no pulse, no glow sweep */
@@ -210,8 +218,51 @@
     }
     .btn-add:hover:not(:disabled) { background:var(--green); border-color:var(--green); }
 
-    .toast { position:fixed; bottom:18px; right:18px; background:var(--surf2); border:1px solid var(--bord); color:var(--g4); font-family:var(--mono); font-size:11px; padding:9px 14px; border-radius:3px; opacity:0; transform:translateY(7px); transition:opacity .2s,transform .2s; pointer-events:none; z-index:9998; max-width:300px; }
+    .toast { position:fixed; bottom:84px; right:18px; background:var(--surf2); border:1px solid var(--bord); color:var(--g4); font-family:var(--mono); font-size:11px; padding:9px 14px; border-radius:3px; opacity:0; transform:translateY(7px); transition:opacity .2s,transform .2s; pointer-events:none; z-index:9998; max-width:300px; }
     .toast.show { opacity:1; transform:translateY(0); }
+
+    /* CROSS-DEVICE RUN CONTROLS (2026-09-24): Resume/take-over a live run
+       from this device, and abort a background run + pause its trigger. */
+    .btn-resume { background:rgba(68,170,255,.12); color:var(--blue); border:1px solid rgba(68,170,255,.3); display:none; }
+    .btn-resume:hover:not(:disabled) { background:rgba(68,170,255,.22); }
+    .btn-pause  { background:rgba(255,187,68,.1); color:var(--amber); border:1px solid rgba(255,187,68,.28); display:none; }
+    .btn-pause:hover:not(:disabled) { background:rgba(255,187,68,.18); }
+    .srctag { font-size:9px; color:var(--blue); background:rgba(68,170,255,.08); border:1px solid rgba(68,170,255,.22); padding:1px 7px; border-radius:2px; display:none; white-space:nowrap; }
+
+    /* STICKY CONTROL BAR: the run buttons sit below three long panels, so on
+       a phone they were a long scroll away (or off-screen entirely). Pinning
+       the row to the bottom of the viewport keeps Engage / Dry Run / Abort
+       reachable on every screen size and browser. */
+    .brow {
+      position:sticky; bottom:0; z-index:5;
+      background:var(--bg); /* solid: the tinted buttons are translucent */
+      box-shadow:0 -16px 14px -6px var(--bg); /* soft fade above the bar */
+      padding:10px 0 calc(10px + env(safe-area-inset-bottom, 0px));
+      margin-top:-4px;
+    }
+
+    /* FORM CONTROL NORMALIZATION: Safari/iOS, Chrome and Firefox each draw
+       their own select arrow, number spinners and button chrome (iOS even
+       rounds and gradients them). Strip the native look everywhere and draw
+       one arrow ourselves so every browser renders the same control. */
+    .field, .csf, .btn, .rdel { -webkit-appearance:none; -moz-appearance:none; appearance:none; }
+    select.field, select.csf {
+      padding-right:28px;
+      background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%2344bb77' stroke-width='1.5'/%3E%3C/svg%3E");
+      background-repeat:no-repeat; background-position:right 10px center; background-size:10px 6px;
+    }
+    input[type=number]::-webkit-inner-spin-button,
+    input[type=number]::-webkit-outer-spin-button { -webkit-appearance:none; margin:0; }
+    input[type=number] { -moz-appearance:textfield; appearance:textfield; }
+    button, .tog, .phead { -webkit-tap-highlight-color:transparent; touch-action:manipulation; }
+    .btn:focus-visible, .field:focus-visible, .csf:focus-visible, .tog:focus-visible { outline:1px solid var(--g2); outline-offset:2px; }
+
+    /* Some embedded/mobile browsers run with animations reduced or off; the
+       entrance animation starts every section at opacity:0, so make sure
+       nothing can get stuck invisible there. */
+    @media (prefers-reduced-motion: reduce) {
+      .app > * { opacity:1; transform:none; animation:none; }
+    }
 
     /* MOBILE: no @media rules existed before this — layout was PC-only.
        Below reflows the 5-col stat strip, 2/3-col forms, category grid and
@@ -243,10 +294,20 @@
       .rdel { padding:7px 9px; font-size:14px; }
       .ri { flex-wrap:wrap; padding:9px 10px; }
 
-      .field, .csf { padding:10px 11px; font-size:13px; }
+      /* 16px: iOS Safari auto-zooms the whole page when focusing any
+         input/select smaller than that, and doesn't zoom back out. */
+      .field, .csf { padding:10px 11px; font-size:16px; }
+      select.field, select.csf { padding-right:28px; }
 
-      .brow { flex-wrap:wrap; }
-      .brow .btn { flex:1 1 47%; min-width:47%; padding:13px 10px; font-size:11px; }
+      .brow { flex-wrap:wrap; gap:8px; }
+      .brow .btn { flex:1 1 40%; min-width:40%; padding:14px 10px; font-size:11px; }
+      .brow .btn-go { flex-basis:100%; }
+      /* While a run is going, Engage and Dry Run are disabled anyway — hide
+         them on phones so the pinned bar stays one or two rows tall. */
+      body.running .brow .btn-go, body.running .brow .btn-dry { display:none; }
+
+      .toast { left:10px; right:10px; bottom:150px; max-width:none; text-align:center; }
+      .sbar { flex-wrap:wrap; row-gap:4px; }
     }
   </style>
 </head>
@@ -285,6 +346,7 @@
     <div class="sbar">
       <div class="orb" id="orb"></div>
       <div class="sbmsg" id="sbmsg">System ready — configure rules and engage engine.</div>
+      <div class="srctag" id="srctag"></div>
       <div class="drytag" id="drytag">DRY RUN</div>
     </div>
   </div>
@@ -428,6 +490,8 @@
     <button class="btn btn-save"  onclick="saveConfig()">Save Config</button>
     <button class="btn btn-dry"   id="btndry"   onclick="toggleDry()">Dry Run</button>
     <button class="btn btn-abort" id="btnabort" onclick="doAbort()">⛔ Abort</button>
+    <button class="btn btn-resume" id="btnresume" onclick="doResume()">▶ Resume Here</button>
+    <button class="btn btn-pause" id="btnpause" onclick="doPauseTrigger()">⏸ Abort + Pause Trigger</button>
     <button class="btn btn-go"    id="btngo"    onclick="launchEngine()">⚡ Engage Engine</button>
   </div>
 
@@ -458,6 +522,23 @@ let runStats = {totalMoved:0, totalTrashed:0, totalArchived:0};
 // abortRun() instead — see doAbort() below.
 let lastStats = null;
 
+// ── CROSS-DEVICE RUN STATE (2026-09-24, Issues #82/#79) ─────────
+// Every run — manual on any device, or background from the trigger — is
+// registered server-side (app/RunState.gs). This tab is either DRIVING a
+// live run (sending its bursts), WATCHING one driven elsewhere, or idle.
+//   DRIVER_ID  identifies this tab to the server, so a take-over from
+//              another device can tell this tab to stop bursting.
+//   runId      the registered run this tab drives (role 'driver').
+//   watch      the run this tab is showing as a viewer + last log seq seen.
+const DRIVER_ID = 'd-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 8);
+let role = null;            // 'driver' | 'viewer' | null
+let runId = null;
+let watch = { id: null, seq: -1, run: null };
+let finishedIds = {};       // runs this tab already showed the ending of
+let pollH = null, pollBusy = false, clockSkew = 0;
+let rpcRetries = 0;
+const MAX_RPC_RETRIES = 3;
+
 // ── INIT ───────────────────────────────────────────────────────
 window.onload = () => {
   renderCats([]);
@@ -475,10 +556,14 @@ window.onload = () => {
       renderRules();
       tl('INFO', 'Initialized · ' + rules.length + ' label rule(s) · ' +
         Object.values(catState).filter(r=>r.enabled).length + ' category rule(s) active.');
+      pollStatus(); // pick up a run already going on another device / the trigger
     })
-    .withFailureHandler(e => tl('ERROR', 'Load failed: ' + e.message))
+    .withFailureHandler(e => { tl('ERROR', 'Load failed: ' + e.message); pollStatus(); })
     .getUISettings();
 };
+// Phones/tabs in the background stop polling; catch up the moment the page
+// is visible again (and let a driver re-sync if its burst died meanwhile).
+document.addEventListener('visibilitychange', () => { if (!document.hidden) pollStatus(); });
 
 function sv(id, v) { const el = document.getElementById(id); if (el) el.value = v; }
 function gv(id)    { return document.getElementById(id)?.value || ''; }
@@ -671,6 +756,9 @@ function toggleDry() {
 
 // ── ABORT ─────────────────────────────────────────────────────
 function doAbort() {
+  // Watching a run driven elsewhere (another device, or the trigger): ask
+  // the server to stop it. The run's own driver finalizes + emails.
+  if (role === 'viewer') { requestRemoteAbort(false); return; }
   if (!running) return;
   aborted = true; running = false;
   clearInterval(timerH);
@@ -686,10 +774,13 @@ function doAbort() {
   // per-rule and purge breakdown for an aborted run even though the top-line
   // totals were now correct. Falls back to runStats if no burst has
   // completed yet (abort clicked immediately after launch).
+  // runId: marks the shared run record aborted so other devices see it end.
+  const id = runId;
+  if (id) finishedIds[id] = true;
   google.script.run
-    .withSuccessHandler(() => { banner('warn', '⚠ Aborted. Partial-run email dispatched.'); stopEng(true); })
-    .withFailureHandler(() => { banner('warn', '⚠ Aborted (email may not have sent).'); stopEng(true); })
-    .abortRun(lastStats || runStats, Date.now() - startTime, isDry);  // FIX 11: pass isDry
+    .withSuccessHandler(() => { banner('warn', '⚠ Aborted. Partial-run email dispatched.'); stopEng(true); leaveDriver(); })
+    .withFailureHandler(() => { banner('warn', '⚠ Aborted (email may not have sent).'); stopEng(true); leaveDriver(); })
+    .abortRun(lastStats || runStats, Date.now() - startTime, isDry, id);  // FIX 11: pass isDry
 }
 
 // ── ENGINE ────────────────────────────────────────────────────
@@ -736,29 +827,6 @@ function launchEngine() {
     if (!ok) { tl('INFO', 'Run cancelled — Global Purge confirmation declined.'); return; }
   }
 
-  // Reset
-  running = true; aborted = false; startTime = Date.now();
-  runStats = { totalMoved:0, totalTrashed:0, totalArchived:0 };
-  document.getElementById('term').innerHTML = '';
-  ['sv0','sv1','sv2'].forEach(id => ss(id, '0'));
-  ss('sv3', String(q.length)); // S-U3: seed Rules Left with the full queue
-  ss('sv4', '0s');
-  document.getElementById('btngo').disabled = true;
-  // BUG-H17: freeze the Dry Run toggle for the duration of this run. isDry
-  // was just captured into payload.dryRun below and is read live by
-  // handleRes()/finishEng()/doAbort() for the rest of this run — letting the
-  // user flip it mid-flight desyncs those displays (and, worse,
-  // finalizeAndEmail()/abortRun()'s dryRun flag) from what the run is
-  // actually doing server-side. See toggleDry()'s comment for the full
-  // mechanism. Re-enabled in stopEng() once the run ends.
-  document.getElementById('btndry').disabled = true;
-  document.getElementById('btnabort').style.display = 'flex';
-  document.getElementById('btnabort').disabled = false;
-  document.getElementById('orb').classList.add('live');
-  document.getElementById('dr').style.opacity = '1';
-  document.getElementById('dy').style.opacity = '1';
-  ['sb0','sb1','sb2','sb3','sb4'].forEach(id => document.getElementById(id).classList.add('live'));
-
   // Build per-label stats skeleton — skip purge rules (BUG-H3 FIX).
   // Purge stats live in globalPurgeMoved/inboxPurgeMoved, not stats.labels.
   // Including them here creates zero-entries that never get populated.
@@ -793,17 +861,79 @@ function launchEngine() {
     }
   };
 
+  // Register the run server-side first (RunState.gs startLiveRun). The
+  // server refuses if a run is already active on another device or from the
+  // background trigger — this tab then just shows that run instead of
+  // starting a second, overlapping one (S-N8 / Issue #82).
+  document.getElementById('btngo').disabled = true;
+  setSbar('Starting…');
+  google.script.run
+    .withSuccessHandler(res => {
+      if (!res || !res.ok) {
+        document.getElementById('btngo').disabled = false;
+        setSbar('Idle.');
+        toast('A run is already in progress — showing it instead.');
+        tl('INFO', 'Another run is already in progress (' + describeRun(res && res.run) + ') — attaching to it.');
+        pollStatus();
+        return;
+      }
+      runId = res.runId; role = 'driver';
+      payload.runId = runId; payload.driverId = DRIVER_ID;
+      engageUI(q, payload, {});
+    })
+    .withFailureHandler(e => {
+      document.getElementById('btngo').disabled = false;
+      setSbar('Idle.');
+      tl('ERROR', 'Could not start run: ' + e.message);
+    })
+    .startLiveRun({
+      driverId: DRIVER_ID, dryRun: isDry, left: q.length,
+      rule: ruleName(q[0]), queue: q.map(ruleName), stats: payload.stats
+    });
+}
+
+// Puts the UI into "this tab is driving a run" mode and fires the first
+// burst. opts.resume: continuing a run taken over from another device —
+// keeps its elapsed time, counters and progress instead of zeroing them.
+function engageUI(q, payload, opts) {
+  opts = opts || {};
+  running = true; aborted = false; rpcRetries = 0;
+  startTime = opts.startTime || Date.now();
+  const s0 = payload.stats || {};
+  runStats = { totalMoved:0, totalTrashed:0, totalArchived:0 };
+  if (!opts.resume) document.getElementById('term').innerHTML = '';
+  ss('sv0', fmt(s0.totalMoved || 0));
+  ss('sv1', fmt(isDry ? (s0.dryTrashed  || 0) : (s0.totalTrashed  || 0)));
+  ss('sv2', fmt(isDry ? (s0.dryArchived || 0) : (s0.totalArchived || 0)));
+  ss('sv3', String((payload.activeQueue || q).length)); // S-U3: seed Rules Left with the full queue
+  ss('sv4', '0s');
+  setRunningUI(true);
+  // BUG-H17: freeze the Dry Run toggle for the duration of this run. isDry
+  // was just captured into payload.dryRun and is read live by
+  // handleRes()/finishEng()/doAbort() for the rest of this run — letting the
+  // user flip it mid-flight desyncs those displays (and, worse,
+  // finalizeAndEmail()/abortRun()'s dryRun flag) from what the run is
+  // actually doing server-side. See toggleDry()'s comment for the full
+  // mechanism. Re-enabled in stopEng() once the run ends.
+  document.getElementById('btndry').disabled = true;
+  showRunButtons({ abort: true });
+
   // BUG-H13: seed lastStats with the same skeleton so an abort clicked before
   // the first burst response still has something valid (all zeros) to send.
   lastStats = payload.stats;
 
-  renderBars(q);
+  renderBars(opts.bars || q);
+  if (opts.resume) updateBars(s0);
   startTimer();
-  setRule(q[0]);
-  setSbar('Engine engaged — ' + (isDry ? 'DRY RUN' : 'LIVE'));
+  setRule((payload.activeQueue && payload.activeQueue[0]) || q[0]);
+  setSbar((opts.resume ? 'Resumed here — ' : 'Engine engaged — ') + (isDry ? 'DRY RUN' : 'LIVE'));
   tl('SEP'); // BUG-R4 FIX: visual divider line
-  tl('INFO', `START · ${q.length} rule(s) · ${isDry ? 'DRY RUN' : 'LIVE'}`);
-  if (isDry) tl('INFO', 'Dry run: each rule scanned once, then ejected — no deletions.');
+  if (opts.resume) {
+    tl('INFO', `RESUMED on this device · ${(payload.activeQueue || []).length} rule(s) left · ${isDry ? 'DRY RUN' : 'LIVE'}`);
+  } else {
+    tl('INFO', `START · ${q.length} rule(s) · ${isDry ? 'DRY RUN' : 'LIVE'}`);
+    if (isDry) tl('INFO', 'Dry run: each rule scanned once, then ejected — no deletions.');
+  }
   tl('SEP'); // BUG-R4 FIX: visual divider line
 
   burst(payload);
@@ -825,15 +955,57 @@ function burst(payload) {
   google.script.run
     .withSuccessHandler(res => handleRes(res))
     .withFailureHandler(err => {
+      if (!running || aborted) return;
+      // Mobile networks drop, and phones suspend a backgrounded tab mid-RPC.
+      // Before halting, re-sync from the server's saved copy of this run
+      // (claimRun with our own driver id) — the burst may well have finished
+      // server-side, so resending our stale payload could redo a rule — and
+      // try again.
+      if (payload.runId && rpcRetries < MAX_RPC_RETRIES) {
+        rpcRetries++;
+        tl('ERROR', `RPC failure: ${err.message} — reconnecting (${rpcRetries}/${MAX_RPC_RETRIES})…`);
+        setTimeout(() => {
+          if (!running || aborted) return;
+          google.script.run
+            .withSuccessHandler(r => {
+              if (!running || aborted) return;
+              if (r && r.ok) burst(r.payload);
+              else { tl('INFO', (r && r.reason) || 'Run is no longer active.'); stopEng(false); leaveDriver(); }
+            })
+            .withFailureHandler(() => burst(payload))
+            .claimRun(payload.runId, DRIVER_ID);
+        }, 1500 * rpcRetries);
+        return;
+      }
       tl('ERROR', 'RPC failure: ' + err.message);
-      banner('err', 'Engine halted — check Apps Script logs.');
+      banner('err', payload.runId
+        ? 'Lost contact with the engine — the run is paused. Resume it here or from another device, or abort it.'
+        : 'Engine halted — check Apps Script logs.');
       stopEng(false);
+      leaveDriver();
     })
     .processLiveBurst(payload);
 }
 
 function handleRes(res) {
   if (aborted) return;
+  rpcRetries = 0;
+
+  // Registered-run control signals (see processLiveBurst() in Runner.gs).
+  if (res && res.busy) { setTimeout(() => burst(res.payload), 1000); return; }
+  if (res && res.superseded) {
+    tl('INFO', res.msg || 'This run is now driven from another device.');
+    stopEng(false); leaveDriver();
+    return;
+  }
+  if (res && res.abortRequested) {
+    // Someone hit Abort on another device — finalize from here, exactly as
+    // a local abort does (email + digest accounting with our full stats).
+    tl('ERROR', 'ABORT requested from another device — stopping.');
+    running = true; // doAbort() only acts on a running engine
+    doAbort();
+    return;
+  }
 
   // BUG-A5 FIX (a): Batch all log lines into a DocumentFragment, then do ONE
   // appendChild and ONE scrollTop. Previously each tl() call forced a layout
@@ -879,14 +1051,19 @@ function handleRes(res) {
   ss('sv3', String(left));
   if (left) setRule(res.payload.activeQueue[0]);
 
-  if (res.error)  { banner('err', 'Engine halted: ' + res.msg); stopEng(false); return; }
+  if (res.error)  { banner('err', 'Engine halted: ' + res.msg); stopEng(false); leaveDriver(); return; }
   // BUG-H2 FIX: Guard against null payload — fall back to last known runStats.
-  if (res.done || !res.payload?.activeQueue?.length) { finishEng(res.payload?.stats || runStats); return; }
+  if (res.done || !res.payload?.activeQueue?.length) { finishEng(res.payload?.stats || runStats, res); return; }
   burst(res.payload);
 }
 
-function finishEng(stats) {
+function finishEng(stats, res) {
   stopEng(false);
+  if (runId) finishedIds[runId] = true;
+  // A registered run is finalized server-side by its last burst (email,
+  // digest, LAST_RUN_TIME) — so it still completes even if this tab closes.
+  const serverFinalized = !!(res && res.finalized);
+  leaveDriver();
   const secs = ((Date.now() - startTime) / 1000).toFixed(1);
   // BUG-H10 FIX: Only count rules that actually moved threads.
   // Previously zero-moved rules still had a stats.labels entry (finished:true),
@@ -910,7 +1087,7 @@ function finishEng(stats) {
   }
   // BUG-H4 FIX: Add withFailureHandler so a Gmail quota error on the summary
   // email is surfaced to the user rather than silently swallowed.
-  google.script.run
+  if (!serverFinalized) google.script.run
     .withFailureHandler(e => tl('ERROR', 'Summary email failed: ' + e.message))
     .finalizeAndEmail(
       stats,
@@ -929,6 +1106,10 @@ function finishEng(stats) {
 
 function stopEng(wasAbort) {
   running = false; clearInterval(timerH);
+  setRunningUI(false);
+  showRunButtons({});
+  document.getElementById('srctag').style.display = 'none';
+  document.getElementById('drytag').style.display = isDry ? 'inline-block' : 'none';
   document.getElementById('btngo').disabled    = false;
   // BUG-H17: re-enable the Dry Run toggle once the run has fully ended (or
   // aborted) — see launchEngine()'s comment for why it gets disabled in the
@@ -937,11 +1118,6 @@ function stopEng(wasAbort) {
   // failure in burst()) already funnels through, so this is the one place
   // that needs the re-enable.
   document.getElementById('btndry').disabled  = false;
-  document.getElementById('btnabort').style.display = 'none';
-  document.getElementById('orb').classList.remove('live');
-  document.getElementById('dr').style.opacity = '.35';
-  document.getElementById('dy').style.opacity = '.35';
-  ['sb0','sb1','sb2','sb3','sb4'].forEach(id => document.getElementById(id).classList.remove('live'));
   setSbar(wasAbort ? 'Aborted.' : 'Idle.');
   document.getElementById('telapsed').textContent = '';
 }
@@ -963,7 +1139,7 @@ function startTimer() {
 // BUG-A5 FIX: tl() now accepts an optional parent to append to (for batching),
 // and caps the terminal at 300 nodes, trimming the oldest 50 when exceeded.
 // BUG-R4 FIX: SEP level renders as a faint horizontal rule with no badge.
-function tl(level, msg, offsetMs, parent) {
+function tl(level, msg, offsetMs, parent, atMs) {
   const term = parent || document.getElementById('term');
 
   // BUG-A5 FIX (b): Cap terminal at 300 nodes — trim oldest 50 to keep recent output.
@@ -982,7 +1158,11 @@ function tl(level, msg, offsetMs, parent) {
     return;
   }
 
-  const ts = offsetMs != null
+  // atMs: absolute server timestamp (lines relayed from a run on another
+  // device / the trigger), shown as this device's local clock time.
+  const ts = atMs != null
+    ? new Date(atMs - clockSkew).toLocaleTimeString('en-US', {hour12:false})
+    : offsetMs != null
     ? ('+' + String(offsetMs).padStart(5) + 'ms')
     : new Date().toLocaleTimeString('en-US', {hour12:false});
   const d = document.createElement('div');
@@ -1078,6 +1258,241 @@ function updateBars(stats) {
 
 function markBarsDone() {
   document.querySelectorAll('.lp-bar').forEach(b => { b.style.width = '100%'; b.classList.add('done'); });
+}
+
+// ── SHARED RUN UI HELPERS ─────────────────────────────────────
+function ruleName(r) { return r ? (r.label || (r.category ? r.category.toUpperCase() : '?')) : '?'; }
+
+function setRunningUI(on) {
+  document.body.classList.toggle('running', on);
+  document.getElementById('btngo').disabled = on;
+  document.getElementById('orb').classList.toggle('live', on);
+  document.getElementById('dr').style.opacity = on ? '1' : '.35';
+  document.getElementById('dy').style.opacity = on ? '1' : '.35';
+  ['sb0','sb1','sb2','sb3','sb4'].forEach(id => document.getElementById(id).classList.toggle('live', on));
+}
+
+// Which run-control buttons show. Anything not passed is hidden.
+function showRunButtons(o) {
+  const set = (id, show, label, disabled) => {
+    const b = document.getElementById(id);
+    b.style.display = show ? 'flex' : 'none';
+    if (label) b.textContent = label;
+    b.disabled = !!disabled;
+  };
+  set('btnabort',  !!o.abort,  o.abortLabel || '⛔ Abort', o.abortDisabled);
+  set('btnresume', !!o.resume, o.resumeLabel || '▶ Resume Here');
+  set('btnpause',  !!o.pause,  null, o.abortDisabled);
+}
+
+function describeRun(r) {
+  if (!r) return 'unknown';
+  return (r.source === 'background' ? 'background trigger run' : 'manual run') + (r.dryRun ? ' · DRY RUN' : '');
+}
+
+// This tab stops being the driver (run ended, or handed to another device).
+function leaveDriver() {
+  if (role === 'driver') role = null;
+  runId = null;
+  schedulePoll(1500); // a handed-over / paused run shows up again as a watched run
+}
+
+// ── WATCHING RUNS FROM OTHER DEVICES / THE TRIGGER ────────────
+// Every open dashboard polls getRunStatus(): quickly while showing a run,
+// slowly while idle (to notice a trigger run or another device starting
+// one — Issue #79), and not at all while the page is hidden.
+function schedulePoll(ms) { clearTimeout(pollH); pollH = setTimeout(pollStatus, ms); }
+function pollDelay() { return role === 'viewer' ? 2500 : role === 'driver' ? 20000 : 10000; }
+
+function pollStatus() {
+  clearTimeout(pollH);
+  if (document.hidden || pollBusy) return;
+  if (typeof google === 'undefined' || !google.script) return;
+  pollBusy = true;
+  google.script.run
+    .withSuccessHandler(st => { pollBusy = false; try { applyStatus(st); } finally { schedulePoll(pollDelay()); } })
+    .withFailureHandler(() => { pollBusy = false; schedulePoll(15000); })
+    .getRunStatus(watch.seq, watch.id);
+}
+
+function applyStatus(st) {
+  if (!st) return;
+  clockSkew = (st.serverNow || Date.now()) - Date.now();
+  const r = st.run;
+
+  if (role !== 'driver' && !running && st.lastRun) {
+    const dryTag = (r && r.source === 'live' && r.dryRun && r.status === 'done')
+      ? ' <span style="color:var(--amber)">(DRY)</span>' : '';
+    document.getElementById('lastRun').innerHTML = 'LAST RUN: ' + esc(st.lastRun) + dryTag;
+  }
+  if (role === 'driver') return; // this tab renders its own run from burst replies
+
+  // A live run whose driving tab went quiet (phone locked, tab closed) stays
+  // visible so it can be resumed or stopped. A background execution that
+  // went quiet was cut off by Apps Script's time limit; the next trigger
+  // replaces it, so it's treated as over.
+  const showable = r && r.status === 'running' && !finishedIds[r.id] &&
+    (r.active || (r.stale && r.source === 'live'));
+
+  if (showable) { renderWatched(r, st); return; }
+
+  // The run we were watching has ended.
+  if (role === 'viewer' && watch.id && r && r.id === watch.id) {
+    appendRemoteLog(st.log);
+    if (st.stats) paintStats(st.stats, r.dryRun);
+    const kind = r.status === 'done' ? (r.dryRun ? 'warn' : 'ok') : r.status === 'error' ? 'err' : 'warn';
+    tl('SEP');
+    banner(kind, r.endMsg || (r.status === 'running' ? 'Background run stopped responding.' : 'Run ended (' + r.status + ').'));
+    if (r.status === 'done') { markBarsDone(); ss('sv3', String(r.left || 0)); }
+    finishedIds[r.id] = true;
+    endWatching();
+    return;
+  }
+  if (role === 'viewer') endWatching();
+}
+
+function renderWatched(r, st) {
+  if (role !== 'viewer' || watch.id !== r.id) {
+    // Start watching this run: reset the dashboard to show it.
+    role = 'viewer';
+    watch = { id: r.id, seq: -1, run: r };
+    running = false; aborted = false;
+    document.getElementById('term').innerHTML = '';
+    ['sv0','sv1','sv2'].forEach(id => ss(id, '0'));
+    setRunningUI(true);
+    document.getElementById('btndry').disabled = true;
+    renderBars((st.queue || []).map(l => ({ label: l })));
+    startTime = (r.startedAt || Date.now()) - clockSkew;
+    clearInterval(timerH); startTimer();
+    tl('SEP');
+    tl('INFO', r.source === 'background'
+      ? 'Watching a BACKGROUND run started by the trigger — you can abort it from here.'
+      : 'Watching a run started on another device/tab — you can abort it or take it over from here.');
+    tl('SEP');
+  }
+  watch.run = r;
+
+  appendRemoteLog(st.log);
+  if (st.stats) paintStats(st.stats, r.dryRun);
+  ss('sv3', String(r.left || 0));
+  setRule(r.rule ? { label: r.rule } : null);
+
+  const tag = document.getElementById('srctag');
+  tag.textContent = r.source === 'background' ? 'BACKGROUND' : (r.stale ? 'PAUSED' : 'OTHER DEVICE');
+  tag.style.display = 'inline-block';
+  document.getElementById('drytag').style.display = r.dryRun ? 'inline-block' : 'none';
+
+  const pendingAbort = r.abortRequested && !r.stale;
+  showRunButtons({
+    abort: true,
+    abortLabel: pendingAbort ? 'Aborting…' : (r.abortRequested ? '⛔ Force Stop' : '⛔ Abort'),
+    abortDisabled: pendingAbort,
+    resume: r.source === 'live' && !r.abortRequested,
+    resumeLabel: r.stale ? '▶ Resume Here' : '⇄ Take Over',
+    pause: r.source === 'background'
+  });
+  setSbar(r.source === 'background'
+    ? (pendingAbort ? 'Abort sent — stopping after the current rule…' : 'Background run in progress.')
+    : r.stale
+      ? 'This run\'s device stopped responding — resume it here or abort it.'
+      : (pendingAbort ? 'Abort sent — stopping after the current burst…' : 'Run in progress on another device.'));
+}
+
+function endWatching() {
+  role = null;
+  watch = { id: null, seq: -1, run: null };
+  stopEng(false);
+  setRule(null);
+}
+
+function appendRemoteLog(entries) {
+  if (!entries || !entries.length) return;
+  const term = document.getElementById('term');
+  const frag = document.createDocumentFragment();
+  entries.forEach(e => {
+    if (e.seq <= watch.seq) return;
+    watch.seq = e.seq;
+    tl(e.level, e.msg, null, frag, e.ts);
+  });
+  if (term.childElementCount > 300) {
+    for (let i = 0; i < 50 && term.firstChild; i++) term.removeChild(term.firstChild);
+  }
+  term.appendChild(frag);
+  term.scrollTop = term.scrollHeight;
+}
+
+function paintStats(s, dry) {
+  animStat('sv0', fmt(s.totalMoved || 0));
+  animStat('sv1', fmt(dry ? (s.dryTrashed  || 0) : (s.totalTrashed  || 0)));
+  animStat('sv2', fmt(dry ? (s.dryArchived || 0) : (s.totalArchived || 0)));
+  updateBars(s);
+}
+
+function requestRemoteAbort(pauseTrigger) {
+  const r = watch.run;
+  if (!r) return;
+  document.getElementById('btnabort').disabled = true;
+  document.getElementById('btnpause').disabled = true;
+  tl('ERROR', pauseTrigger ? 'ABORT + pause trigger requested from this device.' : 'ABORT requested from this device.');
+  google.script.run
+    .withSuccessHandler(res => {
+      toast(res && res.ok ? 'Abort sent — the run stops at its next checkpoint.' : 'That run has already finished.');
+      if (pauseTrigger) {
+        google.script.run
+          .withSuccessHandler(() => { sv('triggerMode', 'OFF'); toast('Background trigger paused (set to Manual only).'); tl('INFO', 'Background trigger set to Manual only.'); })
+          .withFailureHandler(e => tl('ERROR', 'Could not pause trigger: ' + e.message))
+          .pauseBackgroundTrigger();
+      }
+      pollStatus();
+    })
+    .withFailureHandler(e => {
+      tl('ERROR', 'Abort request failed: ' + e.message);
+      document.getElementById('btnabort').disabled = false;
+      document.getElementById('btnpause').disabled = false;
+    })
+    .requestAbort(r.id);
+}
+
+function doPauseTrigger() {
+  if (role !== 'viewer' || !watch.run) return;
+  requestRemoteAbort(true);
+}
+
+// Take over / resume a live run on this device. The server waits for any
+// in-flight burst on the old device to finish, hands over its latest saved
+// state, and the old device stops at its next burst.
+function doResume() {
+  const r = watch.run;
+  if (role !== 'viewer' || !r || r.source !== 'live') return;
+  if (!r.stale && !confirm('This run is still being driven from another device or tab.\n\nTake it over and continue it here instead?')) return;
+  if (!r.dryRun && !confirm('Continue this LIVE run here? Mail will be trashed/archived.')) return;
+  document.getElementById('btnresume').disabled = true;
+  setSbar('Taking over…');
+  google.script.run
+    .withSuccessHandler(res => {
+      if (!res || !res.ok) {
+        document.getElementById('btnresume').disabled = false;
+        toast((res && res.reason) || 'Could not take over this run.');
+        pollStatus();
+        return;
+      }
+      const startedAt = (res.run && res.run.startedAt) ? res.run.startedAt - clockSkew : Date.now();
+      role = 'driver'; runId = r.id;
+      watch = { id: null, seq: -1, run: null };
+      isDry = !!res.payload.dryRun;
+      document.getElementById('btndry').classList.toggle('on', isDry);
+      document.getElementById('srctag').style.display = 'none';
+      document.getElementById('drytag').style.display = isDry ? 'inline-block' : 'none';
+      engageUI(res.payload.activeQueue || [], res.payload, {
+        resume: true, startTime: startedAt,
+        bars: (res.queue || []).map(l => ({ label: l }))
+      });
+    })
+    .withFailureHandler(e => {
+      document.getElementById('btnresume').disabled = false;
+      tl('ERROR', 'Take-over failed: ' + e.message);
+    })
+    .claimRun(r.id, DRIVER_ID);
 }
 
 // ── UTILITIES ─────────────────────────────────────────────────

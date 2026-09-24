@@ -7,7 +7,86 @@
  */
 
 // ─── LIVE ENGINE (client-driven bursts) ──────────────────────────────────────
+// Entry point the browser calls once per burst. A payload WITHOUT a runId
+// (tests, any older caller) goes straight to processLiveBurstCore() exactly
+// as before. A payload WITH a runId is part of a registered run (RunState.gs,
+// started by startLiveRun()): the burst then runs under the script lock and
+//   - refuses to run if the run was finished/aborted elsewhere or another
+//     device has taken it over (superseded:true — the tab stops driving),
+//   - stops if an abort was requested from any device (abortRequested:true —
+//     the tab then calls abortRun() to finalize and email),
+//   - records progress/log/stats/payload after the burst so every other open
+//     dashboard can watch it, and another device can resume it,
+//   - finalizes the run server-side when the queue empties (finalized:true),
+//     so the summary email and LAST_RUN_TIME no longer depend on the driving
+//     tab still being open when the last burst returns (e.g. a phone whose
+//     screen locked).
+// Added 2026-09-24 (Issues #82/#79).
 function processLiveBurst(payload) {
+  if (!payload || !payload.runId) return processLiveBurstCore(payload);
+  const runId = payload.runId;
+  const r = withRunLock(30000, () => {
+    const s = readRunState();
+    if (!s || s.id !== runId || s.status !== 'running')
+      return { payload, log: [], superseded: true, msg: 'This run is no longer active.' };
+    if (s.driverId && payload.driverId && s.driverId !== payload.driverId)
+      return { payload, log: [], superseded: true, msg: 'This run was taken over by another device.' };
+    if (abortRequestedFor(runId))
+      return { payload, log: [], abortRequested: true, msg: 'Abort requested from another device.' };
+
+    const t0  = Date.now();
+    const res = processLiveBurstCore(payload);
+    const p   = res.payload || payload;
+    const q   = p.activeQueue || [];
+    recordRunProgress(runId, {
+      log:   (res.log || []).map(e => ({ ts: t0 + (e.t || 0), level: e.level, msg: e.msg })),
+      stats: p.stats,
+      rule:  q.length ? safeRuleLabel(q[0]) : null,
+      left:  q.length,
+      payload: p
+    });
+
+    if (res.error) {
+      endRun(runId, 'error', 'Engine halted: ' + res.msg, p.stats);
+    } else if (res.done) {
+      const elapsed = Date.now() - (s.startedAt || t0);
+      let ts = null;
+      try {
+        ts = finalizeAndEmail(p.stats, elapsed, s.dryRun ? 'Dry Run Complete' : 'Live Run Complete', s.dryRun);
+      } catch (e) {
+        res.log = (res.log || []).concat([{ t: Date.now() - t0, level: 'ERROR',
+          msg: 'Summary email failed: ' + ((e && e.message) ? e.message : String(e)) }]);
+      }
+      endRun(runId, 'done', runSummaryMsg(p.stats, s.dryRun, elapsed), p.stats);
+      res.finalized = true;
+      res.lastRun = ts;
+    }
+    return res;
+  });
+  if (!r.ok) return { payload, log: [], busy: true, msg: 'Server busy — retrying.' };
+  return r.value;
+}
+
+// ruleLabel() throws on a category rule missing its category field (Issue
+// #96); progress reporting must never be what breaks a run.
+function safeRuleLabel(rule) {
+  try { return ruleLabel(rule); } catch (e) { return '?'; }
+}
+
+// The one-line completion summary shown to every dashboard watching a run.
+// Mirrors the client's completion banners (index.html finishEng()).
+function runSummaryMsg(stats, dryRun, elapsedMs) {
+  stats = stats || {};
+  const secs = ((elapsedMs || 0) / 1000).toFixed(1);
+  const rules = Object.keys(stats.labels || {}).filter(k => (stats.labels[k].moved || 0) > 0).length
+    + ((stats.globalPurgeMoved || 0) > 0 ? 1 : 0) + ((stats.inboxPurgeMoved || 0) > 0 ? 1 : 0);
+  return dryRun
+    ? `[DRY RUN COMPLETE] ~${fmtNum(stats.totalMoved)} threads scanned · ${fmtNum(stats.dryTrashed || 0)} would trash · ${fmtNum(stats.dryArchived || 0)} would archive · ${rules} rule(s) · ${secs}s`
+    : `✓ COMPLETE · ${fmtNum(stats.totalMoved)} actioned · ${fmtNum(stats.totalTrashed || 0)} trashed · ${fmtNum(stats.totalArchived || 0)} archived · ${rules} rule(s) · ${secs}s`;
+}
+
+// The original, registry-unaware burst body — behavior unchanged.
+function processLiveBurstCore(payload) {
   const t0  = Date.now();
   const log = [];
   const emit = (lvl, msg, meta) =>
@@ -202,8 +281,40 @@ function processLiveBurst(payload) {
 }
 
 // ─── ABORT ────────────────────────────────────────────────────────────────────
+// runId (optional, 2026-09-24): the registered run being aborted. With it,
+// the abort waits for any in-flight burst (script lock), uses whichever stats
+// are more complete — the caller's, or the server's own record, which
+// includes a burst that finished after the caller stopped listening — then
+// marks the run aborted for every watching dashboard. A run that was already
+// finalized (e.g. aborted from two devices at once) is not emailed or
+// accumulated twice. Without runId: unchanged original behavior.
+function abortRun(stats, elapsedMs, dryRun, runId) {
+  if (!runId) return abortRunCore(stats, elapsedMs, dryRun);
+  const finish = () => {
+    const s = readRunState();
+    const mine = !!s && s.id === runId;
+    if (mine && s.status !== 'running') return getProps().getProperty('LAST_RUN_TIME');
+    const detail  = cacheGetJson(RUN_DETAIL_PREFIX + runId);
+    const best    = fullerStats(stats, detail && detail.stats);
+    const elapsed = mine ? Date.now() - (s.startedAt || Date.now()) : elapsedMs;
+    const dry     = mine ? !!s.dryRun : !!dryRun;
+    const ts = abortRunCore(best, elapsed, dry);
+    endRun(runId, 'aborted', `⚠ Aborted after ${((elapsed || 0) / 1000).toFixed(1)}s · ${fmtNum(best.totalMoved || 0)} ${dry ? 'scanned (dry run)' : 'actioned'}`, best);
+    return ts;
+  };
+  const r = withRunLock(60000, finish);
+  return r.ok ? r.value : finish();
+}
+
+// Picks the stats object that has seen more of the run.
+function fullerStats(a, b) {
+  if (!a) return b || {};
+  if (!b) return a;
+  return (b.totalMoved || 0) > (a.totalMoved || 0) ? b : a;
+}
+
 // FIX 11: accepts dryRun flag so abort email shows projected counts, not 0/0.
-function abortRun(stats, elapsedMs, dryRun) {
+function abortRunCore(stats, elapsedMs, dryRun) {
   const props = getProps();
   const ts    = new Date().toLocaleString();
   const freq  = props.getProperty('SUMMARY_FREQ') || 'EACH_RUN';
@@ -281,6 +392,17 @@ function backgroundRun() {
   }
 
   try {
+    // Cross-device coordination (2026-09-24, Issue #82): a manual run that
+    // is actively bursting from some tab/device owns the mailbox for now.
+    // Live bursts hold this same script lock only WHILE a burst executes, so
+    // a trigger can land between two bursts — without this check it would
+    // then process the same rules interleaved with the live run.
+    const cur = readRunState();
+    if (isRunActive(cur) && cur.source === 'live') {
+      console.log('backgroundRun: skipped — a manual run is in progress.');
+      return;
+    }
+
     const start = Date.now();
 
     const stats = {
@@ -290,6 +412,20 @@ function backgroundRun() {
       labels: {}, errors: []
     };
 
+    // Register this execution in the shared run registry (RunState.gs) so
+    // every open dashboard shows it live and can abort it (Issue #79). The
+    // engine's log lines, previously discarded on this path, are collected
+    // for those dashboards; nothing else about the run changes.
+    const run = beginRun({
+      source: 'background', dryRun: false,
+      rule: safeRuleLabel(q[0]), left: q.length, stats: stats,
+      queue: q.map(safeRuleLabel),
+      log: [{ level: 'INFO', msg: `START · ${q.length} rule(s) · BACKGROUND (trigger)` }]
+    });
+    const pending = [];
+    const emit = (lvl, msg) => pending.push({ ts: Date.now(), level: lvl, msg: msg });
+    let aborted = false;
+
     // FIX 2: per-run Set so rules don't re-process each other's threads.
     const seenIds = new Set();
 
@@ -297,6 +433,9 @@ function backgroundRun() {
     let workQueue = q.map(r => ({...r}));
 
     while (workQueue.length > 0 && Date.now() - start < BG_BUDGET_MS) {
+      // Abort requested from a dashboard (any device) — stop before the
+      // next rule. The in-flight rule, if any, already completed.
+      if (abortRequestedFor(run.id)) { aborted = true; break; }
       const rule = workQueue[0];
       // FIX 17 (BUG-C8): Use toUpperCase() fallback so old configs without a
       // label field don't produce lowercase keys in daily stats, which would
@@ -307,9 +446,13 @@ function backgroundRun() {
         // engine registers thread IDs in seenIds BEFORE the Gmail call, so if
         // it throws mid-batch (e.g. quota error), threads already processed in
         // earlier chunks won't be re-actioned by later rules in the same run.
-        const m = runRule(rule, { seen: seenIds });
+        const m = runRule(rule, { seen: seenIds, emit: emit });
 
-        if (m.matched === 0) { workQueue.shift(); continue; }
+        if (m.matched === 0) {
+          emit('COMPLETE', `[${lbl}] clean — ejected from queue.`);
+          workQueue.shift();
+          continue;
+        }
 
         const trashed  = m.action === 'trash'   ? m.execution.count : 0;
         const archived = m.action === 'archive' ? m.execution.count : 0;
@@ -330,14 +473,30 @@ function backgroundRun() {
         // (background never dry-runs, so the 4th arg stays undefined/falsy —
         // unchanged from before this fix).
         sendErrorEmail(e, { activeQueue: workQueue, stats }, 'background', undefined, lbl);
+        emit('ERROR', `[${lbl}] ${(e && e.message) ? e.message : String(e)}`);
         workQueue.shift();
+      } finally {
+        // Runs on every path out of the iteration, including `continue`.
+        recordRunProgress(run.id, {
+          log: pending.splice(0), stats: stats,
+          rule: workQueue.length ? safeRuleLabel(workQueue[0]) : null,
+          left: workQueue.length
+        });
       }
     }
 
+    const elapsed = Date.now() - start;
     accumulateDailyStats(stats);
-    maybeSendRunEmail(stats, Date.now() - start, 'Background Run');
+    maybeSendRunEmail(stats, elapsed, aborted ? 'Background Run (aborted)' : 'Background Run');
     // FIX 18 (BUG-C9): Write LAST_RUN_TIME here — maybeSendRunEmail no longer owns it.
-    getProps().setProperty('LAST_RUN_TIME', new Date().toLocaleString());
+    getProps().setProperty('LAST_RUN_TIME', new Date().toLocaleString() + (aborted ? ' (aborted)' : ''));
+    const secs = (elapsed / 1000).toFixed(1);
+    endRun(run.id, aborted ? 'aborted' : 'done',
+      aborted
+        ? `⚠ Background run aborted after ${secs}s · ${fmtNum(stats.totalMoved)} actioned`
+        : `✓ Background run finished · ${fmtNum(stats.totalMoved)} actioned · ${fmtNum(stats.totalTrashed)} trashed · ${fmtNum(stats.totalArchived)} archived · ${secs}s` +
+          (workQueue.length ? ` · ${workQueue.length} rule(s) continue next trigger` : ''),
+      stats);
 
   } finally {
     lock.releaseLock();

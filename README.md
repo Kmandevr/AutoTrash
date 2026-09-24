@@ -17,6 +17,10 @@ dashboard or continuously in the background via a time trigger.
   inbox-only or all mail (including archived).
 - **Live and background runs** — run manually from the dashboard, or set
   a time trigger (1 min up to daily) for continuous, unattended cleanup.
+- **Any device, any run** — a run started on your phone shows live on
+  your laptop (and vice versa), background trigger runs show up too, and
+  any open dashboard can abort a run, take it over, or resume one whose
+  device went to sleep.
 - **Dry run mode** — preview what a run would do with no mail actually
   moved.
 - **Email reporting** — per-run summaries, daily/weekly/bi-weekly
@@ -30,7 +34,7 @@ dashboard or continuously in the background via a time trigger.
 
 1. Create a new [Google Apps Script](https://script.google.com) project.
 2. Add every file under [`app/`](app/) — `Code.gs`, `Utils.gs`, `Config.gs`,
-   `RuleEngine.gs`, `Engine.gs`, `Stats.gs`, `Runner.gs`, `EmailSend.gs`, `EmailTemplates.gs`,
+   `RuleEngine.gs`, `Engine.gs`, `Stats.gs`, `RunState.gs`, `Runner.gs`, `EmailSend.gs`, `EmailTemplates.gs`,
    `index.html` — plus [`tests/Tests.gs`](tests/Tests.gs) (optional but
    recommended, see [Running the tests](#running-the-tests)) as files in
    that project. Apps Script has no real folders and shares one global
@@ -73,6 +77,8 @@ app/
   Engine.gs            Search → match → message context → guarded action
                       (reusable by future features; see docs/engine.txt)
   Stats.gs            Per-label/purge stat crediting + daily accumulation
+  RunState.gs          Shared run registry — watch/abort/resume runs
+                      from any device
   Runner.gs            Live/background run execution, abort, finalize
   EmailSend.gs          When/whether to send a run or digest email
   EmailTemplates.gs    HTML/plain-text email rendering

@@ -17,8 +17,25 @@
          the same look on every OS instead of each browser's own default. */
       --mono: 'Share Tech Mono', ui-monospace, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace;
       --disp: 'Exo 2', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-      --glow:    0 0 10px rgba(0,255,136,.35), 0 0 26px rgba(0,255,136,.12);
-      --glow-sm: 0 0 6px rgba(0,255,136,.3);
+      /* Plain sans for explanations/help text; mono stays for anything
+         technical (logs, counts, rule names, status). */
+      --ui:   system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      /* Glow toned down (design language 2026-09-24): a hint of phosphor,
+         not neon. */
+      --glow:    0 0 8px rgba(0,255,136,.22);
+      --glow-sm: 0 0 4px rgba(0,255,136,.18);
+
+      /* ── MOTION TOKENS ─────────────────────────────────────────────
+         The one motion system for the whole UI. Every transition and
+         animation below uses these; new features should too, instead of
+         inventing their own timings. Zeroed under prefers-reduced-motion
+         (bottom of this sheet), and JS reads motionOK() for count-ups. */
+      --dur-fast:   120ms;   /* press / hover / focus feedback */
+      --dur-normal: 200ms;   /* most state changes, toasts, dialogs */
+      --dur-slow:   320ms;   /* entrances, highlights that must be noticed */
+      --ease-standard: cubic-bezier(.2, 0, 0, 1);
+      --ease-enter:    cubic-bezier(0, 0, .2, 1);
+      --ease-exit:     cubic-bezier(.4, 0, 1, 1);
     }
     *, *::before, *::after { box-sizing:border-box; margin:0; padding:0; }
     /* CROSS-BROWSER BASELINE (2026-09-24): color-scheme makes native
@@ -32,10 +49,8 @@
       min-height:100vh; min-height:100dvh; display:flex; justify-content:center;
       padding:24px 14px 64px; overflow-x:hidden; position:relative;
     }
-    body::before {
-      content:''; position:fixed; top:0; right:0; bottom:0; left:0; pointer-events:none; z-index:9999;
-      background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,.06) 2px,rgba(0,0,0,.06) 4px);
-    }
+    /* CRT scanline overlay removed (design language 2026-09-24) — terminal
+       character comes from type, layout and status detail, not screen FX. */
     body::after {
       content:''; position:fixed; top:-200px; left:50%; transform:translateX(-50%);
       width:1000px; height:400px; pointer-events:none; z-index:0;
@@ -43,12 +58,14 @@
     }
 
     .app { width:100%; max-width:760px; display:flex; flex-direction:column; gap:12px; position:relative; z-index:1; }
-    .app > * { opacity:0; transform:translateY(10px); animation:fadeUp .36s ease forwards; }
-    .app>*:nth-child(1){animation-delay:.04s}.app>*:nth-child(2){animation-delay:.09s}
-    .app>*:nth-child(3){animation-delay:.14s}.app>*:nth-child(4){animation-delay:.19s}
-    .app>*:nth-child(5){animation-delay:.24s}.app>*:nth-child(6){animation-delay:.28s}
-    .app>*:nth-child(7){animation-delay:.32s}.app>*:nth-child(8){animation-delay:.36s}
-    .app>*:nth-child(9){animation-delay:.40s}
+    /* Sections settle in once on load — short, tightly staggered, never
+       long enough to wait on. */
+    .app > * { opacity:0; transform:translateY(6px); animation:fadeUp var(--dur-slow) var(--ease-enter) forwards; }
+    .app>*:nth-child(1){animation-delay:0ms}.app>*:nth-child(2){animation-delay:30ms}
+    .app>*:nth-child(3){animation-delay:60ms}.app>*:nth-child(4){animation-delay:90ms}
+    .app>*:nth-child(5){animation-delay:120ms}.app>*:nth-child(6){animation-delay:140ms}
+    .app>*:nth-child(7){animation-delay:160ms}.app>*:nth-child(8){animation-delay:180ms}
+    .app>*:nth-child(9){animation-delay:200ms}
     @keyframes fadeUp { to { opacity:1; transform:translateY(0); } }
 
     /* HEADER */
@@ -57,27 +74,44 @@
     .logo em { color:var(--dimmer); font-weight:300; font-style:normal; }
     .vbadge { font-size:9px; background:var(--green); color:var(--bg); padding:2px 7px; border-radius:2px; letter-spacing:1px; }
     .hdr-ts { margin-left:auto; font-size:10px; color:var(--dim); }
-    .cursor { display:inline-block; width:8px; height:13px; background:var(--green); margin-left:3px; vertical-align:middle; animation:blink 1s step-end infinite; }
+    /* Cursor blinks a few times when the app (re)enters a state, then holds
+       solid — a cue, not a constant distraction. cursorPing() restarts it. */
+    .cursor { display:inline-block; width:8px; height:13px; background:var(--green); margin-left:3px; vertical-align:middle; animation:blink 1s step-end 3; }
     @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+
+    /* STATUS PILL — the app-wide state readout (READY / RUNNING / …). */
+    .state { display:inline-flex; align-items:center; gap:6px; font-size:9px; letter-spacing:1.4px; color:var(--dim); border:1px solid var(--bord2); padding:3px 8px 3px 7px; border-radius:2px; white-space:nowrap; transition:color var(--dur-normal) var(--ease-standard), border-color var(--dur-normal) var(--ease-standard); }
+    .state::before { content:''; width:6px; height:6px; border-radius:50%; background:currentColor; opacity:.9; transition:background var(--dur-normal); }
+    .state.s-run   { color:var(--green); border-color:rgba(0,255,136,.28); }
+    .state.s-run::before { animation:dotPulse 1.2s ease-in-out infinite; }
+    .state.s-watch { color:var(--blue);  border-color:rgba(68,170,255,.3); }
+    .state.s-ok    { color:var(--green); border-color:rgba(0,255,136,.22); }
+    .state.s-dry   { color:var(--amber); border-color:rgba(255,187,68,.28); }
+    .state.s-warn  { color:var(--amber); border-color:rgba(255,187,68,.28); }
+    .state.s-err   { color:var(--red);   border-color:rgba(255,68,85,.3); }
+    .state.swap { animation:stateSwap var(--dur-normal) var(--ease-enter); }
+    @keyframes stateSwap { from { opacity:.3; transform:translateY(-2px); } to { opacity:1; transform:none; } }
+    @keyframes dotPulse { 0%,100%{opacity:1} 50%{opacity:.35} }
 
     /* STATS */
     .stats { display:grid; grid-template-columns:repeat(5,1fr); gap:8px; }
-    .stat { background:var(--surf); border:1px solid var(--bord2); border-radius:4px; padding:11px 6px 9px; text-align:center; position:relative; overflow:hidden; transition:border-color .3s; }
-    .stat-bar { position:absolute; top:0; left:0; right:0; height:2px; background:var(--green); transform:scaleX(0); transform-origin:left; transition:transform .44s cubic-bezier(.4,0,.2,1); }
+    .stat { background:var(--surf); border:1px solid var(--bord2); border-radius:4px; padding:11px 6px 9px; text-align:center; position:relative; overflow:hidden; transition:border-color var(--dur-normal) var(--ease-standard); }
+    .stat-bar { position:absolute; top:0; left:0; right:0; height:2px; background:var(--green); transform:scaleX(0); transform-origin:left; transition:transform var(--dur-slow) var(--ease-standard); }
     .stat.live .stat-bar { transform:scaleX(1); }
     .stat.live { border-color:var(--bord); }
     .stat-v { font-family:var(--disp); font-size:21px; font-weight:800; color:var(--green); line-height:1; text-shadow:var(--glow-sm); }
-    .stat-v.flash { animation:statFlash .26s ease; }
+    .stat-v { font-variant-numeric:tabular-nums; }
+    .stat-v.flash { animation:statFlash var(--dur-slow) var(--ease-enter); }
     /* BUG-A1 FIX: Glow-only flash — no color in keyframe so red/blue/amber stats don't glitch green */
-    @keyframes statFlash { 0%{opacity:.4;text-shadow:0 0 16px rgba(255,255,255,.9)} 100%{opacity:1;text-shadow:inherit} }
+    @keyframes statFlash { 0%{opacity:.55;text-shadow:0 0 10px rgba(255,255,255,.55)} 100%{opacity:1;text-shadow:inherit} }
     .stat-k { font-size:8px; color:var(--dim); margin-top:4px; text-transform:uppercase; letter-spacing:1.2px; }
 
     /* TERMINAL */
     .term-wrap { background:var(--surf); border:1px solid var(--bord); border-radius:5px; overflow:hidden; }
     .term-bar { display:flex; align-items:center; gap:6px; padding:7px 13px; background:var(--surf2); border-bottom:1px solid var(--bord); }
     .dot { width:8px; height:8px; border-radius:50%; }
-    .dot-r { background:#ff4455; opacity:.35; transition:opacity .3s; }
-    .dot-y { background:#ffbb44; opacity:.35; transition:opacity .3s; }
+    .dot-r { background:#ff4455; opacity:.35; transition:opacity var(--dur-normal); }
+    .dot-y { background:#ffbb44; opacity:.35; transition:opacity var(--dur-normal); }
     .dot-g { background:var(--green); box-shadow:var(--glow-sm); }
     .term-lbl { font-size:10px; color:var(--dim); margin-left:4px; letter-spacing:1px; text-transform:uppercase; }
     .term-right { margin-left:auto; display:flex; align-items:center; gap:10px; font-size:10px; color:var(--dim); }
@@ -118,7 +152,7 @@
 
     /* BUG-R3 FIX: sbmsg color raised from var(--dim) to var(--g4) for legibility */
     .sbar { display:flex; align-items:center; gap:9px; padding:7px 13px; border-top:1px solid var(--bord2); background:var(--surf2); font-size:11px; color:var(--g4); }
-    .orb { width:8px; height:8px; border-radius:50%; background:var(--dimmer); flex-shrink:0; transition:background .4s,box-shadow .4s; }
+    .orb { width:8px; height:8px; border-radius:50%; background:var(--dimmer); flex-shrink:0; transition:background var(--dur-normal),box-shadow var(--dur-normal); }
     .orb.live { background:var(--green); box-shadow:0 0 6px var(--green),0 0 14px rgba(0,255,136,.35); animation:orbPulse 1.2s ease-in-out infinite; }
     @keyframes orbPulse { 0%,100%{box-shadow:0 0 4px var(--green),0 0 10px rgba(0,255,136,.28)} 50%{box-shadow:0 0 8px var(--green),0 0 20px rgba(0,255,136,.5)} }
     .sbmsg { flex:1; }
@@ -132,7 +166,7 @@
     .lp-hd { display:flex; justify-content:space-between; font-size:11px; margin-bottom:4px; }
     .lp-nm { color:var(--g3); } .lp-ct { color:var(--dim); font-size:10px; }
     .lp-trk { height:3px; background:var(--bord2); border-radius:2px; overflow:hidden; }
-    .lp-bar { height:100%; background:linear-gradient(90deg,var(--g2),var(--green)); border-radius:2px; width:0%; transition:width .5s cubic-bezier(.4,0,.2,1); position:relative; }
+    .lp-bar { height:100%; background:linear-gradient(90deg,var(--g2),var(--green)); border-radius:2px; width:0%; transition:width var(--dur-slow) var(--ease-standard); position:relative; }
     .lp-bar::after { content:''; position:absolute; right:0; top:0; bottom:0; width:16px; background:linear-gradient(90deg,transparent,rgba(255,255,255,.3)); animation:shimmer 1.4s ease-in-out infinite; }
     .lp-bar.done::after { display:none; }
     .lp-bar.done { background:var(--green); box-shadow:0 0 4px rgba(0,255,136,.4); }
@@ -140,11 +174,11 @@
 
     /* PANELS */
     .panel { background:var(--surf); border:1px solid var(--bord2); border-radius:5px; overflow:hidden; }
-    .phead { display:flex; align-items:center; gap:8px; padding:9px 14px; background:var(--surf2); border-bottom:1px solid var(--bord2); cursor:pointer; -webkit-user-select:none; user-select:none; transition:background .15s; }
+    .phead { display:flex; align-items:center; gap:8px; padding:9px 14px; background:var(--surf2); border-bottom:1px solid var(--bord2); cursor:pointer; -webkit-user-select:none; user-select:none; transition:background var(--dur-fast); }
     .phead:hover { background:#091509; }
     .ph-lbl { font-size:9px; color:var(--dim); text-transform:uppercase; letter-spacing:2px; }
     /* BUG-A4 FIX: Keep '▼' always; rotate -90deg with CSS transition when panel is closed */
-    .ph-arr { margin-left:auto; color:var(--dimmer); font-size:10px; transition:transform .18s; display:inline-block; }
+    .ph-arr { margin-left:auto; color:var(--dimmer); font-size:10px; transition:transform var(--dur-normal) var(--ease-standard); display:inline-block; }
     .ph-arr.closed { transform:rotate(-90deg); }
     .pbody { padding:14px; }
     .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
@@ -152,46 +186,51 @@
     .flbl { display:block; font-size:9px; color:var(--dim); text-transform:uppercase; letter-spacing:1.4px; margin-bottom:4px; }
     .fgrp { margin-bottom:11px; }
     .fgrp:last-child { margin-bottom:0; }
-    .field { background:var(--bg); border:1px solid var(--bord); border-radius:3px; padding:8px 11px; font-family:var(--mono); font-size:12px; color:var(--g4); outline:none; width:100%; transition:border-color .2s,box-shadow .2s; }
+    .field { background:var(--bg); border:1px solid var(--bord); border-radius:3px; padding:8px 11px; font-family:var(--mono); font-size:12px; color:var(--g4); outline:none; width:100%; transition:border-color var(--dur-fast),box-shadow var(--dur-fast); }
     .field:focus { border-color:var(--g2); box-shadow:0 0 0 2px rgba(0,255,136,.07); }
     .field::placeholder { color:var(--dimmer); }
     select.field { cursor:pointer; }
     select.field option { background:#0a140a; }
-    .hint { font-size:10px; color:var(--dimmer); line-height:1.55; margin-top:9px; }
+    .hint { font-family:var(--ui); font-size:11px; color:#4f7a4f; line-height:1.55; margin-top:9px; }
+    .hint b { font-weight:600; }
     .hint b { color:var(--dim); }
 
     /* CATEGORY CARDS */
     .cat-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(210px,1fr)); gap:8px; margin-bottom:12px; }
-    .cat-card { background:var(--bg); border:1px solid var(--bord2); border-radius:4px; padding:10px 12px; display:flex; flex-direction:column; gap:7px; transition:border-color .2s; }
+    .cat-card { background:var(--bg); border:1px solid var(--bord2); border-radius:4px; padding:10px 12px; display:flex; flex-direction:column; gap:7px; transition:border-color var(--dur-normal); }
     .cat-card.on { border-color:var(--bord); }
     .cat-head { display:flex; align-items:center; gap:8px; }
     .cat-icon { font-size:14px; flex-shrink:0; }
     .cat-name { font-size:11px; color:var(--g4); font-weight:bold; flex:1; text-transform:uppercase; letter-spacing:.5px; }
-    .tog { position:relative; width:32px; height:17px; flex-shrink:0; background:var(--bord2); border-radius:9px; cursor:pointer; transition:background .2s; border:1px solid var(--bord2); }
-    .tog::after { content:''; position:absolute; top:2px; left:2px; width:11px; height:11px; border-radius:50%; background:var(--dim); transition:transform .2s,background .2s; }
+    .tog { position:relative; width:32px; height:17px; flex-shrink:0; background:var(--bord2); border-radius:9px; cursor:pointer; transition:background var(--dur-normal) var(--ease-standard),border-color var(--dur-normal); border:1px solid var(--bord2); }
+    .tog::after { content:''; position:absolute; top:2px; left:2px; width:11px; height:11px; border-radius:50%; background:var(--dim); transition:transform var(--dur-normal) var(--ease-standard),background var(--dur-normal); }
     .tog.on { background:rgba(0,255,136,.15); border-color:var(--g2); }
     .tog.on::after { transform:translateX(15px); background:var(--green); }
     .cat-fields { display:none; gap:6px; }
     .cat-fields.show { display:flex; }
-    .csf { flex:1; background:var(--bg); border:1px solid var(--bord2); border-radius:3px; padding:5px 8px; font-family:var(--mono); font-size:11px; color:var(--g4); outline:none; transition:border-color .2s; }
+    .csf { flex:1; background:var(--bg); border:1px solid var(--bord2); border-radius:3px; padding:5px 8px; font-family:var(--mono); font-size:11px; color:var(--g4); outline:none; transition:border-color var(--dur-fast); }
     .csf:focus { border-color:var(--g2); }
     select.csf option { background:#0a140a; }
 
     /* LABEL RULES */
-    .ri { display:flex; align-items:center; gap:9px; background:var(--bg); border:1px solid var(--bord2); border-radius:3px; padding:8px 11px; margin-bottom:5px; font-size:12px; animation:fadeUp .2s ease; transition:border-color .15s; }
+    .ri { display:flex; align-items:center; gap:9px; background:var(--bg); border:1px solid var(--bord2); border-radius:3px; padding:8px 11px; margin-bottom:5px; font-size:12px; animation:fadeUp var(--dur-normal) var(--ease-enter); transition:border-color var(--dur-fast); }
     .ri:hover { border-color:var(--bord); }
     .rl { flex:1; color:var(--g3); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
     .rd { color:var(--amber); min-width:34px; text-align:right; flex-shrink:0; }
     .ra { font-size:9px; color:var(--bg); padding:2px 6px; border-radius:2px; min-width:52px; text-align:center; flex-shrink:0; }
     .ra.tr { background:rgba(255,68,85,.75); } .ra.ar { background:rgba(68,170,255,.75); }
-    .rdel { background:none; border:none; color:var(--dimmer); cursor:pointer; font-size:12px; padding:2px 5px; border-radius:2px; transition:color .14s,background .14s; }
+    .rdel { background:none; border:none; color:var(--dimmer); cursor:pointer; font-size:12px; padding:2px 5px; border-radius:2px; transition:color var(--dur-fast),background var(--dur-fast); }
     .rdel:hover { color:var(--red); background:rgba(255,68,85,.1); }
 
     /* BUTTONS */
     .brow { display:flex; gap:9px; }
-    .btn { flex:1; display:flex; align-items:center; justify-content:center; text-align:center; font-family:var(--mono); font-size:11px; font-weight:bold; letter-spacing:1px; text-transform:uppercase; padding:11px 12px; border-radius:3px; border:none; cursor:pointer; transition:opacity .14s,transform .1s,box-shadow .2s; }
-    .btn:hover { opacity:.85; } .btn:active { transform:scale(.98); }
+    .btn { flex:1; display:flex; align-items:center; justify-content:center; text-align:center; font-family:var(--mono); font-size:11px; font-weight:bold; letter-spacing:1px; text-transform:uppercase; padding:11px 12px; border-radius:3px; border:none; cursor:pointer; transition:opacity var(--dur-fast) var(--ease-standard),transform var(--dur-fast) var(--ease-standard),box-shadow var(--dur-normal),border-color var(--dur-fast),background var(--dur-fast); }
+    /* Press feedback is immediate (no transition on the way down), eases
+       back on release. */
+    .btn:hover:not(:disabled) { opacity:.9; } .btn:active:not(:disabled) { transform:scale(.97); transition-duration:0ms; }
     .btn:disabled { opacity:.28; cursor:not-allowed; }
+    .btn.busy { opacity:.6; cursor:progress; }
+    .btn.done { color:var(--green); border-color:var(--g2); }
     .btn-save { background:var(--surf2); color:var(--g3); border:1px solid var(--bord); }
     .btn-save:hover:not(:disabled) { border-color:var(--g2); }
     .btn-dry  { background:var(--surf2); color:var(--amber); border:1px solid rgba(255,187,68,.18); }
@@ -202,14 +241,15 @@
     .btn-go {
       background:var(--green); color:var(--bg); border:1px solid var(--green);
       position:relative; overflow:hidden;
-      box-shadow:0 0 12px rgba(0,255,136,.22);
-      animation:lPulse 2.6s ease-in-out infinite;
+      box-shadow:0 0 8px rgba(0,255,136,.16);
     }
-    /* BUG-A3 FIX: Kill pulse animation while button is disabled — pulsing-dim looks "almost ready" */
+    /* Design language 2026-09-24: the idle 2.6s infinite pulse (lPulse) was
+       removed — constant motion on the primary button. BUG-A3's rule is kept
+       so a disabled Engage still reads as clearly off. */
     .btn-go:disabled { animation:none; box-shadow:none; }
-    @keyframes lPulse { 0%,100%{box-shadow:0 0 8px rgba(0,255,136,.18)} 50%{box-shadow:0 0 18px rgba(0,255,136,.4)} }
+    .btn-go:hover:not(:disabled) { box-shadow:0 0 12px rgba(0,255,136,.28); }
     .btn-go::after { content:''; position:absolute; top:0; right:0; bottom:0; left:0; background:linear-gradient(90deg,transparent,rgba(255,255,255,.12),transparent); transform:translateX(-100%); }
-    .btn-go:hover:not(:disabled)::after { animation:sweep .42s ease forwards; }
+    .btn-go:hover:not(:disabled)::after { animation:sweep var(--dur-slow) var(--ease-standard) forwards; }
     @keyframes sweep { to { transform:translateX(100%); } }
     /* BUG-A2 FIX: +ADD gets its own class — solid green, no pulse, no glow sweep */
     .btn-add {
@@ -218,8 +258,85 @@
     }
     .btn-add:hover:not(:disabled) { background:var(--green); border-color:var(--green); }
 
-    .toast { position:fixed; bottom:84px; right:18px; background:var(--surf2); border:1px solid var(--bord); color:var(--g4); font-family:var(--mono); font-size:11px; padding:9px 14px; border-radius:3px; opacity:0; transform:translateY(7px); transition:opacity .2s,transform .2s; pointer-events:none; z-index:9998; max-width:300px; }
-    .toast.show { opacity:1; transform:translateY(0); }
+    .toast { position:fixed; bottom:84px; right:18px; background:var(--surf2); border:1px solid var(--bord); border-left:2px solid var(--g3); color:var(--g4); font-family:var(--ui); font-size:12px; padding:9px 14px; border-radius:3px; opacity:0; transform:translateY(6px); transition:opacity var(--dur-normal) var(--ease-exit),transform var(--dur-normal) var(--ease-exit); pointer-events:none; z-index:9998; max-width:320px; }
+    .toast.show { opacity:1; transform:translateY(0); transition-timing-function:var(--ease-enter); }
+    .toast.ok   { border-left-color:var(--green); }
+    .toast.warn { border-left-color:var(--amber); }
+    .toast.err  { border-left-color:var(--red); }
+
+    /* RUN PIPELINE — lives under the terminal title bar. Each stage lights
+       only when the server has actually reported it (see pipeNote()); the
+       active stage is whatever the engine most recently reported doing. */
+    .pipe { display:flex; align-items:center; gap:0; padding:6px 13px; background:#030a03; border-bottom:1px solid var(--bord2); font-size:9px; letter-spacing:1.2px; color:var(--dimmer); overflow:hidden; white-space:nowrap; }
+    .stg { display:inline-flex; align-items:center; gap:5px; transition:color var(--dur-normal) var(--ease-standard); }
+    .stg i { font-style:normal; display:inline-block; width:9px; text-align:center; }
+    .stg + .stg::before { content:'──'; color:var(--bord); margin:0 8px; letter-spacing:-1px; transition:color var(--dur-normal); }
+    .stg.reached { color:var(--g3); }
+    .stg.reached + .stg::before { color:var(--dim); }
+    .stg.active { color:var(--green); }
+    .stg.active i { animation:dotPulse 1s ease-in-out infinite; }
+    .stg.skipped { color:var(--dim); }
+    .stg.dry     { color:var(--amber); }
+    .stg.fail    { color:var(--red); }
+    .stg.pop i { animation:checkPop var(--dur-slow) var(--ease-enter); }
+    @keyframes checkPop { 0%{transform:scale(.4);opacity:0} 70%{transform:scale(1.25);opacity:1} 100%{transform:scale(1)} }
+
+    /* A rule row flashes briefly when a burst actually actions mail on it. */
+    .lp { border-radius:2px; transition:background var(--dur-slow) var(--ease-standard); }
+    .lp.hit { animation:ruleHit 700ms var(--ease-exit); }
+    @keyframes ruleHit { 0%{background:rgba(0,255,136,.12)} 100%{background:transparent} }
+
+    /* EXECUTION SUMMARY — rendered into the terminal when a run ends,
+       from real stats/log tallies only. */
+    .sum { margin:8px 0 4px; padding:10px 13px 11px; border:1px solid var(--bord); border-radius:3px; background:rgba(0,255,136,.025); font-size:12px; line-height:1.7; animation:fadeUp var(--dur-slow) var(--ease-enter) both; opacity:0; transform:translateY(4px); }
+    .sum.dry  { border-color:rgba(255,187,68,.28); background:rgba(255,187,68,.025); }
+    .sum.err  { border-color:rgba(255,68,85,.3);  background:rgba(255,68,85,.03); }
+    .sum-hd { font-size:10px; letter-spacing:2px; color:var(--dim); margin-bottom:6px; }
+    .sum-hd b { color:var(--g4); font-weight:normal; }
+    .sum-ln { display:flex; gap:8px; opacity:0; animation:fadeUp var(--dur-normal) var(--ease-enter) forwards; transform:translateY(3px); }
+    .sum-ln .ck { color:var(--green); width:12px; flex-shrink:0; display:inline-block; animation:checkPop var(--dur-slow) var(--ease-enter) both; animation-delay:inherit; }
+    .sum-ln .ck.na { color:var(--dim); }
+    .sum-ln .k { color:var(--g3); flex:1; overflow:hidden; white-space:nowrap; }
+    .sum-ln .k::after { content:' ............................................................................................................................................................................................................................'; color:var(--dimmer); }
+    .sum-ln .v { color:var(--g4); font-variant-numeric:tabular-nums; flex-shrink:0; }
+    .sum-rule { border-top:1px solid var(--bord); margin:7px 0 6px; }
+    .sum-big { font-family:var(--disp); font-weight:800; font-size:17px; color:var(--green); letter-spacing:.5px; }
+    .sum.dry .sum-big { color:var(--amber); }
+    .sum-meta { color:var(--dim); font-size:11px; }
+    .sum-meta b { color:var(--g4); font-weight:normal; }
+    .sum-meta b.bad { color:var(--red); }
+
+    /* DIALOG — the shared confirmation component. Destructive variant gets
+       more visual weight (red rule, safety checklist) but no forced delay. */
+    .dlg-back { position:fixed; top:0; right:0; bottom:0; left:0; z-index:10000; background:rgba(1,5,1,.72); display:flex; align-items:center; justify-content:center; padding:16px; opacity:0; transition:opacity var(--dur-normal) var(--ease-standard); }
+    .dlg-back.show { opacity:1; }
+    .dlg { width:100%; max-width:420px; background:var(--surf); border:1px solid var(--bord); border-top:2px solid var(--g3); border-radius:4px; box-shadow:0 18px 50px rgba(0,0,0,.6); transform:translateY(8px) scale(.985); transition:transform var(--dur-normal) var(--ease-enter); }
+    .dlg-back.show .dlg { transform:none; }
+    .dlg.danger { border-top-color:var(--red); }
+    .dlg-hd { padding:12px 16px 0; font-size:11px; letter-spacing:2px; color:var(--g3); }
+    .dlg.danger .dlg-hd { color:var(--red); }
+    .dlg-hd .warn-ico { display:inline-block; }
+    .dlg-back.show .dlg.danger .warn-ico { animation:warnNudge 520ms var(--ease-standard) 120ms; }
+    @keyframes warnNudge { 0%,100%{transform:none} 30%{transform:scale(1.25)} 60%{transform:scale(.95)} }
+    .dlg-lead { padding:9px 16px 4px; font-family:var(--ui); font-size:13px; color:var(--g4); line-height:1.5; }
+    .dlg-rows { margin:8px 16px 4px; border-top:1px solid var(--bord2); padding-top:8px; font-size:12px; }
+    .dlg-row { display:flex; gap:10px; padding:2px 0; opacity:0; animation:fadeUp var(--dur-normal) var(--ease-enter) forwards; transform:translateY(3px); }
+    .dlg-row .k { flex:1; color:var(--g3); }
+    .dlg-row .v { color:var(--g4); font-variant-numeric:tabular-nums; }
+    .dlg-row.ok   .v { color:var(--green); }
+    .dlg-row.warn .v { color:var(--amber); }
+    .dlg-row.bad  .v { color:var(--red); }
+    .dlg-btns { display:flex; gap:9px; padding:14px 16px 16px; }
+    .dlg-btns .btn { padding:10px 12px; }
+    .btn-cancel { background:var(--surf2); color:var(--g3); border:1px solid var(--bord); }
+    .btn-cancel:hover:not(:disabled) { border-color:var(--g2); }
+    .btn-exec { background:var(--g2); color:var(--bg); border:1px solid var(--g2); }
+    .btn-exec.danger { background:rgba(255,68,85,.14); color:var(--red); border:1px solid rgba(255,68,85,.5); }
+    .btn-exec.danger:hover:not(:disabled) { background:rgba(255,68,85,.24); }
+
+    /* Collapsible panel bodies settle in when opened. */
+    .pbody.enter { animation:panelIn var(--dur-normal) var(--ease-enter); }
+    @keyframes panelIn { from { opacity:0; transform:translateY(-4px); } to { opacity:1; transform:none; } }
 
     /* CROSS-DEVICE RUN CONTROLS (2026-09-24): Resume/take-over a live run
        from this device, and abort a background run + pause its trigger. */
@@ -262,6 +379,15 @@
        nothing can get stuck invisible there. */
     @media (prefers-reduced-motion: reduce) {
       .app > * { opacity:1; transform:none; animation:none; }
+      /* One switch for the whole motion system: tokens go to ~0 and every
+         animation/transition resolves instantly to its end state, so
+         anything that starts hidden (summary lines, dialog rows) still
+         shows. Count-ups skip straight to the value (motionOK()). */
+      :root { --dur-fast:1ms; --dur-normal:1ms; --dur-slow:1ms; }
+      *, *::before, *::after {
+        animation-duration:1ms !important; animation-delay:0ms !important;
+        animation-iteration-count:1 !important; transition-duration:1ms !important;
+      }
     }
 
     /* MOBILE: no @media rules existed before this — layout was PC-only.
@@ -283,6 +409,9 @@
       .term-lbl { display:none; }
       #trule { max-width:90px; }
       .term { height:260px; padding:10px 11px; font-size:11.5px; }
+      .pipe { padding:6px 11px; font-size:8.5px; letter-spacing:.8px; }
+      .stg + .stg::before { content:'─'; margin:0 5px; }
+      .dlg-btns .btn { padding:13px 10px; }
 
       .grid3, .grid2 { grid-template-columns:1fr; gap:10px; }
       .cat-grid { grid-template-columns:1fr; }
@@ -318,6 +447,7 @@
   <div class="hdr">
     <div class="logo">AUTO<em>/</em>TRASH <span class="cursor"></span></div>
     <div class="vbadge">v26</div>
+    <div class="state" id="state">READY</div>
     <div class="hdr-ts" id="lastRun">LAST RUN: —</div>
   </div>
 
@@ -341,6 +471,9 @@
         <span id="trule">IDLE</span>
         <span id="telapsed"></span>
       </div>
+    </div>
+    <div class="pipe" id="pipe" aria-live="polite">
+      <span class="stg" data-stg="rules"><i>·</i>RULES</span><span class="stg" data-stg="search"><i>·</i>SEARCH</span><span class="stg" data-stg="evaluate"><i>·</i>EVALUATE</span><span class="stg" data-stg="execute"><i>·</i>EXECUTE</span><span class="stg" data-stg="done"><i>·</i>DONE</span>
     </div>
     <div class="term" id="term"></div>
     <div class="sbar">
@@ -487,7 +620,7 @@
 
   <!-- BUTTONS -->
   <div class="brow">
-    <button class="btn btn-save"  onclick="saveConfig()">Save Config</button>
+    <button class="btn btn-save"  id="btnsave" onclick="saveConfig()">Save Config</button>
     <button class="btn btn-dry"   id="btndry"   onclick="toggleDry()">Dry Run</button>
     <button class="btn btn-abort" id="btnabort" onclick="doAbort()">⛔ Abort</button>
     <button class="btn btn-resume" id="btnresume" onclick="doResume()">▶ Resume Here</button>
@@ -576,6 +709,7 @@ function togglePanel(h) {
   const open = b.style.display !== 'none';
   b.style.display = open ? 'none' : 'block';
   arr.classList.toggle('closed', open); // closed = rotated -90deg via CSS
+  if (!open) restartAnim(b, 'enter');   // opening: body settles in (motion tokens)
 }
 
 // ── CATEGORY UI ───────────────────────────────────────────────
@@ -668,7 +802,7 @@ function addRule() {
   const l = document.getElementById('nL').value.trim();
   const d = parseInt(document.getElementById('nD').value);
   const a = document.getElementById('nA').value;
-  if (!l || !d || d < 1) { toast('Enter a label name and day count.'); return; }
+  if (!l || !d || d < 1) { toast('Enter a label name and day count.', 'warn'); return; }
   // BUG-H15: Code.gs's buildQuery() strips every literal " from a label
   // before it goes into the quoted Gmail search term (the BUG-C20 fix, for
   // labels like `Foo"Bar` that would otherwise break out of the quoted
@@ -678,7 +812,7 @@ function addRule() {
   // ...` query every time the rule runs. Reject that case here, at the one
   // point that already knows what "sanitizes to nothing" means, instead of
   // silently saving a rule that searches Gmail with an empty label term.
-  if (!l.replace(/"/g, '')) { toast('Label name can\'t consist only of " characters.'); return; }
+  if (!l.replace(/"/g, '')) { toast('Label name can\'t consist only of " characters.', 'warn'); return; }
   rules.push({ label: l, days: d, isTrash: a === 'trash' }); // FIX: always explicit boolean
   document.getElementById('nL').value = '';
   document.getElementById('nD').value = '';
@@ -701,9 +835,21 @@ function saveConfig() {
   const toastMsg = running
     ? 'Config saved. Changes apply on next run — current run unaffected.'
     : 'Saved ✓';
+  // Loading → success/fail state on the button itself, so the save reads as
+  // one continuous interaction rather than a click followed by a toast.
+  const btn = document.getElementById('btnsave');
+  if (btn.classList.contains('busy')) return;
+  clearTimeout(btn._t);
+  btn.classList.remove('done'); btn.classList.add('busy'); btn.textContent = 'Saving…';
+  const settle = (ok) => {
+    btn.classList.remove('busy');
+    btn.classList.toggle('done', ok);
+    btn.textContent = ok ? '✓ Saved' : 'Save Config';
+    if (ok) btn._t = setTimeout(() => { btn.classList.remove('done'); btn.textContent = 'Save Config'; }, 1400);
+  };
   google.script.run
-    .withSuccessHandler(() => { toast(toastMsg); tl('INFO', 'Config saved.'); })
-    .withFailureHandler(e  => toast('Save failed: ' + e.message))
+    .withSuccessHandler(() => { settle(true); toast(toastMsg, 'ok'); tl('INFO', 'Config saved.'); })
+    .withFailureHandler(e  => { settle(false); toast('Save failed: ' + e.message, 'err'); })
     .updateSystem({
       rules,
       categoryRules:   getCatArr(),
@@ -750,7 +896,7 @@ function toggleDry() {
   isDry = !isDry;
   document.getElementById('btndry').classList.toggle('on', isDry);
   document.getElementById('drytag').style.display = isDry ? 'inline-block' : 'none';
-  toast(isDry ? 'Dry run ON — will scan but not delete.' : 'Dry run OFF.');
+  toast(isDry ? 'Dry run ON — will scan but not delete.' : 'Dry run OFF — runs will move mail.', isDry ? 'warn' : undefined);
   tl('INFO', isDry ? '[DRY RUN] Engine will scan each rule once and report — no deletions.' : '[LIVE] Dry run off.');
 }
 
@@ -763,6 +909,8 @@ function doAbort() {
   aborted = true; running = false;
   clearInterval(timerH);
   setSbar('Aborting…');
+  setState('ABORTING');
+  pipeFinish('aborted');
   tl('ERROR', 'ABORT — stopping after current burst.');
   document.getElementById('btnabort').disabled = true;
   // BUG-H13 FIX: Send the full last-known server stats object (labels,
@@ -778,8 +926,8 @@ function doAbort() {
   const id = runId;
   if (id) finishedIds[id] = true;
   google.script.run
-    .withSuccessHandler(() => { banner('warn', '⚠ Aborted. Partial-run email dispatched.'); stopEng(true); leaveDriver(); })
-    .withFailureHandler(() => { banner('warn', '⚠ Aborted (email may not have sent).'); stopEng(true); leaveDriver(); })
+    .withSuccessHandler(() => { banner('warn', '⚠ Aborted. Partial-run email dispatched.'); stopEng(true); leaveDriver(); setState('ABORTED'); })
+    .withFailureHandler(() => { banner('warn', '⚠ Aborted (email may not have sent).'); stopEng(true); leaveDriver(); setState('ABORTED'); })
     .abortRun(lastStats || runStats, Date.now() - startTime, isDry, id);  // FIX 11: pass isDry
 }
 
@@ -801,8 +949,8 @@ function buildLocalQueue(rulesArr, catArr, inboxDays, globalDays) {
   return q;
 }
 
-function launchEngine() {
-  if (running) return;
+async function launchEngine() {
+  if (running || dialogOpen()) return;
 
   const catArr = getCatArr();
   const global = gv('globalPurgeDays');
@@ -816,15 +964,26 @@ function launchEngine() {
   // S-N1 SAFETY: Global Purge trashes ALL mail older than N days across All Mail,
   // including everything deliberately archived. Require an explicit confirmation
   // on live runs only — a dry run moves nothing, so it needs no gate.
+  // Design language 2026-09-24: the native confirm() became the shared
+  // uiConfirm() dialog — same gate, same condition, same consequences, just
+  // with the safety facts laid out as a checklist.
   if (!isDry && global !== 'OFF') {
-    const ok = confirm(
-      '⚠ GLOBAL PURGE IS ACTIVE\n\n' +
-      'This will trash ALL mail older than ' + global + ' days — including ' +
-      'archived mail, not just your inbox.\n\n' +
-      'Starred mail is still spared. Trashed mail stays in Trash for 30 days.\n\n' +
-      'Continue with the live run?'
-    );
+    const ok = await uiConfirm({
+      tone: 'danger', title: 'DESTRUCTIVE ACTION',
+      lead: 'Global Purge is active. This live run will trash ALL mail older than ' +
+            global + ' days — including archived mail, not just your inbox.',
+      rows: [
+        ['Rules queued',   String(q.length)],
+        ['Global purge',   'older than ' + global + 'd', 'warn'],
+        ['Starred mail',   'spared ✓', 'ok'],
+        ['Trash / spam',   'untouched ✓', 'ok'],
+        ['Recoverable',    '30 days in Trash ✓', 'ok'],
+        ['Dry run',        'OFF', 'bad']
+      ],
+      cancelLabel: 'Cancel', confirmLabel: 'Execute'
+    });
     if (!ok) { tl('INFO', 'Run cancelled — Global Purge confirmation declined.'); return; }
+    if (running) return; // a run attached while the dialog was open
   }
 
   // Build per-label stats skeleton — skip purge rules (BUG-H3 FIX).
@@ -867,11 +1026,13 @@ function launchEngine() {
   // starting a second, overlapping one (S-N8 / Issue #82).
   document.getElementById('btngo').disabled = true;
   setSbar('Starting…');
+  setState('STARTING');
   google.script.run
     .withSuccessHandler(res => {
       if (!res || !res.ok) {
         document.getElementById('btngo').disabled = false;
         setSbar('Idle.');
+        setState('READY');
         toast('A run is already in progress — showing it instead.');
         tl('INFO', 'Another run is already in progress (' + describeRun(res && res.run) + ') — attaching to it.');
         pollStatus();
@@ -884,6 +1045,7 @@ function launchEngine() {
     .withFailureHandler(e => {
       document.getElementById('btngo').disabled = false;
       setSbar('Idle.');
+      setState('READY');
       tl('ERROR', 'Could not start run: ' + e.message);
     })
     .startLiveRun({
@@ -924,6 +1086,10 @@ function engageUI(q, payload, opts) {
 
   renderBars(opts.bars || q);
   if (opts.resume) updateBars(s0);
+  setState(isDry ? 'DRY RUN' : 'RUNNING');
+  // A resumed run's earlier searches happened elsewhere, so its search/found
+  // tallies would be partial — the summary then leaves those lines out.
+  pipeReset({ rules: (opts.bars || q).length, dry: isDry, partial: !!opts.resume });
   startTimer();
   setRule((payload.activeQueue && payload.activeQueue[0]) || q[0]);
   setSbar((opts.resume ? 'Resumed here — ' : 'Engine engaged — ') + (isDry ? 'DRY RUN' : 'LIVE'));
@@ -978,6 +1144,8 @@ function burst(payload) {
         return;
       }
       tl('ERROR', 'RPC failure: ' + err.message);
+      pipeFinish('error');
+      setState(payload.runId ? 'PAUSED' : 'HALTED');
       banner('err', payload.runId
         ? 'Lost contact with the engine — the run is paused. Resume it here or from another device, or abort it.'
         : 'Engine halted — check Apps Script logs.');
@@ -1013,7 +1181,7 @@ function handleRes(res) {
   if ((res.log || []).length) {
     const term = document.getElementById('term');
     const frag = document.createDocumentFragment();
-    res.log.forEach(e => tl(e.level, e.msg, e.t, frag));
+    res.log.forEach(e => { tl(e.level, e.msg, e.t, frag); pipeNote(e.level, e.msg); });
     // BUG-A5 FIX (b): Trim oldest nodes BEFORE appending new batch.
     if (term.childElementCount > 300) {
       for (let i = 0; i < 50 && term.firstChild; i++) term.removeChild(term.firstChild);
@@ -1038,9 +1206,9 @@ function handleRes(res) {
       runStats.dryTrashed  = s.dryTrashed  || 0;
       runStats.dryArchived = s.dryArchived || 0;
     }
-    animStat('sv0', fmt(runStats.totalMoved));
-    animStat('sv1', fmt(runStats.totalTrashed));
-    animStat('sv2', fmt(runStats.totalArchived));
+    animStat('sv0', runStats.totalMoved);
+    animStat('sv1', runStats.totalTrashed);
+    animStat('sv2', runStats.totalArchived);
     updateBars(s);
   }
 
@@ -1051,7 +1219,7 @@ function handleRes(res) {
   ss('sv3', String(left));
   if (left) setRule(res.payload.activeQueue[0]);
 
-  if (res.error)  { banner('err', 'Engine halted: ' + res.msg); stopEng(false); leaveDriver(); return; }
+  if (res.error)  { pipeFinish('error'); setState('HALTED'); banner('err', 'Engine halted: ' + res.msg); stopEng(false); leaveDriver(); return; }
   // BUG-H2 FIX: Guard against null payload — fall back to last known runStats.
   if (res.done || !res.payload?.activeQueue?.length) { finishEng(res.payload?.stats || runStats, res); return; }
   burst(res.payload);
@@ -1059,6 +1227,7 @@ function handleRes(res) {
 
 function finishEng(stats, res) {
   stopEng(false);
+  const doneId = runId;
   if (runId) finishedIds[runId] = true;
   // A registered run is finalized server-side by its last burst (email,
   // digest, LAST_RUN_TIME) — so it still completes even if this tab closes.
@@ -1102,6 +1271,12 @@ function finishEng(stats, res) {
   ss('sv3', '0'); // S-U3: queue is empty
   markBarsDone();
   setRule(null);
+  // Design language 2026-09-24: pipeline resolves, status pill settles, and
+  // the AUTOTRASH // RUN summary lands under the banner — all from the same
+  // stats the banner uses plus the log tallies collected by pipeNote().
+  pipeFinish(isDry ? 'dry' : 'ok');
+  setState(isDry ? 'DRY COMPLETE' : 'COMPLETE');
+  renderSummary({ kind: isDry ? 'dry' : 'ok', stats, secs, id: doneId });
 }
 
 function stopEng(wasAbort) {
@@ -1189,12 +1364,19 @@ function setRule(r) {
 }
 
 // ── STATS ─────────────────────────────────────────────────────
-function ss(id, v)     { document.getElementById(id).textContent = v; }
-function animStat(id, v) {
+function ss(id, v) {
   const el = document.getElementById(id);
-  if (el.textContent === v) return;
+  cancelAnimationFrame(el._raf); delete el.dataset.n; // drop any in-flight count-up
   el.textContent = v;
-  el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash');
+}
+// Counters count up to their new value (countTo) and flash once — both only
+// when the value actually changed. n is a plain number.
+function animStat(id, n) {
+  const el = document.getElementById(id);
+  const cur = el.dataset.n != null ? +el.dataset.n : (parseInt(el.textContent.replace(/[^\d]/g, ''), 10) || 0);
+  if (cur === (n || 0)) return;
+  countTo(el, n || 0);
+  restartAnim(el, 'flash');
 }
 
 // ── PROGRESS BARS ─────────────────────────────────────────────
@@ -1206,7 +1388,7 @@ function renderBars(queue) {
   bars.innerHTML = queue.map(r => {
     const lbl = r.label || (r.category ? r.category.toUpperCase() : '?');
     const id  = cid(lbl);
-    return `<div class="lp">
+    return `<div class="lp" id="lr-${id}">
       <div class="lp-hd"><span class="lp-nm" id="ln-${id}">${esc(lbl)}</span><span class="lp-ct" id="lc-${id}">waiting…</span></div>
       <div class="lp-trk"><div class="lp-bar" id="lb-${id}"></div></div>
     </div>`;
@@ -1220,6 +1402,7 @@ function updateBars(stats) {
     const ct  = document.getElementById('lc-' + id);
     const bar = document.getElementById('lb-' + id);
     if (ct)  ct.textContent = fmt(v.moved||0) + ' actioned';
+    noteRuleHit(id, v.moved || 0);
     // S-N2: prefix a ✓ once the rule ejects clean, so a finished rule is
     // distinguishable from one that simply hasn't had its turn yet.
     const nm = document.getElementById('ln-' + id);
@@ -1247,6 +1430,7 @@ function updateBars(stats) {
     const bar = document.getElementById('lb-' + id);
     const nm  = document.getElementById('ln-' + id);
     if (ct)  ct.textContent = fmt(p.moved) + ' actioned';
+    noteRuleHit(id, p.moved);
     if (nm && p.done && nm.textContent.charAt(0) !== '✓') nm.textContent = '✓ ' + lbl; // S-N2
     if (bar && !bar.classList.contains('done')) {
       // FIX: advance bar width for purge rules (was stuck at 0% before)
@@ -1254,6 +1438,16 @@ function updateBars(stats) {
       if (p.done) bar.classList.add('done');
     }
   });
+}
+
+// A rule row flashes when its actioned count goes up — i.e. only when a
+// burst genuinely matched and moved mail on that rule.
+function noteRuleHit(id, moved) {
+  const row = document.getElementById('lr-' + id);
+  if (!row) return;
+  const prev = +(row.dataset.m || 0);
+  row.dataset.m = moved;
+  if (moved > prev) restartAnim(row, 'hit');
 }
 
 function markBarsDone() {
@@ -1345,10 +1539,19 @@ function applyStatus(st) {
     banner(kind, r.endMsg || (r.status === 'running' ? 'Background run stopped responding.' : 'Run ended (' + r.status + ').'));
     if (r.status === 'done') { markBarsDone(); ss('sv3', String(r.left || 0)); }
     finishedIds[r.id] = true;
+    const secs = ((((r.endedAt || (Date.now() + clockSkew)) - (r.startedAt || 0)) / 1000) || 0).toFixed(1);
     endWatching();
+    if (r.status === 'done') {
+      pipeFinish(r.dryRun ? 'dry' : 'ok');
+      setState(r.dryRun ? 'DRY COMPLETE' : 'COMPLETE');
+      renderSummary({ kind: r.dryRun ? 'dry' : 'ok', stats: st.stats || {}, secs, id: r.id });
+    } else {
+      pipeFinish(r.status === 'error' ? 'error' : 'aborted');
+      setState(r.status === 'error' ? 'HALTED' : 'ABORTED');
+    }
     return;
   }
-  if (role === 'viewer') endWatching();
+  if (role === 'viewer') { endWatching(); setState('READY'); }
 }
 
 function renderWatched(r, st) {
@@ -1362,6 +1565,7 @@ function renderWatched(r, st) {
     setRunningUI(true);
     document.getElementById('btndry').disabled = true;
     renderBars((st.queue || []).map(l => ({ label: l })));
+    pipeReset({ rules: (st.queue || []).length, dry: !!r.dryRun });
     startTime = (r.startedAt || Date.now()) - clockSkew;
     clearInterval(timerH); startTimer();
     tl('SEP');
@@ -1371,6 +1575,7 @@ function renderWatched(r, st) {
     tl('SEP');
   }
   watch.run = r;
+  setState(r.abortRequested && !r.stale ? 'ABORTING' : (r.stale && r.source === 'live') ? 'PAUSED' : 'WATCHING');
 
   appendRemoteLog(st.log);
   if (st.stats) paintStats(st.stats, r.dryRun);
@@ -1411,8 +1616,12 @@ function appendRemoteLog(entries) {
   const frag = document.createDocumentFragment();
   entries.forEach(e => {
     if (e.seq <= watch.seq) return;
+    // Server keeps only the log tail; if its start was trimmed, the search/
+    // found tallies can't be complete, so the summary omits them.
+    if (watch.seq < 0 && e.seq > 1 && tally) tally.partial = true;
     watch.seq = e.seq;
     tl(e.level, e.msg, null, frag, e.ts);
+    pipeNote(e.level, e.msg);
   });
   if (term.childElementCount > 300) {
     for (let i = 0; i < 50 && term.firstChild; i++) term.removeChild(term.firstChild);
@@ -1422,9 +1631,9 @@ function appendRemoteLog(entries) {
 }
 
 function paintStats(s, dry) {
-  animStat('sv0', fmt(s.totalMoved || 0));
-  animStat('sv1', fmt(dry ? (s.dryTrashed  || 0) : (s.totalTrashed  || 0)));
-  animStat('sv2', fmt(dry ? (s.dryArchived || 0) : (s.totalArchived || 0)));
+  animStat('sv0', s.totalMoved || 0);
+  animStat('sv1', dry ? (s.dryTrashed  || 0) : (s.totalTrashed  || 0));
+  animStat('sv2', dry ? (s.dryArchived || 0) : (s.totalArchived || 0));
   updateBars(s);
 }
 
@@ -1433,13 +1642,14 @@ function requestRemoteAbort(pauseTrigger) {
   if (!r) return;
   document.getElementById('btnabort').disabled = true;
   document.getElementById('btnpause').disabled = true;
+  setState('ABORTING');
   tl('ERROR', pauseTrigger ? 'ABORT + pause trigger requested from this device.' : 'ABORT requested from this device.');
   google.script.run
     .withSuccessHandler(res => {
-      toast(res && res.ok ? 'Abort sent — the run stops at its next checkpoint.' : 'That run has already finished.');
+      toast(res && res.ok ? 'Abort sent — the run stops at its next checkpoint.' : 'That run has already finished.', res && res.ok ? 'warn' : undefined);
       if (pauseTrigger) {
         google.script.run
-          .withSuccessHandler(() => { sv('triggerMode', 'OFF'); toast('Background trigger paused (set to Manual only).'); tl('INFO', 'Background trigger set to Manual only.'); })
+          .withSuccessHandler(() => { sv('triggerMode', 'OFF'); toast('Background trigger paused (set to Manual only).', 'ok'); tl('INFO', 'Background trigger set to Manual only.'); })
           .withFailureHandler(e => tl('ERROR', 'Could not pause trigger: ' + e.message))
           .pauseBackgroundTrigger();
       }
@@ -1461,18 +1671,40 @@ function doPauseTrigger() {
 // Take over / resume a live run on this device. The server waits for any
 // in-flight burst on the old device to finish, hands over its latest saved
 // state, and the old device stops at its next burst.
-function doResume() {
+async function doResume() {
   const r = watch.run;
-  if (role !== 'viewer' || !r || r.source !== 'live') return;
-  if (!r.stale && !confirm('This run is still being driven from another device or tab.\n\nTake it over and continue it here instead?')) return;
-  if (!r.dryRun && !confirm('Continue this LIVE run here? Mail will be trashed/archived.')) return;
+  if (role !== 'viewer' || !r || r.source !== 'live' || dialogOpen()) return;
+  // Design language 2026-09-24: the two native confirm()s (take over an
+  // active run; continue a LIVE run) are one uiConfirm() that states both
+  // facts — asked in exactly the same cases as before, and still skipped for
+  // a paused dry run.
+  const takeOver = !r.stale, live = !r.dryRun;
+  if (takeOver || live) {
+    const ok = await uiConfirm({
+      tone: live ? 'danger' : 'info',
+      title: takeOver ? 'TAKE OVER RUN' : 'RESUME RUN',
+      lead: (takeOver
+        ? 'This run is still being driven from another device or tab. Take it over and continue it here instead?'
+        : 'Continue this paused run on this device?') +
+        (live ? ' This is a LIVE run — mail will be trashed/archived.' : ''),
+      rows: [
+        ['Mode',         live ? 'LIVE' : 'DRY RUN', live ? 'bad' : 'warn'],
+        ['Rules left',   String(r.left || 0)],
+        ['Driven from',  takeOver ? 'another device' : 'nobody (paused)'],
+        ['Starred mail', 'spared ✓', 'ok']
+      ],
+      confirmLabel: takeOver ? 'Take over' : 'Resume'
+    });
+    if (!ok) return;
+    if (role !== 'viewer' || !watch.run || watch.run.id !== r.id) return; // run ended meanwhile
+  }
   document.getElementById('btnresume').disabled = true;
   setSbar('Taking over…');
   google.script.run
     .withSuccessHandler(res => {
       if (!res || !res.ok) {
         document.getElementById('btnresume').disabled = false;
-        toast((res && res.reason) || 'Could not take over this run.');
+        toast((res && res.reason) || 'Could not take over this run.', 'warn');
         pollStatus();
         return;
       }
@@ -1495,15 +1727,229 @@ function doResume() {
     .claimRun(r.id, DRIVER_ID);
 }
 
+// ══ UI SHELL ══════════════════════════════════════════════════
+// The shared visual/motion language (design language 2026-09-24). Pages
+// and features call these instead of rolling their own: motion timings
+// (MOTION + the --dur-* CSS tokens), the app-wide status pill (setState),
+// the run pipeline (pipeReset/pipeNote/pipeFinish), count-ups (countTo),
+// confirmations (uiConfirm) and notifications (toast). Everything shown
+// here is driven by real run state — nothing is faked or padded for effect.
+
+// ── MOTION ────────────────────────────────────────────────────
+// JS mirror of the CSS tokens, for the few timings JS has to wait on.
+const MOTION = { fast: 120, normal: 200, slow: 320 };
+function motionOK() {
+  try { return !window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { return true; }
+}
+function restartAnim(el, cls) { if (!el) return; el.classList.remove(cls); void el.offsetWidth; el.classList.add(cls); }
+// Header cursor blinks three times on a state change, then holds solid.
+function cursorPing() {
+  const c = document.querySelector('.cursor');
+  if (!c) return;
+  c.style.animation = 'none'; void c.offsetWidth; c.style.animation = '';
+}
+
+// ── STATUS PILL ───────────────────────────────────────────────
+const STATE_CLS = {
+  'READY': '', 'STARTING': 's-run', 'RUNNING': 's-run', 'DRY RUN': 's-dry',
+  'WATCHING': 's-watch', 'PAUSED': 's-warn', 'ABORTING': 's-warn',
+  'COMPLETE': 's-ok', 'DRY COMPLETE': 's-dry', 'ABORTED': 's-warn', 'HALTED': 's-err'
+};
+function setState(label) {
+  const el = document.getElementById('state');
+  if (!el || el.textContent === label) return;
+  el.textContent = label;
+  el.className = 'state ' + (STATE_CLS[label] || '');
+  restartAnim(el, 'swap');
+  cursorPing();
+}
+
+// ── RUN PIPELINE ──────────────────────────────────────────────
+// RULES → SEARCH → EVALUATE → EXECUTE → DONE. A stage lights only when the
+// server's own log says it happened (SEARCH line → searched; RESULT/DRYRUN/
+// clean-eject → evaluated; ACTION/BATCH/DONE → executed). The "active"
+// stage is the last one the engine reported. `tally` collects the same
+// events for the completion summary.
+const STAGES = ['rules', 'search', 'evaluate', 'execute', 'done'];
+let tally = null;
+
+function pipeReset(o) {
+  o = o || {};
+  tally = { rules: o.rules || 0, searches: 0, found: 0, skipped: 0,
+            dry: !!o.dry, partial: !!o.partial, reached: {}, last: null };
+  document.querySelectorAll('#pipe .stg').forEach(s => {
+    s.className = 'stg'; s.querySelector('i').textContent = '·'; s.removeAttribute('title');
+  });
+  if (tally.dry) {
+    const ex = document.querySelector('#pipe [data-stg="execute"]');
+    ex.classList.add('dry'); ex.querySelector('i').textContent = '–';
+    ex.title = 'Dry run — nothing is executed';
+  }
+  pipeStage('rules');
+}
+
+function pipeStage(name) {
+  if (!tally) return;
+  const first = !tally.reached[name];
+  tally.reached[name] = true; tally.last = name;
+  document.querySelectorAll('#pipe .stg').forEach(s => {
+    const n = s.dataset.stg, i = s.querySelector('i');
+    s.classList.remove('active');
+    if (tally.reached[n]) { s.classList.add('reached'); i.textContent = '✓'; }
+    if (n === name) { s.classList.add('active'); i.textContent = '●'; if (first) restartAnim(s, 'pop'); }
+  });
+}
+
+function pipeNote(level, msg) {
+  if (!tally) return;
+  msg = String(msg || '');
+  const num = re => { const m = msg.match(re); return m ? (parseInt(m[1].replace(/,/g, ''), 10) || 0) : 0; };
+  switch (level) {
+    case 'SEARCH':   tally.searches++; pipeStage('search'); break;
+    case 'RESULT':   tally.found += num(/^([\d,]+) found/); pipeStage('evaluate'); break;
+    case 'DRYRUN':
+    case 'COMPLETE': pipeStage('evaluate'); break;
+    case 'ACTION':
+    case 'BATCH':
+    case 'DONE':     if (!tally.dry) pipeStage('execute'); break;
+    case 'INFO':     tally.skipped += num(/^Skipped ([\d,]+) already-processed/); break;
+  }
+}
+
+// kind: 'ok' | 'dry' | 'aborted' | 'error'
+function pipeFinish(kind) {
+  if (!tally) return;
+  const good = kind === 'ok' || kind === 'dry';
+  document.querySelectorAll('#pipe .stg').forEach(s => {
+    const n = s.dataset.stg, i = s.querySelector('i');
+    const wasActive = s.classList.contains('active');
+    s.classList.remove('active');
+    if (n === 'done') {
+      if (good) { s.classList.add('reached'); i.textContent = '✓'; restartAnim(s, 'pop'); }
+      return;
+    }
+    if (!good && wasActive) { s.classList.add('fail'); i.textContent = '✕'; return; }
+    if (tally.reached[n]) { i.textContent = '✓'; return; }
+    if (good && !s.classList.contains('dry')) { s.classList.add('skipped'); i.textContent = '–'; s.title = 'Not needed this run'; }
+  });
+}
+
+// ── EXECUTION SUMMARY ─────────────────────────────────────────
+// o: { kind:'ok'|'dry', stats, secs, id }
+function renderSummary(o) {
+  const t = tally || {}, s = o.stats || {}, dry = o.kind === 'dry';
+  const errs = (s.errors || []).length;
+  const rows = [['Rules queued', t.rules || 0]];
+  if (!t.partial) {
+    rows.push(['Gmail searches', t.searches || 0]);
+    rows.push(['Threads found', t.found || 0]);
+    if (t.skipped) rows.push(['Already handled (skipped)', t.skipped]);
+  }
+  rows.push(['Starred mail', 'excluded']); // every query carries -is:starred (§9)
+  if (dry) { rows.push(['Would trash', s.dryTrashed || 0]); rows.push(['Would archive', s.dryArchived || 0]); }
+  else     { rows.push(['Trashed', s.totalTrashed || 0]);   rows.push(['Archived', s.totalArchived || 0]); }
+
+  const shortId = o.id ? String(o.id).split('-').pop().toUpperCase() : '';
+  const d = document.createElement('div');
+  d.className = 'sum' + (dry ? ' dry' : '') + (errs ? ' err' : '');
+  d.setAttribute('role', 'status');
+  d.innerHTML =
+    `<div class="sum-hd">AUTOTRASH // <b>${dry ? 'DRY RUN' : 'RUN'}${shortId ? ' #' + esc(shortId) : ''}</b></div>` +
+    rows.map((r, i) => {
+      const isNum = typeof r[1] === 'number';
+      const na = r[0] === 'Gmail searches' && !r[1];
+      return `<div class="sum-ln" style="animation-delay:${80 + i * 45}ms"><span class="ck${na ? ' na' : ''}">${na ? '–' : '✓'}</span>` +
+             `<span class="k">${esc(r[0])}</span><span class="v"${isNum ? ` data-to="${r[1]}"` : ''}>${isNum ? '0' : esc(r[1])}</span></div>`;
+    }).join('') +
+    `<div class="sum-rule"></div>` +
+    `<div class="sum-big"><span data-to="${s.totalMoved || 0}">0</span> ${dry ? 'threads matched · nothing moved' : 'threads handled'}</div>` +
+    `<div class="sum-meta"><b class="${errs ? 'bad' : ''}">${errs}</b> error${errs === 1 ? '' : 's'} · <b>${esc(o.secs)}s</b></div>`;
+  const term = document.getElementById('term');
+  term.appendChild(d);
+  term.scrollTop = term.scrollHeight;
+  d.querySelectorAll('[data-to]').forEach((el, i) =>
+    setTimeout(() => countTo(el, +el.dataset.to, { dur: 520 }), motionOK() ? 120 + i * 45 : 0));
+}
+
+// ── COUNT-UP ──────────────────────────────────────────────────
+// Eases a number from its current value to `to`. Instant under reduced
+// motion. el.dataset.n holds the true target so rapid updates chain cleanly.
+function countTo(el, to, opts) {
+  if (!el) return;
+  opts = opts || {};
+  to = Math.max(0, Math.round(+to || 0));
+  const from = el.dataset.n != null ? +el.dataset.n
+             : (parseInt(String(el.textContent).replace(/[^\d]/g, ''), 10) || 0);
+  el.dataset.n = to;
+  cancelAnimationFrame(el._raf);
+  if (!motionOK() || from === to) { el.textContent = fmt(to); return; }
+  const dur = opts.dur || Math.min(700, 240 + Math.log10(Math.abs(to - from) + 1) * 110);
+  const t0 = performance.now();
+  const step = now => {
+    const p = Math.min(1, (now - t0) / dur), e = 1 - Math.pow(1 - p, 3);
+    el.textContent = fmt(Math.round(from + (to - from) * e));
+    if (p < 1) el._raf = requestAnimationFrame(step);
+  };
+  el._raf = requestAnimationFrame(step);
+}
+
+// ── CONFIRMATION DIALOG ───────────────────────────────────────
+// uiConfirm({ tone:'danger'|'info', title, lead, rows:[[k, v, 'ok'|'warn'|'bad']],
+//             confirmLabel, cancelLabel }) → Promise<boolean>
+// Danger dialogs focus Cancel first; Esc / backdrop click cancel.
+function uiConfirm(o) {
+  return new Promise(resolve => {
+    const danger = o.tone === 'danger';
+    const back = document.createElement('div');
+    back.className = 'dlg-back';
+    back.innerHTML =
+      `<div class="dlg${danger ? ' danger' : ''}" role="alertdialog" aria-modal="true" aria-labelledby="dlgT" aria-describedby="dlgL">` +
+      `<div class="dlg-hd" id="dlgT">${danger ? '<span class="warn-ico">⚠</span> ' : '› '}${esc(o.title)}</div>` +
+      (o.lead ? `<div class="dlg-lead" id="dlgL">${esc(o.lead)}</div>` : '') +
+      ((o.rows || []).length ? `<div class="dlg-rows">` + o.rows.map((r, i) =>
+        `<div class="dlg-row ${r[2] || ''}" style="animation-delay:${60 + i * 35}ms"><span class="k">${esc(r[0])}</span><span class="v">${esc(r[1])}</span></div>`
+      ).join('') + `</div>` : '') +
+      `<div class="dlg-btns"><button class="btn btn-cancel">[ ${esc(o.cancelLabel || 'Cancel')} ]</button>` +
+      `<button class="btn btn-exec${danger ? ' danger' : ''}">[ ${esc(o.confirmLabel || 'Confirm')} ]</button></div></div>`;
+    document.body.appendChild(back);
+    const prev = document.activeElement;
+    const [bc, bx] = back.querySelectorAll('.dlg-btns .btn');
+    let closed = false;
+    const close = ok => {
+      if (closed) return; closed = true;
+      document.removeEventListener('keydown', onKey, true);
+      back.classList.remove('show');
+      setTimeout(() => back.remove(), MOTION.normal);
+      try { if (prev && prev.focus) prev.focus(); } catch (e) {}
+      resolve(ok);
+    };
+    const onKey = e => {
+      if (e.key === 'Escape') { e.preventDefault(); close(false); }
+      else if (e.key === 'Tab') { e.preventDefault(); (document.activeElement === bc ? bx : bc).focus(); }
+    };
+    bc.onclick = () => close(false);
+    bx.onclick = () => close(true);
+    back.addEventListener('mousedown', e => { if (e.target === back) close(false); });
+    document.addEventListener('keydown', onKey, true);
+    requestAnimationFrame(() => { back.classList.add('show'); (danger ? bc : bx).focus(); });
+  });
+}
+function dialogOpen() { return !!document.querySelector('.dlg-back'); }
+
 // ── UTILITIES ─────────────────────────────────────────────────
 function fmt(n)  { return (n||0).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ','); }
-function esc(s)  { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function esc(s)  { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function cid(s)  { return String(s).replace(/[^a-zA-Z0-9_-]/g, '_'); }
 
+// ── NOTIFICATIONS ─────────────────────────────────────────────
+// kind: 'ok' | 'warn' | 'err' | undefined (neutral)
 let _tt = null;
-function toast(msg) {
+function toast(msg, kind) {
   const el = document.getElementById('toast');
-  el.textContent = msg; el.classList.add('show');
+  el.textContent = msg;
+  el.className = 'toast' + (kind ? ' ' + kind : '');
+  void el.offsetWidth;
+  el.classList.add('show');
   clearTimeout(_tt); _tt = setTimeout(() => el.classList.remove('show'), 2800);
 }
 </script>

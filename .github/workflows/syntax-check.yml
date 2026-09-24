@@ -1,0 +1,35 @@
+name: Syntax check
+
+# Apps Script has no build step and no package manager, so this is
+# intentionally minimal: it only confirms every .gs/.html-embedded-script
+# file is valid JavaScript syntax before it gets pasted into the Apps
+# Script editor. It does NOT run tests/Tests.gs (that suite depends on
+# Apps Script's shared global scope and real GmailApp/PropertiesService/
+# LockService/ScriptApp — see tests/Tests.gs's own header — so it can only
+# run from the Apps Script editor itself, not here).
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  syntax-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check .gs files parse as valid JavaScript
+        run: |
+          set -e
+          status=0
+          for f in app/*.gs tests/*.gs; do
+            echo "::group::$f"
+            if ! node --check "$f"; then
+              echo "::error file=$f::Syntax error"
+              status=1
+            fi
+            echo "::endgroup::"
+          done
+          exit $status

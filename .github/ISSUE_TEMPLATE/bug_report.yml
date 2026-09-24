@@ -1,0 +1,61 @@
+name: Bug report
+description: Something in AutoTrash is broken or behaves incorrectly
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for filing this. After submitting, apply a **severity** label
+        (`critical`/`high`/`medium`/`low`), one or more **area** labels
+        (`code`/`logic`/`email`/`ui`/`tests`/`docs`), and a **time estimate**
+        (`minutes`/`hours`/`days`) if it's actionable now — see `CLAUDE.md`
+        for the full label taxonomy.
+  - type: textarea
+    id: description
+    attributes:
+      label: What's broken
+      description: What happens, and what you expected instead.
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce / where it was found
+      description: Config, rule setup, or code path that triggers it, if known.
+    validations:
+      required: false
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Suggested severity
+      description: Used to apply the matching `severity-*` label after triage.
+      options:
+        - critical
+        - high
+        - medium
+        - low
+    validations:
+      required: false
+  - type: dropdown
+    id: area
+    attributes:
+      label: Suggested area(s)
+      description: Used to apply the matching area label(s) after triage.
+      multiple: true
+      options:
+        - code
+        - logic
+        - email
+        - ui
+        - tests
+        - docs
+    validations:
+      required: false
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Anything else worth knowing — impact, likelihood, related issues.
+    validations:
+      required: false

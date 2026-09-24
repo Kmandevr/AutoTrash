@@ -1,0 +1,51 @@
+name: Task
+description: Internal work item — refactor, cleanup, investigation, or a
+  decision that needs making before code changes
+title: "[Task]: "
+labels: ["task"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        For "needs a decision before any code is written" items (the
+        `docs/suggestions.txt` STILL OPEN pattern), lay out the options
+        rather than picking one. After submitting, apply area label(s)
+        (`code`/`logic`/`email`/`ui`/`tests`/`docs`) and a time estimate
+        (`minutes`/`hours`/`days`) if it's actionable now.
+  - type: textarea
+    id: description
+    attributes:
+      label: What needs doing
+    validations:
+      required: true
+  - type: textarea
+    id: options
+    attributes:
+      label: Options / open questions
+      description: If this needs a decision rather than a straight fix, list the choices and their tradeoffs.
+    validations:
+      required: false
+  - type: dropdown
+    id: area
+    attributes:
+      label: Suggested area(s)
+      multiple: true
+      options:
+        - code
+        - logic
+        - email
+        - ui
+        - tests
+        - docs
+    validations:
+      required: false
+  - type: dropdown
+    id: estimate
+    attributes:
+      label: Rough time estimate (if known)
+      options:
+        - minutes
+        - hours
+        - days
+    validations:
+      required: false

@@ -45,6 +45,9 @@ built-in services (`GmailApp`, `PropertiesService`, `LockService`,
     docs/
       feature-reference.txt      how each feature is MEANT to behave — read
                                  before changing behavior, not just style
+      testing.txt                 how tests/ is organized, how the Node
+                                 harness works, and how to add a test —
+                                 read before touching anything under tests/
       suggestions.txt            proposed, unbuilt — don't implement without
                                  being asked to
 
@@ -92,6 +95,11 @@ Two ways to run the exact same suite (`runAllTests()` in `tests/RunAll.gs`
 
 Any change to backend behavior (`app/`) must get a matching test in the
 same pass, in the `tests/*.test.gs` file for the app file it changed.
+
+See `docs/testing.txt` for the full file map, how to add a test, and how
+the Node harness (`tests/mocks/`, `tests/harness/`) actually works
+internally — including the one real gotcha in it (why it concatenates
+every file into a single `vm.Script` instead of running one per file).
 
 ## Rules
 

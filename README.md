@@ -1,10 +1,11 @@
 # AutoTrash v26
 
-A self-hosted Gmail cleanup engine built on Google Apps Script. AutoTrash
-trashes or archives mail based on labels, Gmail's auto-sort categories
-(Promotions, Social, Updates, Forums, Spam), and configurable age
-thresholds — either on demand from an in-browser dashboard, or
-continuously in the background via a time trigger.
+A self-hosted Gmail cleanup engine built on Google Apps Script — no
+server, no third-party access to your mail, nothing but your own Google
+account. AutoTrash trashes or archives mail based on labels, Gmail's
+auto-sort categories (Promotions, Social, Updates, Forums, Spam), and
+configurable age thresholds, either on demand from an in-browser
+dashboard or continuously in the background via a time trigger.
 
 ## Features
 
@@ -31,12 +32,12 @@ continuously in the background via a time trigger.
 2. Add every file under [`app/`](app/) — `Code.gs`, `Utils.gs`,
    `RuleEngine.gs`, `Runner.gs`, `EmailSend.gs`, `EmailTemplates.gs`,
    `index.html` — plus [`tests/Tests.gs`](tests/Tests.gs) (optional but
-   recommended — see below) as files in that project. Apps Script has no
-   real folders and shares one global scope across every `.gs` file
-   regardless of name or push order, so it doesn't matter what these end
-   up named/ordered in the Apps Script editor, or whether you drop the
-   `app/`/`tests/` grouping — this repo layout is purely for organizing
-   the GitHub side.
+   recommended, see [Running the tests](#running-the-tests)) as files in
+   that project. Apps Script has no real folders and shares one global
+   scope across every `.gs` file regardless of name or push order, so it
+   doesn't matter what these end up named/ordered in the Apps Script
+   editor, or whether you keep the `app/`/`tests/` grouping — this repo
+   layout is purely for organizing the GitHub side.
 3. Deploy as a **Web App** (Deploy → New deployment → Web app), with
    access set to yourself. This gives `doGet()` a URL that serves the
    dashboard.
@@ -48,16 +49,18 @@ continuously in the background via a time trigger.
 No external dependencies — this runs entirely on Apps Script's built-in
 `GmailApp`, `PropertiesService`, `LockService`, and `ScriptApp` services.
 
-**Deploying with `clasp` instead of copy-paste:** point `.clasp.json`'s
-`rootDir` at the repo root (or leave it unset) rather than at `app/` —
-`clasp push` includes `app/` and `tests/` as nested folders automatically,
-which is fine (Apps Script's own editor displays `/` in a pushed file's
-name as a folder), and this way `tests/Tests.gs` gets pushed too. Pointing
-`rootDir` at `app/` directly would deploy the app fine but silently skip
-`Tests.gs`, since it lives outside that directory.
+<details>
+<summary>Deploying with <code>clasp</code> instead of copy-paste</summary>
 
-Working on this with an AI coding agent? See [`CLAUDE.md`](CLAUDE.md) for
-repo conventions and workflow.
+Point `.clasp.json`'s `rootDir` at the repo root (or leave it unset)
+rather than at `app/` — `clasp push` includes `app/` and `tests/` as
+nested folders automatically, which is fine (Apps Script's own editor
+displays a pushed file's `/` as a folder), and this way
+`tests/Tests.gs` gets pushed too. Pointing `rootDir` at `app/` directly
+would deploy the app fine but silently skip `Tests.gs`, since it lives
+outside that directory.
+
+</details>
 
 ## Repo layout
 
@@ -85,7 +88,7 @@ docs/
 Bugs, tasks, and features are tracked in this repo's
 [GitHub Issues](../../issues) — closed issues (labeled `status-fixed`) are
 the fixed-bug record, open ones are current work. Labels stack (type,
-severity, area, time estimate) — see [`CLAUDE.md`](CLAUDE.md) for the
+severity, area, time estimate); see [`CLAUDE.md`](CLAUDE.md) for the
 full breakdown.
 
 ## Running the tests
@@ -101,10 +104,10 @@ the tests.
 
 See this repo's [open Issues](../../issues?q=is%3Aissue+is%3Aopen+label%3Abug)
 for the full list with root-cause detail. At a glance, the currently open
-items are all reporting-accuracy
-or notification-timing edge cases (e.g. a dry-run preview can undercount
-a rule with a very large backlog; a digest email doesn't currently
-surface error counts) — none of them cause mail to be moved incorrectly.
+items are all reporting-accuracy or notification-timing edge cases (e.g.
+a dry-run preview can undercount a rule with a very large backlog; a
+digest email doesn't currently surface error counts) — none of them
+cause mail to be moved incorrectly.
 
 ## Safety notes
 
@@ -116,3 +119,13 @@ surface error counts) — none of them cause mail to be moved incorrectly.
 - Global Purge reaches archived mail, not just your inbox. The dashboard
   requires an explicit confirmation before a live run with Global Purge
   enabled can start.
+
+## Contributing
+
+Working on this with an AI coding agent? See [`CLAUDE.md`](CLAUDE.md) for
+repo conventions and workflow — branch naming, where new code belongs,
+and how issues are labeled.
+
+## License
+
+[MIT](LICENSE)

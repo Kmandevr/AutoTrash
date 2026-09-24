@@ -3,7 +3,7 @@ AUTOTRASH v26 — FEATURE REFERENCE DOCUMENT
 Last updated: 2026-09-01 (twelfth pass, 2026-09-01, added a §6/§12 note on
 BUG-E18 — see those sections)
 Use this as the source of truth when debugging, extending, or
-reviewing either Code.gs or index.html.
+reviewing the backend (app/*.gs) or index.html.
 ████████████████████████████████████████████████████████████████
 
 

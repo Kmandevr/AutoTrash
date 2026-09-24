@@ -5,8 +5,8 @@ Last updated: 2026-09-01 (twelfth pass — added S-N17)
 ⚠ IMPORTANT — READ BEFORE ACTING ON ANYTHING IN THIS FILE ⚠
 
 These are ideas, observations, and potential improvements noted
-during code review. NONE of these should be implemented in
-Code.gs or index.html unless the user explicitly says so.
+during code review. NONE of these should be implemented in the
+backend (app/*.gs) or index.html unless the user explicitly says so.
 
 This file is for discussion and planning only.
 

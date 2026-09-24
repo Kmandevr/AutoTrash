@@ -22,12 +22,16 @@ jobs:
 
       - name: Check .gs files parse as valid JavaScript
         run: |
-          set -e
           status=0
           for f in app/*.gs tests/*.gs; do
             echo "::group::$f"
-            if ! node --check "$f"; then
-              echo "::error file=$f::Syntax error"
+            # --input-type=commonjs + stdin: node's extension-based module
+            # detection rejects the unrecognized ".gs" extension outright
+            # (ERR_UNKNOWN_FILE_EXTENSION) before it ever looks at syntax.
+            # Piping via stdin skips that detection entirely.
+            if ! error_output=$(node --check --input-type=commonjs < "$f" 2>&1); then
+              echo "$error_output"
+              echo "::error file=$f::$error_output"
               status=1
             fi
             echo "::endgroup::"

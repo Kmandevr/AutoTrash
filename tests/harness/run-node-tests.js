@@ -42,6 +42,7 @@ const APP_FILES = [
   'app/Config.gs',
   'app/Stats.gs',
   'app/Engine.gs',
+  'app/RunState.gs',
   'app/Runner.gs',
   'app/EmailSend.gs',
   'app/EmailTemplates.gs'
@@ -62,6 +63,7 @@ const TEST_FILES = [
   'tests/Code.test.gs',
   'tests/Config.test.gs',
   'tests/Runner.test.gs',
+  'tests/RunState.test.gs',
   'tests/RunAll.gs'
 ];
 

@@ -24,11 +24,9 @@ STILL OPEN (need a decision before any code is written):
   S-L3  (Issue #76) minimum thread count before sending a run email
   S-L4  (Issue #77) undo window / pending-trash label
   S-L5  (Issue #78) per-rule sender/subject exclusions
-  S-N3  (Issue #79) poll for background-run results while the tab is open
   S-N4  (Issue #80) drag-to-reorder queue ordering
   S-N6  (Issue #81) cid() can collide for two rules whose labels differ only in
         characters it strips — progress bars would then overwrite each other
-  S-N8  (Issue #82) no cross-tab/cross-session coordination for live (manual) runs
   S-N9  see BUG-C19 in GitHub Issues — Spam category "Archive" is
         likely a silent no-op; needs live-account verification + a fix
         decision, not a suggestions-file build-or-don't call
@@ -168,7 +166,8 @@ S-N6  cid() can collide for two rules with different labels
   with a running counter when a collision is detected at render time. Either
   is a small, contained change if you want it.
 
-S-N8  Live (manual) runs have no cross-tab/cross-session coordination
+S-N8  [IMPLEMENTED 2026-09-24 — app/RunState.gs, feature-reference §2e]
+      Live (manual) runs have no cross-tab/cross-session coordination
   Found: 2026-08-31, third automated review pass this session (scheduled
   bug-sweep task). backgroundRun() is protected by LockService.getScriptLock()
   (FIX 5) so two trigger firings can never race each other. processLiveBurst()
@@ -577,7 +576,10 @@ S-N2  [IMPLEMENTED] Distinguish "rule ejected clean" from "still running"
   A faint strikethrough or a ✓ prefix on the rule name when it ejects
   clean would make the progress section much easier to scan.
 
-S-N3  Background run has no way to report its results to the UI
+S-N3  [IMPLEMENTED 2026-09-24 — app/RunState.gs, feature-reference §2e;
+      went further than proposed: background runs stream live to every open
+      dashboard and can be aborted from it]
+      Background run has no way to report its results to the UI
   If backgroundRun() runs while the tab is open, the user has no
   idea it happened — the stats row stays at 0 and the terminal is
   empty. The LAST_RUN_TIME in the header only updates after a manual

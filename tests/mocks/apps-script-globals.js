@@ -52,6 +52,23 @@ function createPropertiesService() {
   };
 }
 
+// CacheService (RunState.gs keeps live-run log/stats/payload in the user
+// cache). Same idea as PropertiesService above: a real in-memory store, not
+// a no-op, so registry tests can read back what a runner wrote. TTLs are
+// accepted and ignored — nothing in one harness run outlives it.
+function createCacheService() {
+  const store = new Map();
+  const cache = {
+    get(key) { return store.has(key) ? store.get(key) : null; },
+    put(key, value) { store.set(key, String(value)); },
+    remove(key) { store.delete(key); }
+  };
+  return {
+    getUserCache() { return cache; },
+    getScriptCache() { return cache; }
+  };
+}
+
 function createGmailApp() {
   // No spy installed: every method is a harmless no-op returning empty
   // results, so a test that forgets installGmailSpy() fails loudly on a
@@ -106,6 +123,7 @@ function createHtmlService() {
   const chainable = {
     setTitle() { return chainable; },
     setXFrameOptionsMode() { return chainable; },
+    addMetaTag() { return chainable; },
     getContent() { return ''; }
   };
   return {
@@ -125,6 +143,7 @@ function createGlobals() {
   return {
     GmailApp: createGmailApp(),
     PropertiesService: createPropertiesService(),
+    CacheService: createCacheService(),
     LockService: createLockService(),
     ScriptApp: createScriptApp(),
     Session: createSession(),

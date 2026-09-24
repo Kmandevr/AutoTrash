@@ -23,6 +23,10 @@ built-in services (`GmailApp`, `PropertiesService`, `LockService`,
       Engine.gs                  search → match → message context → guarded
                                  action (dry-run, seen-dedup, chunking); the
                                  reusable core both runners call
+      RunState.gs                shared run registry: one server-side record
+                                 of the current run (live or background) so
+                                 every open dashboard can watch/abort it and
+                                 resume a live run on another device
       Runner.gs                  processLiveBurst()/backgroundRun()/abort/
                                  finalize
       Stats.gs                    per-label/purge stat crediting
@@ -41,10 +45,11 @@ built-in services (`GmailApp`, `PropertiesService`, `LockService`,
       Stats.test.gs               tests for app/Stats.gs
       EmailTemplates.test.gs      tests for app/EmailTemplates.gs
       EmailSend.test.gs           tests for app/EmailSend.gs
-      Code.test.gs                tests for app/Code.gs (empty — see that
-                                 file's own header)
+      Code.test.gs                tests for app/Code.gs (doGet viewport)
       Config.test.gs              tests for app/Config.gs
       Runner.test.gs              tests for app/Runner.gs (largest suite)
+      RunState.test.gs            tests for app/RunState.gs + the registry-
+                                 aware paths in Runner.gs
       RunAll.gs                  combines every suite's TEST_FNS + defines
                                  runAllTests() — the one entry point used
                                  both by the Apps Script editor and by the

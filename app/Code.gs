@@ -46,8 +46,15 @@ const GMAIL_CHUNK  = 100;    // Hard Gmail API limit per batch call
 const GMAIL_SEARCH = 500;    // Max results per GmailApp.search
 const BG_BUDGET_MS = 55000;  // 55 s budget per background execution
 // ─── ENTRY POINT ──────────────────────────────────────────────────────────────
+// The viewport has to be set HERE, via addMetaTag(). HtmlService serves
+// index.html inside Google's sandbox iframe and does not honor a
+// <meta name="viewport"> written in the file itself — so phones rendered
+// the dashboard as a ~980px desktop page shrunk to fit, the @media
+// (max-width:640px) mobile layout never applied, and the run controls at
+// the bottom were tiny and easy to miss. (2026-09-24)
 function doGet() {
   return HtmlService.createHtmlOutputFromFile('index')
     .setTitle('AutoTrash v26')
+    .addMetaTag('viewport', 'width=device-width, initial-scale=1, viewport-fit=cover')
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }

@@ -136,13 +136,14 @@ reviewing the backend (app/*.gs) or index.html.
   2026-08-31, BUG-C16) for any caller that doesn't pre-build it, but the
   shipped UI never actually exercises that fallback.
 
-  Coordination note (S-N8 in suggestions.txt): unlike
-  backgroundRun() (§2b), there is no lock across concurrent live runs. Two
-  browser tabs/devices signed into the same account both clicking "Engage
-  Engine" would each track their own payload/seenIds independently. Gmail's
-  move actions are idempotent, so this cannot cause a wrong action or data
-  loss — the only effect is double-counted, overlapping totals in each
-  tab's own stats and summary email. Not fixed; low priority.
+  Coordination (S-N8 / Issue #82 — FIXED 2026-09-24): every live run is
+  now registered server-side before its first burst (startLiveRun(), see
+  §2e). A second tab/device clicking "Engage Engine" while a run is active
+  is refused and shown the active run instead, and registered bursts run
+  under the script lock, so two live runs can no longer overlap. Since the
+  same date the LAST burst of a registered run also finalizes it
+  server-side (finalizeAndEmail() is called inside processLiveBurst()),
+  so step 9 no longer depends on the driving tab still being open.
 
   Scale note (S-N10 in suggestions.txt): payload.seenIds is a
   plain array that grows for the entire life of one run and is serialized
@@ -166,6 +167,14 @@ reviewing the backend (app/*.gs) or index.html.
   6. On completion: accumulateDailyStats + maybeSendRunEmail.
   7. Lock released in finally block.
   8. Next trigger fires automatically — continuous background operation.
+
+  Since 2026-09-24 (Issues #79/#82, see §2e): after taking the lock,
+  backgroundRun() skips its firing entirely if a live (manual) run is
+  active; otherwise it registers itself in the run registry, publishes its
+  engine log/stats after every rule, and checks for a dashboard abort
+  request before every rule. An aborted background run still accumulates
+  daily stats and sends its run email (status "Background Run (aborted)"),
+  and LAST_RUN_TIME gets an "(aborted)" suffix.
 
   Note: backgroundRun()'s seenIds is a plain in-memory Set scoped to one
   execution's 55s budget — it is never serialized anywhere, so the scale
@@ -227,6 +236,50 @@ reviewing the backend (app/*.gs) or index.html.
   - This is critical for archive correctness: without it, a trash rule
     could find and trash a thread that an archive rule already archived.
 
+
+2e. CROSS-DEVICE RUN REGISTRY (app/RunState.gs, added 2026-09-24)
+  Purpose: any run — manual from any tab/device, or background from the
+  trigger — is visible on, abortable from, and (manual runs) resumable on
+  every open dashboard. Closes S-N8 (Issue #82) and S-N3 (Issue #79).
+
+  Storage:
+    RUN_STATE (UserProperties) — id, source (live|background), dryRun,
+      status (running|done|aborted|error), driverId (tab driving a live
+      run), startedAt, updatedAt (heartbeat), current rule, rules left,
+      log seq, endedAt, endMsg.
+    RUN_ABORT (UserProperties) — id of the run an abort was requested for.
+      Separate key so an abort can't be lost to a concurrent RUN_STATE write.
+    RUN_DETAIL_<id> (UserCache, 6h) — last 150 log lines, full stats, rule
+      list for progress bars.
+    RUN_PAYLOAD_<id> (UserCache, 6h) — the live run's latest burst payload,
+      for resuming. If it would exceed the 100 KB cache cap, it is saved
+      without seenIds (a resume then starts a fresh dedup set — see §2d;
+      Gmail moves are idempotent, a dry run may slightly over-count).
+
+  Liveness: a run is ACTIVE while status=running and its heartbeat is
+  newer than 90 s (live) / 150 s (background). A live run past that is
+  shown as PAUSED (driver tab closed / phone locked) and can be resumed or
+  aborted; a background run past that was cut off by Apps Script's own
+  time limit and is simply replaced by the next trigger firing.
+
+  Server API (google.script.run):
+    getRunStatus(sinceSeq, runId) — polled by every dashboard; returns the
+      run, new log lines since sinceSeq, stats, rule list, LAST_RUN_TIME,
+      serverNow (clients correct clock skew with it).
+    startLiveRun(meta) — registers a live run; refused while another run is
+      active (returns that run).
+    requestAbort(runId) — sets RUN_ABORT. The run's own driver stops at
+      its next checkpoint (next burst / next background rule) and finalizes
+      as a normal abort (§4). If the run is stale (no driver left), the
+      request finalizes it itself.
+    claimRun(runId, driverId) — take over / resume a live run: waits for any
+      in-flight burst (script lock), returns the latest saved payload, and
+      the old driver's next burst is answered superseded:true.
+    pauseBackgroundTrigger() — sets TRIGGER_MODE to OFF and re-syncs
+      triggers (same path as Save Config), for "Abort + Pause Trigger".
+
+  All writers of RUN_STATE hold the script lock; readers and requestAbort
+  don't, so dashboards stay responsive while a burst runs.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 3. DRY RUN MODE
@@ -297,6 +350,17 @@ reviewing the backend (app/*.gs) or index.html.
     "lastStats" below).
   - The currently-in-flight burst may still complete server-side
     (Google can't cancel mid-execution), but no further bursts fire.
+  - Since 2026-09-24, abortRun() takes the run's id as a 4th argument. With
+    it, the abort waits for an in-flight burst to finish (script lock),
+    uses the server's own recorded stats if they are more complete than the
+    caller's (so a burst whose reply the tab never saw is still counted),
+    marks the run aborted for every dashboard, and is idempotent — an abort
+    arriving from two devices emails/accumulates once.
+  - Abort from another device: requestAbort() (§2e). The driving tab's next
+    burst returns abortRequested:true and it runs the normal abort above.
+    Background runs stop before their next rule; "Abort + Pause Trigger"
+    also sets the trigger to Manual only so the next firing doesn't restart
+    it.
 
   lastStats (client, index.html): a full-fidelity mirror of the last stats
   object returned by processLiveBurst() — labels, purge sub-counts, errors,
@@ -583,6 +647,35 @@ reviewing the backend (app/*.gs) or index.html.
                   Bars are keyed by cid(label) — see S-N6 in
                   suggestions.txt for a rare label-collision edge case.
   Orb           : Green pulsing dot = engine running. Dim = idle/stopped.
+  Watching      : (2026-09-24, §2e) Every dashboard polls getRunStatus() —
+                  every 2.5 s while showing a run, 10 s while idle, 20 s while
+                  driving, never while the page is hidden (resumes on
+                  visibility). A run from another tab/device or the trigger
+                  takes over the stats, terminal (with its server log, in
+                  local clock time), progress bars and elapsed timer, with a
+                  status-bar tag: OTHER DEVICE / PAUSED / BACKGROUND.
+                  Buttons while watching: Abort (becomes "Aborting…" until
+                  the run stops, or "Force Stop" if its driver went silent);
+                  "Take Over" (active live run, asks first) / "Resume Here"
+                  (paused live run); "Abort + Pause Trigger" (background
+                  run). The run's ending banner shows on every watching
+                  dashboard. The header's LAST RUN also refreshes from the
+                  poll (S-N3).
+  Connection loss : A driving tab whose burst RPC fails re-syncs from the
+                  server's saved payload (claimRun with its own id) and
+                  retries up to 3 times before stopping; the run then shows
+                  as paused and can be resumed on any device.
+  Mobile / cross-browser : (2026-09-24) The viewport is set in doGet() via
+                  HtmlOutput.addMetaTag() — HtmlService ignores a viewport
+                  <meta> inside index.html, which is why phones rendered the
+                  desktop layout shrunk down. The Save / Dry Run / Abort /
+                  Engage row is pinned to the bottom of the screen on every
+                  size. Native select/number/button chrome is stripped and
+                  redrawn identically in Chrome, Safari and Firefox
+                  (color-scheme:dark, one custom select arrow, no number
+                  spinners); inputs are 16px on phones so iOS doesn't zoom
+                  on focus; Engage/Dry Run hide on phones during a run
+                  (they are disabled anyway).
   Traffic dots  : Red + yellow opacity raised during run, dimmed when stopped.
   Dry Run tag   : Amber "DRY RUN" badge shown in status bar when active.
   Save Config   : Saves rules + category states + all system settings.
@@ -657,6 +750,9 @@ reviewing the backend (app/*.gs) or index.html.
   INBOX_PURGE_DAYS  — string: OFF or number of days
   DIGEST_HOUR       — string: hour number (6–20)
   LAST_RUN_TIME     — string: human-readable timestamp of last run
+  RUN_STATE         — JSON: the current/last run's registry record (§2e).
+                      Read defensively — corrupt reads as "no run".
+  RUN_ABORT         — string: id of the run an abort was requested for (§2e)
   LAST_DIGEST_DATE  — string: ISO date of last digest email sent
   DAILY_STATS       — JSON: accumulated stats for current digest period.
                       Already parsed defensively (try/catch → {}) since
@@ -697,6 +793,16 @@ reviewing the backend (app/*.gs) or index.html.
 
   The entire run state lives in payload, passed back and forth.
   Server is stateless between bursts — all state must be in payload.
+
+  Registered runs (2026-09-24, §2e): the shipped UI also sends
+  runId + driverId in the payload. The server then additionally keeps a
+  copy of the post-burst payload (for resume) and may answer with
+  { busy } (lock contention — client retries in 1 s), { superseded }
+  (another device took over — stop driving), { abortRequested } (abort
+  from another device — run the local abort path), or add
+  { finalized:true, lastRun } on the final burst (server already emailed
+  and wrote LAST_RUN_TIME — the client must not call finalizeAndEmail()).
+  A payload without runId behaves exactly as described above.
 
   "server builds it" (2026-08-31, BUG-C16): processLiveBurst() now actually
   does this — previously a null activeQueue just short-circuited to

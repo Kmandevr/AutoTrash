@@ -1,12 +1,16 @@
-name: Syntax check
+name: Syntax check & tests
 
-# Apps Script has no build step and no package manager, so this is
-# intentionally minimal: it only confirms every .gs/.html-embedded-script
-# file is valid JavaScript syntax before it gets pasted into the Apps
-# Script editor. It does NOT run tests/Tests.gs (that suite depends on
-# Apps Script's shared global scope and real GmailApp/PropertiesService/
-# LockService/ScriptApp — see tests/Tests.gs's own header — so it can only
-# run from the Apps Script editor itself, not here).
+# Apps Script has no build step and no package manager, so the syntax-check
+# job is intentionally minimal: it only confirms every .gs file is valid
+# JavaScript before it gets pasted into the Apps Script editor.
+#
+# The test-suite job actually RUNS tests/*.gs — as of the 2026-09-24 test
+# harness (tests/harness/run-node-tests.js), the suite loads app/*.gs and
+# tests/*.gs into a Node vm context seeded with Apps Script service mocks
+# (tests/mocks/apps-script-globals.js) and calls the same runAllTests()
+# the Apps Script editor uses, so this now genuinely exercises the suite
+# on every push/PR instead of only when someone runs it manually in the
+# editor. See CLAUDE.md and tests/RunAll.gs for how the harness works.
 
 on:
   push:
@@ -37,3 +41,15 @@ jobs:
             echo "::endgroup::"
           done
           exit $status
+
+  test-suite:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Run AutoTrash test suite (Node harness)
+        run: npm test

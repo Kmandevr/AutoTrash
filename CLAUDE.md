@@ -23,7 +23,25 @@ built-in services (`GmailApp`, `PropertiesService`, `LockService`,
       EmailTemplates.gs          HTML/plain-text email rendering
       index.html                 web UI
     tests/
-      Tests.gs                   test suite (runAllTests(), Apps Script editor only)
+      TestFramework.gs           assert/assertEqual/assertThrows, spies
+                                 (installGmailSpy/installLockSpy/
+                                 installScriptAppSpy), shared fixtures
+      Utils.test.gs               tests for app/Utils.gs
+      RuleEngine.test.gs          tests for app/RuleEngine.gs
+      EmailTemplates.test.gs      tests for app/EmailTemplates.gs
+      EmailSend.test.gs           tests for app/EmailSend.gs
+      Code.test.gs                tests for app/Code.gs
+      Runner.test.gs              tests for app/Runner.gs (largest suite)
+      RunAll.gs                  combines every suite's TEST_FNS + defines
+                                 runAllTests() — the one entry point used
+                                 both by the Apps Script editor and by the
+                                 Node harness below
+      mocks/apps-script-globals.js  Node-only: baseline GmailApp/
+                                 PropertiesService/LockService/ScriptApp/
+                                 Session/HtmlService mocks
+      harness/run-node-tests.js  Node-only: `npm test` entry point — loads
+                                 every app/*.gs + tests/*.gs into one `vm`
+                                 context and calls runAllTests() from Node
     docs/
       feature-reference.txt      how each feature is MEANT to behave — read
                                  before changing behavior, not just style
@@ -42,11 +60,38 @@ and `CLAUDE.md` belong at repo root — everything else goes in `app/`,
 
 `Code.gs` used to hold the entire backend (~1060 lines) at repo root; it
 was split by purpose on 2026-09-22 into the files under `app/` above, then
-those files (plus `index.html`) were grouped into `app/` and `Tests.gs`
-into `tests/` the same day. When adding backend code: put it in the file
-whose purpose matches (new rule-matching logic → `RuleEngine.gs`, a new
-email → `EmailSend.gs` + `EmailTemplates.gs`, etc.) rather than defaulting
-to `Code.gs`.
+those files (plus `index.html`) were grouped into `app/` and the test
+suite into `tests/` the same day. The test suite itself was originally one
+file (`tests/Tests.gs`); it was split by app-file on 2026-09-24 into the
+`tests/*.test.gs` + `TestFramework.gs` + `RunAll.gs` layout above, at the
+same time the Node harness (`tests/mocks/`, `tests/harness/`) was added.
+When adding backend code: put it in the file whose purpose matches (new
+rule-matching logic → `RuleEngine.gs`, a new email → `EmailSend.gs` +
+`EmailTemplates.gs`, etc.) rather than defaulting to `Code.gs`. When
+adding a test for it, put it in that file's matching `tests/*.test.gs`
+and add it to that file's own `..._TESTS` array — `RunAll.gs` picks it up
+automatically from there.
+
+## Testing
+
+Two ways to run the exact same suite (`runAllTests()` in `tests/RunAll.gs`
+— one implementation, no drift between them):
+
+- **Apps Script editor**: open the project, select `runAllTests` in
+  `RunAll.gs`, Run ▶. Uses the real `GmailApp`/`PropertiesService`/
+  `LockService`/`ScriptApp`/`Session`. Emails an HTML report to the
+  script owner in addition to the execution log.
+- **Node, from this repo, no Apps Script account needed**: `npm test`
+  (or `node tests/harness/run-node-tests.js`). Loads every `app/*.gs` +
+  `tests/*.gs` file into one `vm` context seeded with the mocks in
+  `tests/mocks/apps-script-globals.js`, then calls the same
+  `runAllTests()`. This is how a change here should be verified before
+  it's handed off — run it after writing or editing any `app/*.gs` or
+  `tests/*.gs` code and before pushing, the same way you'd run any other
+  project's test suite locally.
+
+Any change to backend behavior (`app/`) must get a matching test in the
+same pass, in the `tests/*.test.gs` file for the app file it changed.
 
 ## Rules
 

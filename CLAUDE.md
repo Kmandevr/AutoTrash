@@ -132,9 +132,25 @@ every file into a single `vm.Script` instead of running one per file).
 - **Bugs, tasks, and features live in GitHub Issues, not a file.** A new
   finding is a new Issue (or a comment on one), not a straight-to-code fix,
   unless told to build it. See "Issue labels" below for how to tag one.
-- **Never push to `main`.** Branch as `claude/<topic>-<YYYYMMDD>`, one
-  branch per logical change, commit, push the branch, stop — the human
-  merges via GitHub's own PR banner.
+- **Branch first, merge to `main` only once it's proven stable.** Work on
+  `claude/<topic>-<YYYYMMDD>`, one branch per logical change, commit, push
+  the branch. Merging that branch into `main` yourself is OK when the
+  change is proven stable — it doesn't have to be flawless, but it must
+  have no known major issues:
+  - `npm test` passes in full (and any backend change has its matching
+    test, per Testing below);
+  - UI changes have actually been exercised (e.g. headless Chromium
+    against a mocked `google.script.run`) — not just syntax-checked;
+  - nothing known to break an existing feature in
+    `docs/feature-reference.txt`, touch data unsafely, or weaken a safety
+    rule (§9);
+  - known minor gaps are fine but must be stated in the merge commit
+    message (or filed as an Issue).
+  If any of that isn't met, push the branch and stop — the human merges.
+  Never commit straight to `main`; it always arrives via a merge of a
+  pushed branch (`git merge --no-ff`, so the branch stays visible in
+  history). The current token has no Pull request scope, so this is a
+  local merge + push of `main`, not a GitHub PR merge.
 - **Patch what's targeted.** No drive-by rewrites of working files.
 - **A GitHub push is not a deploy.** This code only goes live via
   `clasp push` or a manual copy-paste into the Apps Script editor —

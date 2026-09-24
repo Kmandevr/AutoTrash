@@ -1,0 +1,12 @@
+{
+  "name": "autotrash",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Node-side test harness for the AutoTrash Apps Script project. Not deployed — the app itself has no build step or dependencies; this only lets tests/*.gs run locally under Node in addition to the Apps Script editor. See CLAUDE.md.",
+  "scripts": {
+    "test": "node tests/harness/run-node-tests.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

@@ -1,0 +1,8 @@
+# What clasp pushes to the live Apps Script project. Apps Script only
+# understands .gs/.html/.json (appsscript.json) source — everything else
+# here is repo/tooling scaffolding that must never land in the editor.
+**/**
+!app/**/*.gs
+!app/*.html
+!tests/**/*.gs
+!appsscript.json

@@ -13,3 +13,7 @@ Thumbs.db
 .vscode/
 .idea/
 *.swp
+
+# Node (tests/harness/ only — the app itself has no dependencies)
+node_modules/
+package-lock.json

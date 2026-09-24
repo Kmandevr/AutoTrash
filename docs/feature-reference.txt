@@ -704,6 +704,42 @@ reviewing the backend (app/*.gs) or index.html.
                   typed negative number previously sailed through
                   unclamped into the saved rule and from there into
                   buildQuery()'s `older_than:${days}d` term.
+  Design language : (2026-09-24) One shared UI shell in index.html — see the
+                  "UI SHELL" block at the end of its <script>. New pages or
+                  features should use it rather than their own versions:
+                  - Motion tokens (--dur-fast 120ms / --dur-normal 200ms /
+                    --dur-slow 320ms, --ease-standard/enter/exit; JS mirror
+                    MOTION + motionOK()). prefers-reduced-motion zeroes them
+                    and resolves every animation to its end state.
+                  - Status pill (setState) in the header: READY / STARTING /
+                    RUNNING / DRY RUN / WATCHING / PAUSED / ABORTING /
+                    COMPLETE / DRY COMPLETE / ABORTED / HALTED.
+                  - Run pipeline under the terminal bar: RULES → SEARCH →
+                    EVALUATE → EXECUTE → DONE. A stage lights only when the
+                    server log reports it (SEARCH; RESULT/DRYRUN/clean-eject
+                    COMPLETE; ACTION/BATCH/DONE) — never on a timer. EXECUTE
+                    shows "–" on dry runs; a stage never reached shows "–" at
+                    completion; the active stage shows ✕ on abort/error.
+                  - Execution summary ("AUTOTRASH // RUN #<id tail>") below
+                    the completion banner: rules queued, Gmail searches,
+                    threads found, duplicates skipped (if any), starred
+                    excluded, trash/archive (or would-trash/would-archive),
+                    total, errors (stats.errors), elapsed. Search/found lines
+                    are omitted when this tab only saw part of the run's log
+                    (resumed here, or the watched log tail was trimmed).
+                  - Counters count up to new values (countTo) and flash once;
+                    a rule's progress row flashes when its actioned count
+                    rises.
+                  - uiConfirm() dialog replaces native confirm(): Global
+                    Purge gate (§9) and Take Over / Resume a live run — same
+                    conditions as before, Cancel focused by default on
+                    destructive dialogs, Esc/backdrop cancel.
+                  - toast(msg, kind) with ok/warn/err accents; Save Config
+                    shows Saving… → ✓ Saved on the button.
+                  - Removed as constant/decorative motion: CRT scanline
+                    overlay, Engage button's idle pulse; header cursor now
+                    blinks 3× on state changes instead of forever; glow
+                    reduced.
   Completion banner : Shown in the terminal when a run ends. Both the live
                   ("✓ COMPLETE") and dry-run ("[DRY RUN COMPLETE]") variants
                   report the same figures — total actioned/scanned, the
@@ -722,7 +758,8 @@ reviewing the backend (app/*.gs) or index.html.
   - Starred emails (-is:starred in all queries). No exceptions. This is a
     hard guarantee — do not add per-rule overrides without revisiting §9.
   - A live run with Global Purge active cannot start without an explicit
-    confirm() from the user (see §1d).
+    confirmation from the user (see §1d) — since 2026-09-24 the shared
+    uiConfirm() "DESTRUCTIVE ACTION" dialog rather than a native confirm().
   - Emails already in trash (-in:trash in all queries except global purge,
     where the scope already excludes trash via Gmail's search behaviour).
   - Emails matched by rule A that have already been actioned by rule A

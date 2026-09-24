@@ -1,0 +1,277 @@
+████████████████████████████████████████████████████████████████
+AUTOTRASH — TESTING REFERENCE DOCUMENT
+Last updated: 2026-09-24 (test suite split by app file + Node harness added)
+Use this as the source of truth for how tests/ is organized, how the
+Node harness works, and how to add a test — read it before touching
+anything under tests/.
+████████████████████████████████████████████████████████████████
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. WHY tests/ LOOKS THE WAY IT DOES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Through 2026-09-23 the entire suite lived in one file, tests/Tests.gs
+(1224 lines: framework, spies, and all 89 test functions). On 2026-09-24
+it was split into one file per app/*.gs file it tests, mirroring app/'s
+own layout, plus a Node-runnable harness was added so the suite can run
+without an Apps Script account at all. Both changes shipped together in
+one PR (#94) since the split was what made the harness's file layout
+make sense in the first place.
+
+There are now two ways to execute the exact same test run — not two
+implementations of testing, one implementation invoked two ways:
+
+  1. Apps Script editor: open the project, select runAllTests in
+     RunAll.gs, Run ▶. Uses the REAL GmailApp / PropertiesService /
+     LockService / ScriptApp / Session. Emails an HTML report to the
+     script owner in addition to writing the execution log.
+
+  2. Node, from a clone of this repo, no Apps Script account needed:
+         npm test
+     (equivalently: node tests/harness/run-node-tests.js)
+     Loads every app/*.gs + tests/*.gs file into one Node `vm` context
+     seeded with mocked Apps Script services, then calls that SAME
+     runAllTests(). This is how a change should be verified locally —
+     by a human, or by an AI agent immediately after writing code —
+     before it's ever pushed.
+
+Both paths call tests/RunAll.gs's runAllTests(). Nothing about the test
+logic itself differs between them; only what backs GmailApp et al.
+differs (real Apps Script services vs. the mocks in
+tests/mocks/apps-script-globals.js).
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2. FILE MAP
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+tests/TestFramework.gs
+  The framework every other test file depends on. Contains:
+    - assert(cond, msg), assertEqual(actual, expected, msg)
+      (JSON.stringify comparison), assertThrows(fn, msg)
+    - withSavedProps(keys, fn) — saves a UserProperties key, runs fn(),
+      restores the original value (or deletes the key if it never
+      existed) even if fn() throws. Every test that touches
+      PropertiesService wraps its body in this.
+    - makeFakeThread(id) — a fake Gmail thread: {__id, __trashed,
+      __archived, getId()}.
+    - freshStats() — a zeroed stats object matching the shape
+      processLiveBurst()/backgroundRun() build for themselves.
+    - installGmailSpy(searchImpl) — reassigns the global GmailApp to a
+      fake with search/moveThreadsToTrash/moveThreadsToArchive/
+      sendEmail, tracking calls.{search,trashBatches,archiveBatches,
+      emails}. searchImpl can be a plain array (same result for every
+      query) or a function(query) => threads[]. Returns
+      {calls, restore()}.
+    - installLockSpy(opts) — reassigns the global LockService.
+      opts.failToAcquire simulates lock contention. Returns
+      {wasReleased(), restore()}.
+    - installScriptAppSpy(existingTriggers) — reassigns the global
+      ScriptApp, faking getProjectTriggers/deleteTrigger/newTrigger with
+      a fluent builder (.timeBased().everyMinutes/everyHours/everyDays/
+      atHour().create()). Returns {calls, triggers(), restore()}.
+  Also holds one self-test (test_assertThrows_frameworkHelperWorks) —
+  a test of the framework, not of app/ — and its own TESTFRAMEWORK_TESTS
+  array (1 entry).
+
+tests/Utils.test.gs           → tests app/Utils.gs        (10 tests)
+tests/RuleEngine.test.gs      → tests app/RuleEngine.gs   (27 tests)
+tests/EmailTemplates.test.gs  → tests app/EmailTemplates.gs (10 tests)
+tests/EmailSend.test.gs       → tests app/EmailSend.gs     (5 tests)
+tests/Code.test.gs            → tests app/Code.gs          (10 tests)
+tests/Runner.test.gs          → tests app/Runner.gs        (29 tests,
+                                 the largest suite — almost all of the
+                                 fake-thread integration tests live here)
+
+Each of the six files above ends with its own array, e.g.:
+    const RULEENGINE_TESTS = [ test_buildQuery_labelRule, ... ];
+following the app file's own name in SCREAMING_SNAKE_CASE + _TESTS.
+
+tests/RunAll.gs
+  Concatenates every suite's array into one TEST_FNS list:
+      const TEST_FNS = []
+        .concat(TESTFRAMEWORK_TESTS)
+        .concat(UTILS_TESTS)
+        .concat(RULEENGINE_TESTS)
+        .concat(EMAILTEMPLATES_TESTS)
+        .concat(EMAILSEND_TESTS)
+        .concat(CODE_TESTS)
+        .concat(RUNNER_TESTS);
+  and defines runAllTests() — the single implementation both the Apps
+  Script editor and the Node harness call. Iterates TEST_FNS, times each,
+  collects {name, status, ms, error, stack}, logs to the console, emails
+  an HTML+plain-text report via safeMail(ownerEmail(), ...), and returns
+  {passed, failed, total, results}.
+
+  Current total: 92 tests. The 2026-09-24 split moved every test
+  function verbatim — none were added, removed, or changed — and the
+  recount (1+10+27+10+5+10+29=92 across the seven files above) matches
+  both the pre-split tests/Tests.gs's TEST_FNS list and the harness's
+  own live tally exactly. If this document and a fresh `npm test` run
+  ever disagree on the total, trust the run, not this document, and
+  update this line.)
+
+tests/mocks/apps-script-globals.js  (Node-only — never pushed to Apps
+                                      Script; see §5)
+  createGlobals() returns a fresh set of baseline Apps Script service
+  mocks: GmailApp, LockService, ScriptApp (all harmless no-ops — a test
+  that forgets to install a spy fails loudly on a wrong assertion rather
+  than crashing on undefined.method()), plus PropertiesService and
+  Session, which ARE real working implementations (an in-memory
+  key/value store and a fixed fake owner email respectively) since
+  nothing in the test suite spies over those two — getProps()/
+  ownerEmail() are called directly throughout.
+
+tests/harness/run-node-tests.js  (Node-only — never pushed to Apps
+                                   Script; see §5)
+  The `npm test` entry point. See §4 for how it actually works.
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+3. ADDING A TEST
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Any change to backend behavior (app/) must get a matching test in the
+SAME pass — not a follow-up.
+
+  1. Find the tests/*.test.gs file matching the app/*.gs file you
+     changed (app/RuleEngine.gs → tests/RuleEngine.test.gs, etc).
+  2. Write the test function using assert/assertEqual/assertThrows and,
+     if it touches Gmail/Lock/ScriptApp/PropertiesService, the relevant
+     spy/helper from TestFramework.gs.
+  3. Add the function to that file's own `..._TESTS` array. RunAll.gs
+     picks it up automatically from there — nothing else to register.
+  4. Run `npm test` and confirm it passes (and that the total count
+     went up by exactly the number of tests you added).
+  5. If the new test needs a spy/helper that doesn't exist yet, add it
+     to TestFramework.gs, not to the individual test file — every other
+     suite may want it too.
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+4. HOW THE NODE HARNESS ACTUALLY WORKS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Apps Script's real runtime effectively concatenates every .gs file in a
+project into one shared global scope — a function or const declared in
+one file is visible from every other file, in any push/file order. The
+harness's job is to reproduce that faithfully enough that a test behaves
+identically whether it runs in the real editor or under Node.
+
+run-node-tests.js:
+  1. Builds a Node `vm` context (a Node built-in — not a dependency) via
+     vm.createContext(sandbox), where sandbox = createGlobals() from
+     tests/mocks/apps-script-globals.js (GmailApp, PropertiesService,
+     LockService, ScriptApp, Session, HtmlService, console).
+  2. Reads every app/*.gs file, then every tests/*.gs file, and
+     concatenates ALL of their source text into ONE string — in this
+     order: app/Code.gs, app/Utils.gs, app/RuleEngine.gs, app/Runner.gs,
+     app/EmailSend.gs, app/EmailTemplates.gs, then
+     tests/TestFramework.gs, tests/Utils.test.gs,
+     tests/RuleEngine.test.gs, tests/EmailTemplates.test.gs,
+     tests/EmailSend.test.gs, tests/Code.test.gs, tests/Runner.test.gs,
+     tests/RunAll.gs (RunAll.gs must be last — see the note below on
+     why).
+  3. Runs that single concatenated string as one vm.Script via
+     script.runInContext(context) — ONE compilation, not one per file.
+  4. Calls context.runAllTests() and prints a CLI-friendly pass/fail
+     summary, exiting 0 iff every test passed (1 otherwise).
+
+WHY ONE CONCATENATED SCRIPT, NOT ONE runInContext() CALL PER FILE
+  This is the one genuine gotcha in the whole harness, worth
+  understanding if you ever touch run-node-tests.js: top-level `const`/
+  `let` declarations in a script executed via vm's runInContext do NOT
+  attach to the shared context (global) object — only `var` and
+  function declarations do. If each file were loaded as its own
+  separate vm.Script().runInContext(context) call, every top-level
+  `const X_TESTS = [...]` (every tests/*.test.gs file, plus GMAIL_CHUNK
+  and friends in app/Code.gs) would be invisible to any LATER script —
+  tests/RunAll.gs's `const TEST_FNS = [].concat(UTILS_TESTS, ...)`
+  would throw a ReferenceError on UTILS_TESTS, with no equivalent
+  problem in the real Apps Script runtime, which really does share one
+  execution scope across files. Concatenating into a single script
+  before evaluation sidesteps that Node-specific mismatch entirely and
+  is actually a MORE faithful model of Apps Script's real behavior than
+  multiple separate script evaluations would have been.
+  (Function declarations DO attach to the context object even split
+  across separate scripts, which is why runAllTests() itself — a
+  function declaration — is reachable as context.runAllTests() after
+  the fact regardless; it's specifically top-level const/let that this
+  affects.)
+
+MOCKS — WHAT'S FAKE VS. WHAT'S REAL (tests/mocks/apps-script-globals.js)
+  GmailApp / LockService / ScriptApp: baseline no-ops only. Every test
+  that actually exercises their behavior overrides them itself via
+  installGmailSpy()/installLockSpy()/installScriptAppSpy() from
+  TestFramework.gs — exactly as it does in the real Apps Script editor,
+  where those same spies reassign the same globals. The baseline exists
+  purely so a test that forgets to install a spy fails on a wrong
+  assertion instead of a confusing TypeError.
+  PropertiesService / Session: real, working implementations. Nothing
+  in the suite spies over these (getProps()/ownerEmail() are called
+  directly), so PropertiesService is backed by an actual in-memory
+  Map-based key/value store for the lifetime of one harness run —
+  behaviorally equivalent to a real UserProperties store across one
+  runAllTests() execution — and Session.getEffectiveUser().getEmail()
+  returns a fixed fake address, 'test-owner@example.com'.
+  createGlobals() returns a FRESH object on every call, so separate
+  `npm test` invocations never leak state — though within one run all
+  92 tests still share one PropertiesService store, same as they'd
+  share one real UserProperties store across one Apps Script
+  runAllTests() execution. This is exactly why every property-touching
+  test wraps itself in withSavedProps() — it's what keeps 92 tests
+  sharing one store from stepping on each other.
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+5. DEPLOYMENT — WHAT REACHES THE LIVE APPS SCRIPT PROJECT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Only .gs/.html files belong in the live Apps Script project — Apps
+Script has no notion of a package.json, a node_modules/, or a plain .js
+file as source. .claspignore excludes everything except app/**/*.gs,
+app/*.html, tests/**/*.gs, and appsscript.json, so `clasp push` (or a
+manual copy-paste) never tries to ship package.json,
+tests/mocks/apps-script-globals.js, or tests/harness/run-node-tests.js
+into the editor. Those three files — and node_modules/ if it exists
+locally — are Node-only tooling that supports the second way of running
+the suite (§1) and nothing else; they have no effect on the live
+mailbox-cleanup behavior.
+
+A GitHub push is still not a deploy (see CLAUDE.md's Rules) — this
+applies to test-only changes exactly as much as it does to app/
+changes. Landing a new test in tests/*.test.gs on GitHub does not make
+it visible in the Apps Script editor until the next clasp push or
+manual copy-paste of the tests/*.gs files.
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+6. CONTINUOUS INTEGRATION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+.github/workflows/syntax-check.yml runs on every push/PR to main and
+has two jobs:
+  - syntax-check: node --check --input-type=commonjs on every app/*.gs
+    and tests/*.gs file (stdin-piped to dodge Node's
+    ERR_UNKNOWN_FILE_EXTENSION for the unrecognized .gs extension —
+    this only confirms valid JavaScript syntax, nothing behavioral).
+  - test-suite: actually runs `npm test` — i.e. the full 92-test suite,
+    via the exact same harness described in §4. This job did not exist
+    before 2026-09-24; before that, CI could only confirm the test
+    files parsed, not that the tests themselves passed, since the
+    suite had no way to run outside the Apps Script editor.
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+7. HISTORY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+2026-09-24: tests/Tests.gs (1224 lines, 92 tests) split into
+  TestFramework.gs + six tests/*.test.gs files + RunAll.gs, mirroring
+  app/'s layout. Node harness added (tests/mocks/,
+  tests/harness/run-node-tests.js, `npm test`). CI's syntax-check
+  workflow gained a test-suite job that runs the suite for real. Shipped
+  together in PR #94. All 92 tests moved verbatim — none added,
+  removed, or changed in behavior; the recount in §2 exists to prove
+  that, not because anything was expected to have drifted.

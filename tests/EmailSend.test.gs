@@ -54,7 +54,22 @@ function test_dryRunAbortSubject_saysScannedNotActioned() {
   } finally { spy.restore(); }
 }
 
+// ── sendReportEmail (shared send used by sendRunEmail/sendDailyDigest/abortRun) ──
+
+function test_sendReportEmail_rendersHtmlAndPlainBodiesAndMails() {
+  const spy = installGmailSpy([]);
+  try {
+    sendReportEmail('Subj', 'TITLE', ['line one'], '#00ff88', freshStats(), 1000, false);
+    assertEqual(spy.calls.emails.length, 1);
+    const e = spy.calls.emails[0];
+    assertEqual(e.subj, 'Subj');
+    assert(e.opts.htmlBody.indexOf('TITLE') > -1, 'must render buildEmailHtml with the given title');
+    assert(e.body.indexOf('line one') > -1, 'plain body must come from plainBody(lines, stats)');
+  } finally { spy.restore(); }
+}
+
 const EMAILSEND_TESTS = [
+  test_sendReportEmail_rendersHtmlAndPlainBodiesAndMails,
   test_subject_dryRun_saysWouldBeActioned_notActioned,
   test_subject_liveRun_saysActioned,
   test_subject_errorsWithZeroMoved_leadsWithErrorLabel,

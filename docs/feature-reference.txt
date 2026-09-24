@@ -642,9 +642,12 @@ reviewing the backend (app/*.gs) or index.html.
 10. CONFIG STORAGE (UserProperties keys)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   AUTOTRASH_RULES   — JSON array of custom label rule objects. Read
-                      defensively in backgroundRun() and getUISettings() —
-                      a corrupted value falls back to [] rather than
-                      throwing (2026-08-31, BUG-C18).
+                      defensively — a corrupted value falls back to []
+                      rather than throwing (2026-08-31, BUG-C18). Since
+                      2026-09-24 both readers (getUISettings()/readConfig()
+                      in Config.gs, and backgroundRun() in Runner.gs) go
+                      through one shared parseStoredRules() (Config.gs)
+                      instead of two separately-maintained try/catch pairs.
   CATEGORY_RULES    — JSON array of category rule objects. Same defensive
                       parsing as AUTOTRASH_RULES.
   TRIGGER_MODE      — string: OFF / 1MIN / 5MIN / 15MIN / HOURLY / DAILY

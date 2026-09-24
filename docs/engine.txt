@@ -159,8 +159,9 @@ AROUND Gmail rather than re-creating Gmail filters.
 3. DELIBERATELY NOT (YET) ABSTRACTED
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-  - Stats crediting (creditStat / dryTrashed / purge counters) stays in
-    Runner.gs and knows only trash/archive. A custom action run through
+  - Stats crediting (creditStat / dryTrashed / purge counters) lives in
+    Stats.gs (split out of RuleEngine.gs/Runner.gs on 2026-09-24, alongside
+    Config.gs) and knows only trash/archive. A custom action run through
     the saved-rule queue would need a stats decision first. Today, custom
     actions are only reachable by calling the engine directly.
   - resolveRuleAction() still maps a saved rule to trash/archive only.

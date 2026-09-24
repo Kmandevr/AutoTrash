@@ -80,19 +80,22 @@ tests/TestFramework.gs
   array (1 entry).
 
 tests/Utils.test.gs           → tests app/Utils.gs        (10 tests)
-tests/RuleEngine.test.gs      → tests app/RuleEngine.gs   (28 tests)
+tests/RuleEngine.test.gs      → tests app/RuleEngine.gs   (23 tests)
 tests/Engine.test.gs          → tests app/Engine.gs       (22 tests —
                                  the modularity guarantees: match without
                                  acting, custom actions, dry-run across
                                  actions, narrow-only queries, lazy data)
+tests/Stats.test.gs           → tests app/Stats.gs        (9 tests)
 tests/EmailTemplates.test.gs  → tests app/EmailTemplates.gs (10 tests)
-tests/EmailSend.test.gs       → tests app/EmailSend.gs     (5 tests)
-tests/Code.test.gs            → tests app/Code.gs          (10 tests)
-tests/Runner.test.gs          → tests app/Runner.gs        (29 tests,
+tests/EmailSend.test.gs       → tests app/EmailSend.gs     (6 tests)
+tests/Code.test.gs            → tests app/Code.gs          (0 tests — see
+                                 that file's own header)
+tests/Config.test.gs          → tests app/Config.gs        (13 tests)
+tests/Runner.test.gs          → tests app/Runner.gs        (25 tests,
                                  the largest suite — almost all of the
                                  fake-thread integration tests live here)
 
-Each of the seven files above ends with its own array, e.g.:
+Each of these files ends with its own array, e.g.:
     const RULEENGINE_TESTS = [ test_buildQuery_labelRule, ... ];
 following the app file's own name in SCREAMING_SNAKE_CASE + _TESTS.
 
@@ -103,9 +106,11 @@ tests/RunAll.gs
         .concat(UTILS_TESTS)
         .concat(RULEENGINE_TESTS)
         .concat(ENGINE_TESTS)
+        .concat(STATS_TESTS)
         .concat(EMAILTEMPLATES_TESTS)
         .concat(EMAILSEND_TESTS)
         .concat(CODE_TESTS)
+        .concat(CONFIG_TESTS)
         .concat(RUNNER_TESTS);
   and defines runAllTests() — the single implementation both the Apps
   Script editor and the Node harness call. Iterates TEST_FNS, times each,
@@ -113,9 +118,15 @@ tests/RunAll.gs
   an HTML+plain-text report via safeMail(ownerEmail(), ...), and returns
   {passed, failed, total, results}.
 
-  Current total: 115 tests (1+10+28+22+10+5+10+29), as of the
-  2026-09-24 engine split (app/Engine.gs), which added 22 Engine tests
-  and 1 RuleEngine test. Pre-engine history of the count follows:
+  Current total: 119 tests (1+10+23+22+9+10+6+0+13+25), as of the
+  2026-09-24 split of Config.gs/Stats.gs out of Code.gs/RuleEngine.gs/
+  Runner.gs, which moved 5 ensureStat/creditStat tests and 4
+  accumulateDailyStats tests into the new tests/Stats.test.gs, moved 10
+  settings/trigger tests from tests/Code.test.gs into the new
+  tests/Config.test.gs, and added 3 parseStoredRules/readConfig tests plus
+  1 sendReportEmail test for the new shared seams. Before that: 115 tests,
+  as of the same day's engine split (app/Engine.gs), which added 22 Engine
+  tests and 1 RuleEngine test. Pre-engine history of the count follows:
   92 tests. The 2026-09-24 split moved every test
   function verbatim — none were added, removed, or changed — and the
   recount (1+10+27+10+5+10+29=92 across the seven files above) matches
@@ -178,12 +189,14 @@ run-node-tests.js:
      LockService, ScriptApp, Session, HtmlService, console).
   2. Reads every app/*.gs file, then every tests/*.gs file, and
      concatenates ALL of their source text into ONE string — in this
-     order: app/Code.gs, app/Utils.gs, app/RuleEngine.gs, app/Engine.gs, app/Runner.gs,
-     app/EmailSend.gs, app/EmailTemplates.gs, then
+     order: app/Code.gs, app/Utils.gs, app/Config.gs, app/RuleEngine.gs,
+     app/Engine.gs, app/Stats.gs, app/Runner.gs, app/EmailSend.gs,
+     app/EmailTemplates.gs, then
      tests/TestFramework.gs, tests/Utils.test.gs,
-     tests/RuleEngine.test.gs, tests/Engine.test.gs,
+     tests/RuleEngine.test.gs, tests/Engine.test.gs, tests/Stats.test.gs,
      tests/EmailTemplates.test.gs,
-     tests/EmailSend.test.gs, tests/Code.test.gs, tests/Runner.test.gs,
+     tests/EmailSend.test.gs, tests/Code.test.gs, tests/Config.test.gs,
+     tests/Runner.test.gs,
      tests/RunAll.gs (RunAll.gs must be last — see the note below on
      why).
   3. Runs that single concatenated string as one vm.Script via
@@ -280,6 +293,17 @@ has two jobs:
 7. HISTORY
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
+2026-09-24 (later still): app/Config.gs and app/Stats.gs split out of
+  Code.gs/RuleEngine.gs/Runner.gs (parseStoredRules/readConfig/writeConfig/
+  syncTriggers; ensureStat/creditStat/accumulateDailyStats), plus a shared
+  sendReportEmail() added to EmailSend.gs to de-duplicate the render+send
+  call that sendRunEmail/sendDailyDigest/abortRun each had inline.
+  tests/Stats.test.gs and tests/Config.test.gs added, moving relocated
+  tests along with their app code; 4 new tests for the new seams. Total
+  115 → 119. No moved test's behavior changed; index.html also gained a
+  buildLocalQueue() helper replacing two copies of the same client-side
+  queue-building logic (launchEngine()/burst()) — not part of the Node
+  suite (index.html has no automated tests), verified by hand.
 2026-09-24 (later): app/Engine.gs split out of Runner.gs/RuleEngine.gs;
   tests/Engine.test.gs added (22 tests) plus one RuleEngine test for
   ruleLabel(). Total 92 → 115. No existing test changed.

@@ -2,7 +2,8 @@
  * AutoTrash — turns a rule (custom label or Gmail category) into a Gmail
  * search query, resolves its trash/archive action, and builds the run queue.
  * This is the "rule definition + query" stage of the engine; searching,
- * message context and action execution live in Engine.gs.
+ * message context and action execution live in Engine.gs. Stat crediting
+ * lives in Stats.gs.
  * Split out of Code.gs on 2026-09-22; see CLAUDE.md for the full file map.
  */
 
@@ -77,25 +78,6 @@ function buildQueue(rules, globalDays, inboxDays, categoryRules) {
 // backwards-compatible executeActions(toTrash, toArchive, emit) wrapper.
 
 // ─── STAT HELPERS ────────────────────────────────────────────────────────────
-function ensureStat(stats, lbl) {
-  if (!stats.labels[lbl])
-    stats.labels[lbl] = { moved: 0, trashed: 0, archived: 0, finished: false };
-}
-
-function creditStat(stats, lbl, rule, trashed, archived) {
-  if (rule.isGlobalPurge) {
-    stats.globalPurgeMoved   = (stats.globalPurgeMoved   || 0) + trashed + archived;
-    stats.globalPurgeTrashed = (stats.globalPurgeTrashed || 0) + trashed;
-    return;
-  }
-  if (rule.isInboxPurge) {
-    stats.inboxPurgeMoved   = (stats.inboxPurgeMoved   || 0) + trashed + archived;
-    stats.inboxPurgeTrashed = (stats.inboxPurgeTrashed || 0) + trashed;
-    return;
-  }
-  ensureStat(stats, lbl);
-  stats.labels[lbl].moved    += trashed + archived;
-  stats.labels[lbl].trashed  += trashed;
-  stats.labels[lbl].archived += archived;
-}
-
+// Moved to Stats.gs on 2026-09-24: ensureStat()/creditStat() (per-run) and
+// accumulateDailyStats() (digest-period accumulation) — cleanup policy the
+// engine doesn't need to know about. See docs/engine.txt §3.

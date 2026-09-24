@@ -5,6 +5,18 @@
  * Split out of Code.gs on 2026-09-22; see CLAUDE.md for the full file map.
  */
 
+// ─── SHARED SEND ──────────────────────────────────────────────────────────────
+// Every kind of AutoTrash email (run summary, daily digest, error report, and
+// abortRun()'s abort notice in Runner.gs) ends the same way: render the HTML
+// body, render the plain-text body from the same lines/stats, mail both to
+// the owner. Added 2026-09-24 to replace four copies of that same three-call
+// sequence with one.
+function sendReportEmail(subject, title, lines, accent, stats, elapsedMs, dryRun) {
+  safeMail(ownerEmail(), subject,
+    buildEmailHtml(title, lines, accent, stats, elapsedMs, dryRun),
+    plainBody(lines, stats));
+}
+
 function maybeSendRunEmail(stats, elapsedMs, status, dryRun) {
   const props     = getProps();
   const freq      = props.getProperty('SUMMARY_FREQ') || 'EACH_RUN';
@@ -47,9 +59,7 @@ function sendRunEmail(stats, elapsedMs, status, accent, dryRun) {
     subj = `✓ AutoTrash: ${fmtNum(stats.totalMoved)} actioned — ${secs}s`;
   }
 
-  safeMail(ownerEmail(), subj,
-    buildEmailHtml(status.toUpperCase(), lines, accent, stats, elapsedMs, dryRun),
-    plainBody(lines, stats));
+  sendReportEmail(subj, status.toUpperCase(), lines, accent, stats, elapsedMs, dryRun);
 }
 
 function sendDailyDigest() {
@@ -82,10 +92,8 @@ function sendDailyDigest() {
     if ((v.moved || 0) > 0)
       lines.push(`    ${k}: ${fmtNum(v.moved)} (▓${fmtNum(v.trashed || 0)} ░${fmtNum(v.archived || 0)})`);
   }
-  safeMail(ownerEmail(),
-    `✓ AutoTrash ${pLabel} Digest: ${fmtNum(d.totalMoved)} actioned`,
-    buildEmailHtml(`${pLabel.toUpperCase()} DIGEST`, lines, '#00ff88', d, null),
-    plainBody(lines, d));
+  sendReportEmail(`✓ AutoTrash ${pLabel} Digest: ${fmtNum(d.totalMoved)} actioned`,
+    `${pLabel.toUpperCase()} DIGEST`, lines, '#00ff88', d, null);
   props.setProperty('DAILY_STATS', JSON.stringify({
     date: today, totalMoved: 0, totalTrashed: 0, totalArchived: 0,
     globalPurgeMoved: 0, globalPurgeTrashed: 0,
@@ -175,6 +183,9 @@ function sendErrorEmail(err, payload, source, dryRun, ruleLabel) {
     ...errStack.split('\n').map(l => '  ' + l),
     '', footer
   ];
+  // sendErrorEmail's plain-text body is `lines` verbatim, not plainBody()'s
+  // lines+ASCII-chart — an error report has no per-rule breakdown to chart —
+  // so it stays a direct safeMail() call rather than sendReportEmail().
   safeMail(ownerEmail(),
     `⚠ AutoTrash Error: ${errMsg.substring(0, 60)}`,
     buildEmailHtml('⚠ ENGINE ERROR', lines, '#ff4455', emailStats, null, dryRun),

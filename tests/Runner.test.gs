@@ -1,56 +1,13 @@
 /**
- * AutoTrash tests — app/Runner.gs (accumulateDailyStats, abortRun,
- * processLiveBurst, backgroundRun). The largest suite, since this file
+ * AutoTrash tests — app/Runner.gs (abortRun, processLiveBurst,
+ * backgroundRun). accumulateDailyStats tests moved to tests/Stats.test.gs.
+ * The largest suite, since this file
  * carries almost all of the engine's fake-thread integration tests.
  * Split out of the former monolithic tests/Tests.gs on 2026-09-24 — see
  * CLAUDE.md for the full test-file map and TestFramework.gs for the shared
  * assertions/spies (freshStats, makeFakeThread, installGmailSpy,
  * installLockSpy, withSavedProps) these tests use.
  */
-
-// ── accumulateDailyStats ──────────────────────────────────────────────────
-
-function test_accumulate_initializesWhenEmpty() {
-  withSavedProps(['DAILY_STATS'], props => {
-    props.deleteProperty('DAILY_STATS');
-    accumulateDailyStats({ totalMoved: 3, totalTrashed: 3, totalArchived: 0 });
-    const d = JSON.parse(props.getProperty('DAILY_STATS'));
-    assertEqual(d.runs, 1);
-    assertEqual(d.totalMoved, 3);
-  });
-}
-function test_accumulate_addsAcrossMultipleRuns() {
-  withSavedProps(['DAILY_STATS'], props => {
-    props.deleteProperty('DAILY_STATS');
-    accumulateDailyStats({ totalMoved: 2, totalTrashed: 2, totalArchived: 0 });
-    accumulateDailyStats({ totalMoved: 5, totalTrashed: 0, totalArchived: 5 });
-    const d = JSON.parse(props.getProperty('DAILY_STATS'));
-    assertEqual(d.runs, 2);
-    assertEqual(d.totalMoved, 7);
-    assertEqual(d.totalTrashed, 2);
-    assertEqual(d.totalArchived, 5);
-  });
-}
-function test_accumulate_doesNotResetOnNewDay() {
-  withSavedProps(['DAILY_STATS'], props => {
-    const old = { date: '2026-01-01', totalMoved: 99, totalTrashed: 99, totalArchived: 0,
-                   globalPurgeMoved: 0, globalPurgeTrashed: 0, inboxPurgeMoved: 0, inboxPurgeTrashed: 0,
-                   labels: {}, runs: 99 };
-    props.setProperty('DAILY_STATS', JSON.stringify(old));
-    accumulateDailyStats({ totalMoved: 1, totalTrashed: 1, totalArchived: 0 });
-    const d = JSON.parse(props.getProperty('DAILY_STATS'));
-    assertEqual(d.runs, 100, 'counters must survive a calendar-day boundary — only sendDailyDigest() resets them');
-    assertEqual(d.totalMoved, 100);
-  });
-}
-function test_accumulate_purgeTrashedSubcountsAreKept() {
-  withSavedProps(['DAILY_STATS'], props => {
-    props.deleteProperty('DAILY_STATS');
-    accumulateDailyStats({ totalMoved: 10, totalTrashed: 10, totalArchived: 0, globalPurgeMoved: 10, globalPurgeTrashed: 10 });
-    const d = JSON.parse(props.getProperty('DAILY_STATS'));
-    assertEqual(d.globalPurgeTrashed, 10, 'globalPurgeTrashed must accumulate alongside globalPurgeMoved');
-  });
-}
 
 // ── abortRun ───────────────────────────────────────────────────────────────
 
@@ -455,11 +412,6 @@ function test_backgroundRun_errorOnOneRule_continuesToNextRule() {
 }
 
 const RUNNER_TESTS = [
-  test_accumulate_initializesWhenEmpty,
-  test_accumulate_addsAcrossMultipleRuns,
-  test_accumulate_doesNotResetOnNewDay,
-  test_accumulate_purgeTrashedSubcountsAreKept,
-
   test_abortRun_liveRun_accumulatesDailyStats,
   test_abortRun_dryRun_doesNotAccumulateDailyStats,
 

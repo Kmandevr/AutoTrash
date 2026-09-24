@@ -17,9 +17,11 @@ const TEST_FNS = []
   .concat(UTILS_TESTS)
   .concat(RULEENGINE_TESTS)
   .concat(ENGINE_TESTS)
+  .concat(STATS_TESTS)
   .concat(EMAILTEMPLATES_TESTS)
   .concat(EMAILSEND_TESTS)
   .concat(CODE_TESTS)
+  .concat(CONFIG_TESTS)
   .concat(RUNNER_TESTS);
 
 function runAllTests() {

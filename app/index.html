@@ -693,6 +693,23 @@ function doAbort() {
 }
 
 // ── ENGINE ────────────────────────────────────────────────────
+// Client-side mirror of the server's buildQueue() (RuleEngine.gs). Added
+// 2026-09-24: previously launchEngine() and burst() each built this same
+// four-line queue inline, independently, and had quietly drifted apart in
+// small ways (whether category/rule objects were copied vs. referenced,
+// property order) — harmless today since nothing mutates a queued rule
+// object in place, but exactly the kind of copy that stops being harmless
+// the next time one of the two callers changes. One function now, called
+// from both.
+function buildLocalQueue(rulesArr, catArr, inboxDays, globalDays) {
+  const q = [];
+  (rulesArr || []).forEach(r => q.push({...r}));
+  (catArr   || []).filter(r => r.enabled).forEach(r => q.push({...r})); // getCatState() already sets isCategory:true
+  if (inboxDays  !== 'OFF') q.push({ isInboxPurge: true,  isTrash: true, days: +inboxDays,  label: 'INBOX PURGE'  });
+  if (globalDays !== 'OFF') q.push({ isGlobalPurge: true, isTrash: true, days: +globalDays, label: 'GLOBAL PURGE' }); // BUG-R5: matches the email
+  return q;
+}
+
 function launchEngine() {
   if (running) return;
 
@@ -701,10 +718,7 @@ function launchEngine() {
   const inbox  = gv('inboxPurgeDays');
 
   // Build preview queue client-side (mirrors server buildQueue)
-  const q = [...rules.map(r => ({...r}))];
-  catArr.filter(r => r.enabled).forEach(r => q.push(r));
-  if (inbox  !== 'OFF') q.push({ label:'INBOX PURGE',  isInboxPurge:true,  isTrash:true, days:+inbox  });
-  if (global !== 'OFF') q.push({ label:'GLOBAL PURGE', isGlobalPurge:true, isTrash:true, days:+global }); // BUG-R5
+  const q = buildLocalQueue(rules, catArr, inbox, global);
 
   if (!q.length) { tl('ERROR', 'No rules. Add a label rule or enable a category/purge.'); return; }
 
@@ -800,12 +814,7 @@ function burst(payload) {
 
   // Build activeQueue on first call, mirroring server buildQueue exactly
   if (!payload.activeQueue) {
-    const q = [];
-    (payload.rules || []).forEach(r => q.push({...r}));
-    (payload.categoryRules || []).filter(r => r.enabled).forEach(r => q.push({...r})); // getCatState() already sets isCategory:true
-    if (payload.inboxPurgeDays  !== 'OFF') q.push({isInboxPurge:true,  isTrash:true, days:+payload.inboxPurgeDays,  label:'INBOX PURGE'});
-    if (payload.globalPurgeDays !== 'OFF') q.push({isGlobalPurge:true, isTrash:true, days:+payload.globalPurgeDays, label:'GLOBAL PURGE'});
-    payload.activeQueue = q;
+    payload.activeQueue = buildLocalQueue(payload.rules, payload.categoryRules, payload.inboxPurgeDays, payload.globalPurgeDays);
   }
 
   if (!payload.activeQueue.length) { finishEng(payload.stats); return; }

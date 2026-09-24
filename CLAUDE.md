@@ -14,14 +14,20 @@ built-in services (`GmailApp`, `PropertiesService`, `LockService`,
 ## Layout
 
     app/
-      Code.gs                   entry point (doGet) + settings read/write
+      Code.gs                   entry point (doGet) + shared constants
       Utils.gs                  small shared helpers (formatting, mail, props)
+      Config.gs                  settings read/write (parseStoredRules/
+                                 readConfig/writeConfig) + background/digest
+                                 trigger sync (syncTriggers)
       RuleEngine.gs              rule → Gmail query, action resolution, queue build
       Engine.gs                  search → match → message context → guarded
                                  action (dry-run, seen-dedup, chunking); the
                                  reusable core both runners call
       Runner.gs                  processLiveBurst()/backgroundRun()/abort/
-                                 finalize/daily-stats bookkeeping
+                                 finalize
+      Stats.gs                    per-label/purge stat crediting
+                                 (ensureStat/creditStat) + daily-digest
+                                 accumulation (accumulateDailyStats)
       EmailSend.gs                when/whether to send a run or digest email
       EmailTemplates.gs          HTML/plain-text email rendering
       index.html                 web UI
@@ -32,9 +38,12 @@ built-in services (`GmailApp`, `PropertiesService`, `LockService`,
       Utils.test.gs               tests for app/Utils.gs
       RuleEngine.test.gs          tests for app/RuleEngine.gs
       Engine.test.gs              tests for app/Engine.gs (modularity guarantees)
+      Stats.test.gs               tests for app/Stats.gs
       EmailTemplates.test.gs      tests for app/EmailTemplates.gs
       EmailSend.test.gs           tests for app/EmailSend.gs
-      Code.test.gs                tests for app/Code.gs
+      Code.test.gs                tests for app/Code.gs (empty — see that
+                                 file's own header)
+      Config.test.gs              tests for app/Config.gs
       Runner.test.gs              tests for app/Runner.gs (largest suite)
       RunAll.gs                  combines every suite's TEST_FNS + defines
                                  runAllTests() — the one entry point used
@@ -68,7 +77,10 @@ and `CLAUDE.md` belong at repo root — everything else goes in `app/`,
 `tests/`, or `docs/`.
 
 `Code.gs` used to hold the entire backend (~1060 lines) at repo root; it
-was split by purpose on 2026-09-22 into the files under `app/` above, then
+was split by purpose on 2026-09-22 into the files under `app/` above (split
+further on 2026-09-24 into `Engine.gs`/`Config.gs`/`Stats.gs`, pulling out
+what had still been mixed into `RuleEngine.gs`/`Code.gs`/`Runner.gs` into
+files that match their actual responsibility), then
 those files (plus `index.html`) were grouped into `app/` and the test
 suite into `tests/` the same day. The test suite itself was originally one
 file (`tests/Tests.gs`); it was split by app-file on 2026-09-24 into the
@@ -78,7 +90,8 @@ When adding backend code: put it in the file whose purpose matches (new
 rule-matching logic → `RuleEngine.gs`, a new operation on matched mail →
 a new action object consumed via `Engine.gs` (see `docs/engine.txt`) rather
 than a new branch in `Runner.gs`, a new email → `EmailSend.gs` +
-`EmailTemplates.gs`, etc.) rather than defaulting to `Code.gs`. When
+`EmailTemplates.gs`, a new stored setting → `Config.gs`, new stat
+bookkeeping → `Stats.gs`, etc.) rather than defaulting to `Code.gs`. When
 adding a test for it, put it in that file's matching `tests/*.test.gs`
 and add it to that file's own `..._TESTS` array — `RunAll.gs` picks it up
 automatically from there.

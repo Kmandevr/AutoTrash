@@ -1,6 +1,6 @@
 /**
  * AutoTrash tests — app/RuleEngine.gs (buildQuery, resolveRuleAction,
- * ruleLabel, buildQueue, ensureStat, creditStat).
+ * ruleLabel, buildQueue). Stat crediting tests moved to tests/Stats.test.gs.
  * Split out of the former monolithic tests/Tests.gs on 2026-09-24 — see
  * CLAUDE.md for the full test-file map and TestFramework.gs for the shared
  * assertions/spies these tests use.
@@ -123,38 +123,6 @@ function test_buildQueue_offMeansOff() {
   assertEqual(q.length, 1);
 }
 
-function test_ensureStat_createsZeroedEntryOnce() {
-  const stats = { labels: {} };
-  ensureStat(stats, 'X');
-  ensureStat(stats, 'X');
-  stats.labels.X.moved = 5;
-  ensureStat(stats, 'X');
-  assertEqual(stats.labels.X.moved, 5, 'ensureStat must not overwrite an existing entry');
-}
-function test_creditStat_normalRuleGoesToLabels() {
-  const stats = { labels: {} };
-  creditStat(stats, 'PROMOTIONS', {}, 5, 2);
-  assertEqual(stats.labels.PROMOTIONS, { moved: 7, trashed: 5, archived: 2, finished: false });
-}
-function test_creditStat_globalPurge_bypassesLabels() {
-  const stats = { labels: {}, globalPurgeMoved: 0, globalPurgeTrashed: 0 };
-  creditStat(stats, 'GLOBAL PURGE', { isGlobalPurge: true }, 10, 0);
-  assertEqual([stats.globalPurgeMoved, stats.globalPurgeTrashed], [10, 10]);
-  assert(!stats.labels['GLOBAL PURGE'], 'global purge must not create a stats.labels entry');
-}
-function test_creditStat_inboxPurge_bypassesLabels() {
-  const stats = { labels: {}, inboxPurgeMoved: 0, inboxPurgeTrashed: 0 };
-  creditStat(stats, 'INBOX PURGE', { isInboxPurge: true }, 4, 0);
-  assertEqual([stats.inboxPurgeMoved, stats.inboxPurgeTrashed], [4, 4]);
-  assert(!stats.labels['INBOX PURGE'], 'inbox purge must not create a stats.labels entry');
-}
-function test_creditStat_accumulatesAcrossMultipleCalls() {
-  const stats = { labels: {} };
-  creditStat(stats, 'A', {}, 3, 0);
-  creditStat(stats, 'A', {}, 2, 1);
-  assertEqual(stats.labels.A, { moved: 6, trashed: 5, archived: 1, finished: false });
-}
-
 const RULEENGINE_TESTS = [
   test_buildQuery_labelRule,
   test_buildQuery_labelRuleWithSpaces,
@@ -179,9 +147,4 @@ const RULEENGINE_TESTS = [
   test_buildQueue_categoryRulesFlaggedIsCategory,
   test_buildQueue_purgeRulesUseGlobalPurgeAndInboxPurgeLabels,
   test_buildQueue_offMeansOff,
-  test_ensureStat_createsZeroedEntryOnce,
-  test_creditStat_normalRuleGoesToLabels,
-  test_creditStat_globalPurge_bypassesLabels,
-  test_creditStat_inboxPurge_bypassesLabels,
-  test_creditStat_accumulatesAcrossMultipleCalls
 ];

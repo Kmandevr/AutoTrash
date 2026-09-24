@@ -30,7 +30,7 @@ dashboard or continuously in the background via a time trigger.
 
 1. Create a new [Google Apps Script](https://script.google.com) project.
 2. Add every file under [`app/`](app/) — `Code.gs`, `Utils.gs`,
-   `RuleEngine.gs`, `Runner.gs`, `EmailSend.gs`, `EmailTemplates.gs`,
+   `RuleEngine.gs`, `Engine.gs`, `Runner.gs`, `EmailSend.gs`, `EmailTemplates.gs`,
    `index.html` — plus [`tests/Tests.gs`](tests/Tests.gs) (optional but
    recommended, see [Running the tests](#running-the-tests)) as files in
    that project. Apps Script has no real folders and shares one global
@@ -69,6 +69,8 @@ app/
   Code.gs             Entry point (doGet) + settings read/write
   Utils.gs            Small shared helpers (formatting, mail, props)
   RuleEngine.gs        Rule → Gmail query, action resolution, queue build
+  Engine.gs            Search → match → message context → guarded action
+                      (reusable by future features; see docs/engine.txt)
   Runner.gs            Live/background run execution, abort, finalize
   EmailSend.gs          When/whether to send a run or digest email
   EmailTemplates.gs    HTML/plain-text email rendering

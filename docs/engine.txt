@@ -1,0 +1,177 @@
+████████████████████████████████████████████████████████████████
+AUTOTRASH — ENGINE REFERENCE
+Last updated: 2026-09-24 (engine split out of Runner.gs into app/Engine.gs)
+Read this before building a new feature on top of AutoTrash, or before
+changing how a rule is searched, matched, or actioned.
+████████████████████████████████████████████████████████████████
+
+AutoTrash's value is deciding WHICH Gmail threads a rule applies to, and
+doing it safely: never starred mail, never twice in one run, never for
+real in a dry run, never more than Gmail's batch limit per call. The
+engine is that machinery. The trash and archive cleanup is its first
+consumer. Future features are meant to be the next ones, adding behavior
+AROUND Gmail rather than re-creating Gmail filters.
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. HOW THE ENGINE WORKS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  rule                          saved config, schema unchanged
+   │                            (feature-reference.txt §1)
+   ▼
+  buildQuery(rule)              RuleEngine.gs. Rule → Gmail query. Holds
+   │                            every safety term (-is:starred, -in:trash,
+   │                            in:inbox scoping, spam handling)
+   ▼
+  refineQuery(base, extra)      Engine.gs, optional. Appends narrow-only
+   │                            AND terms. OR / AND / | / () / {} are
+   │                            rejected, so it can never widen the match
+   ▼
+  findMatches(rule, opts)       Engine.gs. GmailApp.search → drop threads
+   │                            already seen this run → optional
+   │                            filter(ctx). Read-only: never moves mail
+   │                            and never marks anything seen
+   ▼
+  makeMessageContext(...)       Engine.gs. One per matched thread (below)
+   │
+   ▼
+  executeAction(action, ctxs, run)
+   │                            Engine.gs. THE only place mail is changed.
+   │                            Marks seen → (dry run: count, stop) →
+   │                            run the action, chunked → BATCH log line
+   ▼
+  result                        { action, count, dryRun, batchMs, results }
+   │
+   ▼
+  Runner.gs                     cleanup policy: stats crediting, round-
+                                robin rotation, ejection, emails, lock,
+                                55s budget. Unchanged by the engine split
+
+  runRule(rule, run, opts) chains the stages for one rule and emits the
+  same live-terminal log lines the UI has always shown (SEARCH, RESULT,
+  INFO skipped, ACTION, BATCH). Both processLiveBurst() and backgroundRun()
+  call it. Before 2026-09-24 each of them carried its own copy of this
+  pipeline.
+
+  RUN STATE: run = { dryRun, seen, emit }
+    dryRun  The action is never invoked. Counts are still returned, and
+            seen IDs are still registered, so a dry run dedups across
+            rules the same way a live one does.
+    seen    The live payload.seenIds ARRAY or the background run's Set.
+            seenTracker() wraps either one behind {has, add}. Omit it for
+            a one-off call that doesn't share dedup with anything.
+    emit    Optional log sink (lvl, msg, meta). Live runs pass the
+            terminal's. Background runs pass nothing.
+
+  THE MESSAGE CONTEXT (what a filter or action receives)
+    ctx.thread       the GmailThread
+    ctx.threadId     already known from the search, costs nothing
+    ctx.rule         the rule that matched it
+    ctx.ruleLabel    same label/fallback the stats use (BUG-C8)
+    ctx.query        the exact Gmail query that matched it
+    ctx.dryRun       whether this is a simulation
+    ctx.metadata()   LAZY, cached. {subject, lastMessageDate,
+                     messageCount, labels[]} from thread-level calls, no
+                     message bodies
+    ctx.messages()   LAZY, cached. Full GmailMessage[]: sender,
+                     recipients, body, attachments. This is the expensive
+                     one
+    ctx.message()    latest message (via messages())
+
+  COST ORDER. The engine never reads anything the consumer didn't ask
+  for. Plain trash/archive touches only getId(), exactly as before the
+  split, and a test enforces that. Put cheap work first in a filter:
+    query terms (refine)   free: Gmail does it before anything is fetched
+    ctx.metadata()         a few thread-level calls
+    ctx.messages()         full messages. Only after the cheaper checks pass
+
+  ACTIONS are plain objects:
+    { name: 'x', bulk(threads, contexts) }   once per ≤100-thread chunk
+    { name: 'x', each(ctx) }                 once per thread; return
+                                             values are collected into
+                                             result.results
+    optional: verb ('TRASHING'), batchLabel ('Trash') for log lines
+  Built-ins: 'trash' and 'archive' (ENGINE_ACTIONS). Pass the object
+  itself anywhere an action is accepted. registerAction(def) makes it
+  addressable by name. Call it from inside a function, never at file top
+  level, because Apps Script loads files in project order. Built-ins
+  can't be replaced.
+
+  ERRORS. The engine does not swallow errors. An exception in search,
+  filter, or action propagates unchanged to the caller. Seen IDs for that
+  rule were already registered, so nothing is re-actioned by a later rule
+  in the same run. In the two runners, the existing catch blocks still
+  own stats.errors[] and the error email (BUG-C15/C24/C25). A feature
+  that calls runRule() directly should catch errors the same way (see §2).
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2. HOW TO BUILD A FEATURE ON TOP OF THE ENGINE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  A feature writes only the part that is new: what to do with a matched
+  thread. It does not touch buildQuery, the runners, dedup, dry-run, or
+  chunking.
+
+  Illustration only. This is NOT a planned feature, just the shape of one:
+
+    // app/MyFeature.gs
+    const MyFeature = {
+      name: 'myFeature',
+      each: function (ctx) {
+        // ctx.rule, ctx.thread, ctx.metadata(), ctx.messages() ...
+        return { id: ctx.threadId, subject: ctx.metadata().subject };
+      }
+    };
+
+    function runMyFeature(rule, dryRun) {
+      try {
+        const m = runRule(rule, { dryRun: dryRun, seen: new Set() }, {
+          action: MyFeature,
+          filter: function (ctx) { return ctx.metadata().messageCount > 1; }
+        });
+        return m.execution ? m.execution.results : [];   // "report what happened"
+      } catch (e) {
+        // same normalisation the runners use (BUG-C24)
+        console.error('myFeature: ' + ((e && e.message) ? e.message : String(e)));
+        return [];
+      }
+    }
+
+  Other entry points, depending on how much of the pipeline you need:
+    findMatches(rule, opts)          look only: contexts, never mutates
+    executeAction(action, ctxs, run) act on contexts you already have,
+                                     e.g. two actions on one match
+    runRule(rule, run, opts)         the whole pipeline for one rule
+
+  WHAT A FEATURE MUST NOT DO
+    - Call GmailApp.moveThreads* / message.moveToTrash() etc. directly
+      from a filter, or build its own GmailApp.search query. A filter is
+      a predicate, not a place to mutate. Custom search strings bypass
+      the safety terms in buildQuery.
+    - Mutate inside each()/bulk() without going through executeAction.
+      That is what keeps dry-run honest.
+    - Replace trash/archive or edit ENGINE_ACTIONS directly.
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+3. DELIBERATELY NOT (YET) ABSTRACTED
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - Stats crediting (creditStat / dryTrashed / purge counters) stays in
+    Runner.gs and knows only trash/archive. A custom action run through
+    the saved-rule queue would need a stats decision first. Today, custom
+    actions are only reachable by calling the engine directly.
+  - resolveRuleAction() still maps a saved rule to trash/archive only.
+    Saved rules have no "action" field. Adding one is a schema + UI
+    change and belongs with the first real feature that needs it.
+  - The queue, rotation, ejection, the live burst payload contract
+    (feature-reference.txt §11), locking, and emails are cleanup policy,
+    not engine. They are unchanged.
+  - Per-rule sender/subject conditions are suggestion S-L5 (Issue #78),
+    still unbuilt. refineQuery() is the seam it would use: narrow-only,
+    query-side, so it's the cheapest stage.
+  - executeAction's partial-count loss when a later chunk throws is the
+    existing open bug BUG-C22. It is unchanged here on purpose (separate
+    fix).

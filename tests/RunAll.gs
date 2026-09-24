@@ -16,6 +16,7 @@ const TEST_FNS = []
   .concat(TESTFRAMEWORK_TESTS)
   .concat(UTILS_TESTS)
   .concat(RULEENGINE_TESTS)
+  .concat(ENGINE_TESTS)
   .concat(EMAILTEMPLATES_TESTS)
   .concat(EMAILSEND_TESTS)
   .concat(CODE_TESTS)

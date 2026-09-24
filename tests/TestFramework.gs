@@ -57,6 +57,30 @@ function makeFakeThread(id) {
   };
 }
 
+// A fake thread that also answers the GmailThread read methods the engine's
+// message context can call (Engine.gs makeMessageContext), and COUNTS every
+// call in __calls — so a test can prove expensive data (getMessages) was or
+// was not fetched. data: { subject, from, body, labels: ['A'], date }.
+function makeRichFakeThread(id, data) {
+  data = data || {};
+  const t = makeFakeThread(id);
+  t.__calls = { getMessages: 0, getFirstMessageSubject: 0, getLastMessageDate: 0, getMessageCount: 0, getLabels: 0 };
+  const msg = {
+    getFrom:    function () { return data.from || ''; },
+    getSubject: function () { return data.subject || ''; },
+    getPlainBody: function () { return data.body || ''; }
+  };
+  t.getMessages            = function () { this.__calls.getMessages++;            return [msg]; };
+  t.getFirstMessageSubject = function () { this.__calls.getFirstMessageSubject++; return data.subject || ''; };
+  t.getLastMessageDate     = function () { this.__calls.getLastMessageDate++;     return data.date || null; };
+  t.getMessageCount        = function () { this.__calls.getMessageCount++;        return 1; };
+  t.getLabels              = function () {
+    this.__calls.getLabels++;
+    return (data.labels || []).map(function (n) { return { getName: function () { return n; } }; });
+  };
+  return t;
+}
+
 // Fresh stats object matching the shape processLiveBurst()/backgroundRun()
 // build for themselves — shared by every test that needs one.
 function freshStats() {

@@ -102,6 +102,15 @@ reviewing the backend (app/*.gs) or index.html.
 2. ENGINE ARCHITECTURE — HOW A RUN WORKS
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
+  Since 2026-09-24 the per-rule "search → dedup → act" step described in
+  §2a/§2b below is one shared function, runRule() in app/Engine.gs,
+  called by both processLiveBurst() and backgroundRun(). Their observable
+  behavior (logs, stats, emails, queue handling) is unchanged, with one
+  deliberate unification: the live path now registers seenIds BEFORE the
+  Gmail move, as the background path already did (FIX 15). This changes
+  nothing visible, because a live error halts the run. See
+  docs/engine.txt for the stages and how to build on them.
+
 2a. LIVE (MANUAL) RUN — client-driven bursts
   1. User clicks "Engage Engine" in the browser.
   2. launchEngine() builds a queue and a stats skeleton client-side.

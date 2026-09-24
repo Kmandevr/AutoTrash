@@ -1,6 +1,6 @@
 /**
  * AutoTrash tests — app/RuleEngine.gs (buildQuery, resolveRuleAction,
- * buildQueue, ensureStat, creditStat).
+ * ruleLabel, buildQueue, ensureStat, creditStat).
  * Split out of the former monolithic tests/Tests.gs on 2026-09-24 — see
  * CLAUDE.md for the full test-file map and TestFramework.gs for the shared
  * assertions/spies these tests use.
@@ -92,6 +92,12 @@ function test_resolveRuleAction_inboxPurgeAlwaysTrash_ignoresIsTrash() {
   assertEqual(resolveRuleAction({ isInboxPurge: true, isTrash: false }), 'trash');
 }
 
+function test_ruleLabel_prefersLabel_thenUppercaseCategory() {
+  assertEqual(ruleLabel({ label: 'News', isCategory: true, category: 'social' }), 'News');
+  assertEqual(ruleLabel({ isCategory: true, category: 'promotions' }), 'PROMOTIONS');
+  assertEqual(ruleLabel({ days: 3 }), '?');
+}
+
 function test_buildQueue_order_labelsThenCategoriesThenPurges() {
   const q = buildQueue(
     [{ label: 'A', days: 1 }, { label: 'B', days: 2 }],
@@ -167,6 +173,7 @@ const RULEENGINE_TESTS = [
   test_resolveRuleAction_nullDefaultsToTrash,
   test_resolveRuleAction_globalPurgeAlwaysTrash_ignoresIsTrash,
   test_resolveRuleAction_inboxPurgeAlwaysTrash_ignoresIsTrash,
+  test_ruleLabel_prefersLabel_thenUppercaseCategory,
   test_buildQueue_order_labelsThenCategoriesThenPurges,
   test_buildQueue_disabledCategoriesExcluded,
   test_buildQueue_categoryRulesFlaggedIsCategory,

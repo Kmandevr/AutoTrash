@@ -48,30 +48,24 @@ function processLiveBurst(payload) {
     dry = !!payload.dryRun;
     const rule = payload.activeQueue[0];
 
-    lbl = rule.label
-      || (rule.isCategory ? rule.category.toUpperCase() : '?');
+    lbl = ruleLabel(rule);
 
     // FIX 1+3: action from rule only, no cross-queue override.
     const action = resolveRuleAction(rule);
 
-    const q = buildQuery(rule);
-    emit('SEARCH', `${dry ? '[DRY] ' : ''}[${lbl}] ${q} → ${action.toUpperCase()}`);
-
-    const st         = Date.now();
-    const allThreads = GmailApp.search(q, 0, GMAIL_SEARCH);
-    emit('RESULT', `${fmtNum(allThreads.length)} found · ${fmtMs(Date.now() - st)}`,
-      { count: allThreads.length });
-
-    // FIX 2: seenIds dedup — skip threads processed by an earlier rule this run.
+    // FIX 2: seenIds dedup — skip threads processed by an earlier rule this
+    // run. The engine reads AND appends to payload.seenIds through this
+    // tracker, so the array that round-trips to the client stays the record.
     if (!payload.seenIds) payload.seenIds = [];
-    const seenSet = new Set(payload.seenIds);
-    const threads  = allThreads.filter(t => !seenSet.has(t.getId()));
+    const seen = seenTracker(payload.seenIds);
 
-    if (allThreads.length > 0 && threads.length < allThreads.length) {
-      emit('INFO', `Skipped ${fmtNum(allThreads.length - threads.length)} already-processed this run.`);
-    }
+    // Engine (Engine.gs): SEARCH/RESULT/INFO logs → search → dedup → and, on
+    // a live run with matches, ACTION/BATCH logs + the actual Gmail move. On a
+    // dry run the engine registers seenIds and counts, but never calls Gmail.
+    const m = runRule(rule, { dryRun: dry, seen: seen, emit: emit });
+    const matched = m.matched;
 
-    if (threads.length === 0) {
+    if (matched === 0) {
       emit('COMPLETE', `[${lbl}] clean — ejected from queue.`);
       // FIX 14 (BUG-C2): Only write to stats.labels for non-purge rules.
       // Purge rules use globalPurgeMoved/inboxPurgeMoved — writing a zero entry
@@ -97,12 +91,12 @@ function processLiveBurst(payload) {
 
     // ── DRY RUN ───────────────────────────────────────────────────────────
     if (dry) {
-      const wouldTrash   = action === 'trash'   ? threads.length : 0;
-      const wouldArchive = action === 'archive' ? threads.length : 0;
-      emit('DRYRUN', `[${lbl}] Would ${action.toUpperCase()} ${fmtNum(threads.length)}`);
+      const wouldTrash   = action === 'trash'   ? matched : 0;
+      const wouldArchive = action === 'archive' ? matched : 0;
+      emit('DRYRUN', `[${lbl}] Would ${action.toUpperCase()} ${fmtNum(matched)}`);
       emit('DRYRUN', `  → ${fmtNum(wouldTrash)} trash · ${fmtNum(wouldArchive)} archive`);
 
-      payload.stats.totalMoved  = (payload.stats.totalMoved  || 0) + threads.length;
+      payload.stats.totalMoved  = (payload.stats.totalMoved  || 0) + matched;
       payload.stats.dryTrashed  = (payload.stats.dryTrashed  || 0) + wouldTrash;
       payload.stats.dryArchived = (payload.stats.dryArchived || 0) + wouldArchive;
       // FIX 33 (BUG-C11): Purge rules must route to globalPurge*/inboxPurge*
@@ -116,35 +110,31 @@ function processLiveBurst(payload) {
         else                    payload.stats.inboxPurgeDone  = true;
       } else {
         ensureStat(payload.stats, lbl);
-        payload.stats.labels[lbl].moved    += threads.length;
+        payload.stats.labels[lbl].moved    += matched;
         payload.stats.labels[lbl].trashed  += wouldTrash;
         payload.stats.labels[lbl].archived += wouldArchive;
         payload.stats.labels[lbl].finished  = true;
       }
 
-      threads.forEach(t => payload.seenIds.push(t.getId()));
       payload.activeQueue.shift();
 
       return {
         payload, log, ejected: true,
         done: payload.activeQueue.length === 0,
-        moved: threads.length,
-        msg: `[DRY] ${lbl}: ${fmtNum(threads.length)} · ${payload.activeQueue.length} remain.`
+        moved: matched,
+        msg: `[DRY] ${lbl}: ${fmtNum(matched)} · ${payload.activeQueue.length} remain.`
       };
     }
 
     // ── EXECUTE (live) ────────────────────────────────────────────────────
-    const toTrash   = action === 'trash'   ? threads : [];
-    const toArchive = action === 'archive' ? threads : [];
-
-    if (toTrash.length)   emit('ACTION', `TRASHING ${fmtNum(toTrash.length)}…`);
-    if (toArchive.length) emit('ACTION', `ARCHIVING ${fmtNum(toArchive.length)}…`);
-
-    const { trashed, archived, batchMs } = executeActions(toTrash, toArchive, emit);
+    // Already done by runRule() above — seenIds were registered BEFORE the
+    // Gmail call (FIX 15, now shared with the background path).
+    const exec     = m.execution;
+    const trashed  = action === 'trash'   ? exec.count : 0;
+    const archived = action === 'archive' ? exec.count : 0;
+    const batchMs  = exec.batchMs;
     const total = trashed + archived;
     const tps   = Math.round(total / ((batchMs || 1) / 1000));
-
-    threads.forEach(t => payload.seenIds.push(t.getId()));
 
     emit('DONE', `${fmtNum(total)} done · ${fmtMs(batchMs)} · ~${fmtNum(tps)}/sec`,
       { moved: total, batchMs, tps });
@@ -319,24 +309,18 @@ function backgroundRun() {
       // FIX 17 (BUG-C8): Use toUpperCase() fallback so old configs without a
       // label field don't produce lowercase keys in daily stats, which would
       // make category totals invisible in the digest per-rule table.
-      const lbl  = rule.label || (rule.isCategory ? rule.category.toUpperCase() : '?');
+      const lbl  = ruleLabel(rule);
       try {
-        const allThreads = GmailApp.search(buildQuery(rule), 0, GMAIL_SEARCH);
-        const threads    = allThreads.filter(t => !seenIds.has(t.getId()));
+        // Engine (Engine.gs): search → dedup → act. FIX 15 (BUG-C3): the
+        // engine registers thread IDs in seenIds BEFORE the Gmail call, so if
+        // it throws mid-batch (e.g. quota error), threads already processed in
+        // earlier chunks won't be re-actioned by later rules in the same run.
+        const m = runRule(rule, { seen: seenIds });
 
-        if (threads.length === 0) { workQueue.shift(); continue; }
+        if (m.matched === 0) { workQueue.shift(); continue; }
 
-        const action    = resolveRuleAction(rule);
-        const toTrash   = action === 'trash'   ? threads : [];
-        const toArchive = action === 'archive' ? threads : [];
-
-        // FIX 15 (BUG-C3): Register thread IDs BEFORE executing actions.
-        // If executeActions() throws mid-batch (e.g. quota error), threads
-        // already processed in earlier chunks are in seenIds and won't be
-        // re-actioned by later rules in the same run.
-        threads.forEach(t => seenIds.add(t.getId()));
-
-        const { trashed, archived } = executeActions(toTrash, toArchive, null);
+        const trashed  = m.action === 'trash'   ? m.execution.count : 0;
+        const archived = m.action === 'archive' ? m.execution.count : 0;
 
         stats.totalMoved    += trashed + archived;
         stats.totalTrashed  += trashed;

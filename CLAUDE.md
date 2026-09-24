@@ -17,6 +17,9 @@ built-in services (`GmailApp`, `PropertiesService`, `LockService`,
       Code.gs                   entry point (doGet) + settings read/write
       Utils.gs                  small shared helpers (formatting, mail, props)
       RuleEngine.gs              rule → Gmail query, action resolution, queue build
+      Engine.gs                  search → match → message context → guarded
+                                 action (dry-run, seen-dedup, chunking); the
+                                 reusable core both runners call
       Runner.gs                  processLiveBurst()/backgroundRun()/abort/
                                  finalize/daily-stats bookkeeping
       EmailSend.gs                when/whether to send a run or digest email
@@ -28,6 +31,7 @@ built-in services (`GmailApp`, `PropertiesService`, `LockService`,
                                  installScriptAppSpy), shared fixtures
       Utils.test.gs               tests for app/Utils.gs
       RuleEngine.test.gs          tests for app/RuleEngine.gs
+      Engine.test.gs              tests for app/Engine.gs (modularity guarantees)
       EmailTemplates.test.gs      tests for app/EmailTemplates.gs
       EmailSend.test.gs           tests for app/EmailSend.gs
       Code.test.gs                tests for app/Code.gs
@@ -45,6 +49,8 @@ built-in services (`GmailApp`, `PropertiesService`, `LockService`,
     docs/
       feature-reference.txt      how each feature is MEANT to behave — read
                                  before changing behavior, not just style
+      engine.txt                 how the engine pipeline works and how to
+                                 build a new feature on top of it
       testing.txt                 how tests/ is organized, how the Node
                                  harness works, and how to add a test —
                                  read before touching anything under tests/
@@ -69,7 +75,9 @@ file (`tests/Tests.gs`); it was split by app-file on 2026-09-24 into the
 `tests/*.test.gs` + `TestFramework.gs` + `RunAll.gs` layout above, at the
 same time the Node harness (`tests/mocks/`, `tests/harness/`) was added.
 When adding backend code: put it in the file whose purpose matches (new
-rule-matching logic → `RuleEngine.gs`, a new email → `EmailSend.gs` +
+rule-matching logic → `RuleEngine.gs`, a new operation on matched mail →
+a new action object consumed via `Engine.gs` (see `docs/engine.txt`) rather
+than a new branch in `Runner.gs`, a new email → `EmailSend.gs` +
 `EmailTemplates.gs`, etc.) rather than defaulting to `Code.gs`. When
 adding a test for it, put it in that file's matching `tests/*.test.gs`
 and add it to that file's own `..._TESTS` array — `RunAll.gs` picks it up

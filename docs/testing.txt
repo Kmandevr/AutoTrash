@@ -56,6 +56,10 @@ tests/TestFramework.gs
       PropertiesService wraps its body in this.
     - makeFakeThread(id) — a fake Gmail thread: {__id, __trashed,
       __archived, getId()}.
+    - makeRichFakeThread(id, data) — makeFakeThread plus the GmailThread
+      read methods the engine's message context uses (getMessages,
+      getFirstMessageSubject, getLabels, ...), each call counted in
+      __calls so a test can prove expensive data was never fetched.
     - freshStats() — a zeroed stats object matching the shape
       processLiveBurst()/backgroundRun() build for themselves.
     - installGmailSpy(searchImpl) — reassigns the global GmailApp to a
@@ -76,7 +80,11 @@ tests/TestFramework.gs
   array (1 entry).
 
 tests/Utils.test.gs           → tests app/Utils.gs        (10 tests)
-tests/RuleEngine.test.gs      → tests app/RuleEngine.gs   (27 tests)
+tests/RuleEngine.test.gs      → tests app/RuleEngine.gs   (28 tests)
+tests/Engine.test.gs          → tests app/Engine.gs       (22 tests —
+                                 the modularity guarantees: match without
+                                 acting, custom actions, dry-run across
+                                 actions, narrow-only queries, lazy data)
 tests/EmailTemplates.test.gs  → tests app/EmailTemplates.gs (10 tests)
 tests/EmailSend.test.gs       → tests app/EmailSend.gs     (5 tests)
 tests/Code.test.gs            → tests app/Code.gs          (10 tests)
@@ -84,7 +92,7 @@ tests/Runner.test.gs          → tests app/Runner.gs        (29 tests,
                                  the largest suite — almost all of the
                                  fake-thread integration tests live here)
 
-Each of the six files above ends with its own array, e.g.:
+Each of the seven files above ends with its own array, e.g.:
     const RULEENGINE_TESTS = [ test_buildQuery_labelRule, ... ];
 following the app file's own name in SCREAMING_SNAKE_CASE + _TESTS.
 
@@ -94,6 +102,7 @@ tests/RunAll.gs
         .concat(TESTFRAMEWORK_TESTS)
         .concat(UTILS_TESTS)
         .concat(RULEENGINE_TESTS)
+        .concat(ENGINE_TESTS)
         .concat(EMAILTEMPLATES_TESTS)
         .concat(EMAILSEND_TESTS)
         .concat(CODE_TESTS)
@@ -104,7 +113,10 @@ tests/RunAll.gs
   an HTML+plain-text report via safeMail(ownerEmail(), ...), and returns
   {passed, failed, total, results}.
 
-  Current total: 92 tests. The 2026-09-24 split moved every test
+  Current total: 115 tests (1+10+28+22+10+5+10+29), as of the
+  2026-09-24 engine split (app/Engine.gs), which added 22 Engine tests
+  and 1 RuleEngine test. Pre-engine history of the count follows:
+  92 tests. The 2026-09-24 split moved every test
   function verbatim — none were added, removed, or changed — and the
   recount (1+10+27+10+5+10+29=92 across the seven files above) matches
   both the pre-split tests/Tests.gs's TEST_FNS list and the harness's
@@ -166,10 +178,11 @@ run-node-tests.js:
      LockService, ScriptApp, Session, HtmlService, console).
   2. Reads every app/*.gs file, then every tests/*.gs file, and
      concatenates ALL of their source text into ONE string — in this
-     order: app/Code.gs, app/Utils.gs, app/RuleEngine.gs, app/Runner.gs,
+     order: app/Code.gs, app/Utils.gs, app/RuleEngine.gs, app/Engine.gs, app/Runner.gs,
      app/EmailSend.gs, app/EmailTemplates.gs, then
      tests/TestFramework.gs, tests/Utils.test.gs,
-     tests/RuleEngine.test.gs, tests/EmailTemplates.test.gs,
+     tests/RuleEngine.test.gs, tests/Engine.test.gs,
+     tests/EmailTemplates.test.gs,
      tests/EmailSend.test.gs, tests/Code.test.gs, tests/Runner.test.gs,
      tests/RunAll.gs (RunAll.gs must be last — see the note below on
      why).
@@ -256,7 +269,7 @@ has two jobs:
     and tests/*.gs file (stdin-piped to dodge Node's
     ERR_UNKNOWN_FILE_EXTENSION for the unrecognized .gs extension —
     this only confirms valid JavaScript syntax, nothing behavioral).
-  - test-suite: actually runs `npm test` — i.e. the full 92-test suite,
+  - test-suite: actually runs `npm test` — i.e. the full test suite,
     via the exact same harness described in §4. This job did not exist
     before 2026-09-24; before that, CI could only confirm the test
     files parsed, not that the tests themselves passed, since the
@@ -267,6 +280,9 @@ has two jobs:
 7. HISTORY
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
+2026-09-24 (later): app/Engine.gs split out of Runner.gs/RuleEngine.gs;
+  tests/Engine.test.gs added (22 tests) plus one RuleEngine test for
+  ruleLabel(). Total 92 → 115. No existing test changed.
 2026-09-24: tests/Tests.gs (1224 lines, 92 tests) split into
   TestFramework.gs + six tests/*.test.gs files + RunAll.gs, mirroring
   app/'s layout. Node harness added (tests/mocks/,

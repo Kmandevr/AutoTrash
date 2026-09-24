@@ -10,6 +10,9 @@
  *
  *   Utils.gs            Small shared helpers (formatting, mail, props).
  *   RuleEngine.gs        Rule → Gmail query, action resolution, queue build.
+ *   Engine.gs            Search → match → message context → guarded action
+ *                         (dry-run, seen-dedup, chunking). Both runners and
+ *                         any future feature go through it; docs/engine.txt.
  *   Runner.gs            processLiveBurst() / backgroundRun() / abort /
  *                         finalize / daily-stats bookkeeping.
  *   EmailSend.gs          When/whether to send a run or digest email.

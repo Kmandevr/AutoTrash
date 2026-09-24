@@ -1,6 +1,8 @@
 /**
  * AutoTrash — turns a rule (custom label or Gmail category) into a Gmail
  * search query, resolves its trash/archive action, and builds the run queue.
+ * This is the "rule definition + query" stage of the engine; searching,
+ * message context and action execution live in Engine.gs.
  * Split out of Code.gs on 2026-09-22; see CLAUDE.md for the full file map.
  */
 
@@ -50,6 +52,15 @@ function resolveRuleAction(rule) {
   return rule.isTrash === false ? 'archive' : 'trash';
 }
 
+// ─── RULE LABEL ──────────────────────────────────────────────────────────────
+// The display/stats key for a rule. FIX 17 (BUG-C8): category rules saved
+// without a label field fall back to the UPPERCASE category name, so daily
+// stats keys match the digest's per-rule table. Previously computed inline,
+// identically, in both processLiveBurst() and backgroundRun().
+function ruleLabel(rule) {
+  return rule.label || (rule.isCategory ? rule.category.toUpperCase() : '?');
+}
+
 // ─── QUEUE BUILDER ────────────────────────────────────────────────────────────
 function buildQueue(rules, globalDays, inboxDays, categoryRules) {
   const q = (rules || []).map(r => ({ ...r }));
@@ -61,31 +72,9 @@ function buildQueue(rules, globalDays, inboxDays, categoryRules) {
   return q;
 }
 
-// ─── ACTION EXECUTOR ─────────────────────────────────────────────────────────
-function executeActions(toTrash, toArchive, emit) {
-  let trashed = 0, archived = 0, batchMs = 0;
-
-  // FIX 34 (S-U1): Chunks are no longer logged individually. A 500-thread rule
-  // used to emit 5 near-identical BATCH lines per burst; now each action type
-  // emits a single summary. Per-chunk timing still accumulates into batchMs,
-  // so the DONE line and the /sec figure are unchanged.
-  for (const chunk of chunkArray(toTrash, GMAIL_CHUNK)) {
-    const t = Date.now();
-    GmailApp.moveThreadsToTrash(chunk);
-    batchMs += Date.now() - t; trashed += chunk.length;
-  }
-  if (emit && trashed) emit('BATCH', `Trash ×${fmtNum(trashed)} · ${fmtMs(batchMs)}`);
-
-  const archFrom = batchMs; // split point so archive timing is reported alone
-  for (const chunk of chunkArray(toArchive, GMAIL_CHUNK)) {
-    const t = Date.now();
-    GmailApp.moveThreadsToArchive(chunk);
-    batchMs += Date.now() - t; archived += chunk.length;
-  }
-  if (emit && archived) emit('BATCH', `Archive ×${fmtNum(archived)} · ${fmtMs(batchMs - archFrom)}`);
-
-  return { trashed, archived, batchMs };
-}
+// ─── ACTION EXECUTION ────────────────────────────────────────────────────────
+// Moved to Engine.gs on 2026-09-24: executeAction() (any action) plus a
+// backwards-compatible executeActions(toTrash, toArchive, emit) wrapper.
 
 // ─── STAT HELPERS ────────────────────────────────────────────────────────────
 function ensureStat(stats, lbl) {

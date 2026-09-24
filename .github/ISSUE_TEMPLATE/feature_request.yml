@@ -1,0 +1,50 @@
+name: Feature request
+description: Propose a new AutoTrash feature or enhancement
+title: "[Feature]: "
+labels: ["feature"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Nothing here becomes code without explicit go-ahead — see
+        `docs/suggestions.txt` and `CLAUDE.md`. After submitting, apply
+        area label(s) (`code`/`logic`/`email`/`ui`/`tests`/`docs`) and a
+        time estimate (`minutes`/`hours`/`days`) if it's actionable now.
+  - type: textarea
+    id: description
+    attributes:
+      label: What's the feature
+      description: What should AutoTrash do that it doesn't today?
+    validations:
+      required: true
+  - type: textarea
+    id: motivation
+    attributes:
+      label: Why / use case
+      description: What problem does this solve, or what does it make easier?
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Suggested area(s)
+      multiple: true
+      options:
+        - code
+        - logic
+        - email
+        - ui
+        - tests
+        - docs
+    validations:
+      required: false
+  - type: dropdown
+    id: estimate
+    attributes:
+      label: Rough time estimate (if known)
+      options:
+        - minutes
+        - hours
+        - days
+    validations:
+      required: false

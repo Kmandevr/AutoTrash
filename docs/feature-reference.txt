@@ -757,6 +757,22 @@ reviewing the backend (app/*.gs) or index.html.
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   - Starred emails (-is:starred in all queries). No exceptions. This is a
     hard guarantee — do not add per-rule overrides without revisiting §9.
+    FIXED (2026-09-25, thread-level gap): -is:starred is a Gmail query
+    term, so it only ever excludes a MESSAGE from the search results —
+    but trash/archive always act on the whole THREAD. A thread with one
+    old, unstarred message and a separate starred message still matched
+    on its unstarred message, and moveThreadsToTrash()/ToArchive() would
+    have taken the starred message right along with it, silently
+    violating this section's "no exceptions." findMatches() (Engine.gs)
+    now drops any thread where thread.hasStarredMessages() is true —
+    unconditionally, independent of a caller's own opts.filter — right
+    after the seen-dedup step and before a dry run or live run ever sees
+    the thread, so a dry-run projection and a live run always agree on
+    what's protected. Guarded threads are never marked seen, so a rule
+    whose only remaining matches are protected threads reads as matched=0
+    and finishes (safe: it under-acts, never over-acts). See
+    test_engine_findMatches_skipsThreadsWithAnyStarredMessage and the
+    other §9-guard tests in tests/Engine.test.gs.
   - A live run with Global Purge active cannot start without an explicit
     confirmation from the user (see §1d) — since 2026-09-24 the shared
     uiConfirm() "DESTRUCTIVE ACTION" dialog rather than a native confirm().

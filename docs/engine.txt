@@ -29,9 +29,12 @@ AROUND Gmail rather than re-creating Gmail filters.
    │                            rejected, so it can never widen the match
    ▼
   findMatches(rule, opts)       Engine.gs. GmailApp.search → drop threads
-   │                            already seen this run → optional
-   │                            filter(ctx). Read-only: never moves mail
-   │                            and never marks anything seen
+   │                            already seen this run → drop any thread
+   │                            containing a starred message (§9 guard,
+   │                            unconditional — see feature-reference.txt
+   │                            §9) → optional filter(ctx). Read-only:
+   │                            never moves mail and never marks anything
+   │                            seen
    ▼
   makeMessageContext(...)       Engine.gs. One per matched thread (below)
    │

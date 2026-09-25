@@ -146,19 +146,18 @@ and how issues are labeled.
 
 ## License
 
-[AutoTrash Community License](LICENSE) — free to use, improve, and share;
-just don't sell it.
+[AutoTrash Community License](LICENSE). Summary only; the LICENSE file
+governs.
 
-- Free for anyone to use on their own mailboxes, including businesses,
-  schools, and charities.
-- Change it, fix it, and share your improved version — publicly or
-  privately — as long as it stays free, keeps the credit to the original
-  author, includes the license, and says what you changed.
-- Link to it, list it, review it, and tell people about it.
-- No selling, paid services, paywalls, or paid setup without a paid
-  license from the author.
-- Your license can't be revoked on a whim — only for breaking the terms,
-  usually with 30 days to fix it.
+- Use on your own mailboxes is permitted free of charge, including by
+  businesses, schools, and charities.
+- Modification and free distribution, public or private, are permitted,
+  provided that credit to the author is kept, the full license is
+  included, and changes are stated.
+- Linking to, listing, and reviewing this repository are permitted.
+- Selling, paid services, paywalls, paid setup, and all other commercial
+  use are prohibited without a paid license from the author.
+- The license ends only on violation of its terms, as set out in
+  Section 10 of the LICENSE.
 
-See [LICENSE](LICENSE) for the full terms. Want to use it commercially?
-Open an issue to ask about a paid license.
+Paid license requests: open an issue in this repository.

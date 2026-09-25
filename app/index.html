@@ -334,6 +334,13 @@
     .btn-exec.danger { background:rgba(255,68,85,.14); color:var(--red); border:1px solid rgba(255,68,85,.5); }
     .btn-exec.danger:hover:not(:disabled) { background:rgba(255,68,85,.24); }
 
+    /* CONFIG BACKUP PICKER — reuses the .dlg shell, adds a scrollable row list. */
+    .bkp-row { display:flex; align-items:center; gap:10px; padding:9px 0; border-top:1px solid var(--bord2); }
+    .bkp-row:first-child { border-top:none; }
+    .bkp-meta { flex:1; font-family:var(--ui); font-size:12px; color:var(--g3); line-height:1.6; }
+    .bkp-meta b { color:var(--g4); font-weight:600; }
+    .bkp-restore { flex-shrink:0; padding:7px 12px; font-size:10px; }
+
     /* Collapsible panel bodies settle in when opened. */
     .pbody.enter { animation:panelIn var(--dur-normal) var(--ease-enter); }
     @keyframes panelIn { from { opacity:0; transform:translateY(-4px); } to { opacity:1; transform:none; } }
@@ -578,6 +585,10 @@
         <b>Inbox Purge</b> = unarchived inbox only (won't touch archived mail).
         <b>Global Purge</b> = all inbox including archived.
       </div>
+      <div class="fgrp" style="margin-top:11px">
+        <label class="flbl">Config Backups <span style="color:var(--dimmer)">(auto-saved before every change)</span></label>
+        <button class="btn btn-save" style="width:100%" onclick="showBackupPicker()">Restore a Backup…</button>
+      </div>
     </div>
   </div>
 
@@ -643,6 +654,7 @@ const CATS = [
 
 // ── STATE ──────────────────────────────────────────────────────
 let rules = [], catState = {}, running = false, isDry = false;
+let configLoaded = false, lastKnownGoodCounts = { ruleCount: 0, categoryCount: 0 };
 let aborted = false, startTime = 0, timerH = null;
 let runStats = {totalMoved:0, totalTrashed:0, totalArchived:0};
 // BUG-H13: full-fidelity mirror of the last stats object the server actually
@@ -687,11 +699,21 @@ window.onload = () => {
       document.getElementById('lastRun').textContent = 'LAST RUN: ' + d.lastRun;
       renderCats(d.categoryRules || []);
       renderRules();
+      // FIX (2026-09-24): saveConfig() below refuses to run until this flag is
+      // set, and tracks what a "real" rule set looked like — see saveConfig()
+      // for why (this is what a Save Config click used to be able to silently
+      // wipe when the load never got this far).
+      configLoaded = true;
+      lastKnownGoodCounts = currentRuleCounts();
       tl('INFO', 'Initialized · ' + rules.length + ' label rule(s) · ' +
         Object.values(catState).filter(r=>r.enabled).length + ' category rule(s) active.');
       pollStatus(); // pick up a run already going on another device / the trigger
     })
-    .withFailureHandler(e => { tl('ERROR', 'Load failed: ' + e.message); pollStatus(); })
+    .withFailureHandler(e => {
+      tl('ERROR', 'Load failed: ' + e.message);
+      banner('err', '⚠ Could not load your saved config — Save Config is disabled until this succeeds, so a save can\'t overwrite it with nothing. Reload the page to retry.');
+      pollStatus();
+    })
     .getUISettings();
 };
 // Phones/tabs in the background stop polling; catch up the moment the page
@@ -829,7 +851,47 @@ function delRule(btn) {
 }
 
 // ── SAVE ──────────────────────────────────────────────────────
-function saveConfig() {
+// Counts used to detect "this save would erase rules that were here a
+// moment ago" — see saveConfig() below.
+function currentRuleCounts() {
+  return { ruleCount: rules.length, categoryCount: getCatArr().filter(c => c.enabled).length };
+}
+
+async function saveConfig() {
+  // FIX (2026-09-24, reported live: a save silently wiped every rule):
+  // two independent guards, on top of the server-side backup in
+  // app/Config.gs (writeConfig()/snapshotConfigBackup()):
+  //   1. Refuse outright if the initial load never succeeded — `rules` is
+  //      then just its empty startup default, not "the user really has no
+  //      rules," and saving it would overwrite whatever's actually stored.
+  //   2. Confirm before a save that would take a previously non-empty rule
+  //      set down to zero — catches the same mistake even after a load DID
+  //      succeed (e.g. rules cleared by some other bug, or by accident).
+  if (!configLoaded) {
+    toast('Config never finished loading — reload the page before saving, or you could erase your existing rules.', 'err');
+    return;
+  }
+  if (dialogOpen()) return;
+  const now = currentRuleCounts();
+  const hadSomething = lastKnownGoodCounts.ruleCount > 0 || lastKnownGoodCounts.categoryCount > 0;
+  const nowEmpty = now.ruleCount === 0 && now.categoryCount === 0;
+  if (hadSomething && nowEmpty) {
+    const ok = await uiConfirm({
+      tone: 'danger', title: 'SAVE WILL REMOVE ALL RULES',
+      lead: 'This save would leave 0 label rules and 0 category rules active, down from ' +
+            lastKnownGoodCounts.ruleCount + ' rule(s) and ' + lastKnownGoodCounts.categoryCount +
+            ' categor(y/ies) a moment ago.',
+      rows: [
+        ['Label rules',    lastKnownGoodCounts.ruleCount + ' → 0', 'bad'],
+        ['Category rules', lastKnownGoodCounts.categoryCount + ' → 0', 'bad'],
+        ['Recoverable',    'yes — via Restore a Backup…', 'ok']
+      ],
+      confirmLabel: 'Save Anyway'
+    });
+    if (!ok) return;
+    if (dialogOpen()) return;
+  }
+
   // BUG-H8 FIX: Warn user if saving while engine is running. The in-flight
   // run is unaffected (rules are in payload memory), but the user may not know.
   const toastMsg = running
@@ -848,7 +910,10 @@ function saveConfig() {
     if (ok) btn._t = setTimeout(() => { btn.classList.remove('done'); btn.textContent = 'Save Config'; }, 1400);
   };
   google.script.run
-    .withSuccessHandler(() => { settle(true); toast(toastMsg, 'ok'); tl('INFO', 'Config saved.'); })
+    .withSuccessHandler(() => {
+      settle(true); toast(toastMsg, 'ok'); tl('INFO', 'Config saved.');
+      lastKnownGoodCounts = now; // this save is the new baseline a future wipe-check compares against
+    })
     .withFailureHandler(e  => { settle(false); toast('Save failed: ' + e.message, 'err'); })
     .updateSystem({
       rules,
@@ -859,6 +924,86 @@ function saveConfig() {
       inboxPurgeDays:  gv('inboxPurgeDays'),
       digestHour:      gv('digestHour')
     });
+}
+
+// ── CONFIG BACKUPS ───────────────────────────────────────────────────────
+// Lists the auto-snapshots writeConfig() takes before every change (see
+// app/Config.gs) and lets the person restore one — the recovery half of the
+// 2026-09-24 fix. Built from the same .dlg-back/.dlg shell as uiConfirm()
+// rather than a second dialog system, with a scrollable row list instead of
+// fixed rows.
+function showBackupPicker() {
+  if (dialogOpen()) return;
+  google.script.run
+    .withSuccessHandler(backups => renderBackupPicker(backups || []))
+    .withFailureHandler(e => toast('Could not load backups: ' + e.message, 'err'))
+    .listConfigBackups();
+}
+
+function renderBackupPicker(backups) {
+  const back = document.createElement('div');
+  back.className = 'dlg-back';
+  const rowsHtml = backups.length
+    ? backups.map((b, i) => `
+        <div class="bkp-row">
+          <div class="bkp-meta"><b>${b.ruleCount}</b> label rule(s) · <b>${b.categoryCount}</b> categor${b.categoryCount === 1 ? 'y' : 'ies'}<br>${esc(relTime(b.ts))}</div>
+          <button class="btn btn-exec bkp-restore" data-ts="${b.ts}">Restore</button>
+        </div>`).join('')
+    : `<div class="dlg-lead">No backups yet — one is saved automatically the next time you change and save your rules.</div>`;
+  back.innerHTML =
+    `<div class="dlg" role="dialog" aria-modal="true" aria-labelledby="bkpT">` +
+    `<div class="dlg-hd" id="bkpT">› CONFIG BACKUPS</div>` +
+    `<div class="dlg-rows" style="max-height:44vh;overflow-y:auto">${rowsHtml}</div>` +
+    `<div class="dlg-btns"><button class="btn btn-cancel" style="flex:1">[ Close ]</button></div></div>`;
+  document.body.appendChild(back);
+  const prev = document.activeElement;
+  const close = () => {
+    back.classList.remove('show');
+    setTimeout(() => back.remove(), MOTION.normal);
+    try { if (prev && prev.focus) prev.focus(); } catch (e) {}
+  };
+  back.querySelector('.btn-cancel').onclick = close;
+  back.addEventListener('mousedown', e => { if (e.target === back) close(); });
+  back.querySelectorAll('.bkp-restore').forEach(btn => {
+    btn.onclick = () => restoreFromBackup(+btn.dataset.ts, close);
+  });
+  document.addEventListener('keydown', function onKey(e) {
+    if (e.key === 'Escape') { document.removeEventListener('keydown', onKey); close(); }
+  });
+  requestAnimationFrame(() => back.classList.add('show'));
+}
+
+async function restoreFromBackup(ts, closePickerFn) {
+  const ok = await uiConfirm({
+    tone: 'danger', title: 'RESTORE BACKUP',
+    lead: 'Replace your current label rules and category rules with this backup? Your current rules are backed up first, so this can be undone the same way.',
+    confirmLabel: 'Restore'
+  });
+  if (!ok) return;
+  google.script.run
+    .withSuccessHandler(res => {
+      if (!res || !res.ok) { toast((res && res.reason) || 'Restore failed.', 'err'); return; }
+      rules = res.rules || [];
+      catState = {};
+      renderCats(res.categoryRules || []);
+      renderRules();
+      lastKnownGoodCounts = currentRuleCounts();
+      toast('Backup restored — ' + rules.length + ' label rule(s).', 'ok');
+      tl('INFO', 'Config restored from backup.');
+      if (closePickerFn) closePickerFn();
+    })
+    .withFailureHandler(e => toast('Restore failed: ' + e.message, 'err'))
+    .restoreConfigBackup(ts);
+}
+
+// Coarse relative-time label for a backup's timestamp — this is a settings
+// list, not the run log, so second-level precision isn't useful.
+function relTime(ts) {
+  const s = Math.max(0, Math.round((Date.now() - ts) / 1000));
+  if (s < 60) return 'just now';
+  const m = Math.round(s / 60); if (m < 60) return m + ' min ago';
+  const h = Math.round(m / 60); if (h < 24) return h + ' hour' + (h === 1 ? '' : 's') + ' ago';
+  const d = Math.round(h / 24); return d + ' day' + (d === 1 ? '' : 's') + ' ago';
 }
 
 // ── DRY RUN ───────────────────────────────────────────────────

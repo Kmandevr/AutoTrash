@@ -771,6 +771,17 @@ reviewing the backend (app/*.gs) or index.html.
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 10. CONFIG STORAGE (UserProperties keys)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Schema-driven since 2026-09-24: every setting readConfig()/writeConfig()
+  handle is declared once in CONFIG_SCHEMA (app/Config.gs) as
+  {key, prop, type, default, backup?, countKey?, countFn?} — readConfig(),
+  writeConfig() and parseStoredRules() all walk that list generically
+  instead of naming each field inline. Adding a future setting is one
+  CONFIG_SCHEMA entry; nothing else in Config.gs needs to change. This is
+  purely an internal reorganization — every PropertiesService key name and
+  JSON-vs-string format below is unchanged, because app/Runner.gs and
+  app/EmailSend.gs read SUMMARY_FREQ/GLOBAL_PURGE_DAYS/INBOX_PURGE_DAYS
+  directly via props.getProperty(), bypassing readConfig() entirely.
+
   AUTOTRASH_RULES   — JSON array of custom label rule objects. Read
                       defensively — a corrupted value falls back to []
                       rather than throwing (2026-08-31, BUG-C18). Since
@@ -778,8 +789,10 @@ reviewing the backend (app/*.gs) or index.html.
                       in Config.gs, and backgroundRun() in Runner.gs) go
                       through one shared parseStoredRules() (Config.gs)
                       instead of two separately-maintained try/catch pairs.
+                      CONFIG_SCHEMA marks this field backup:true (see
+                      CONFIG BACKUP / RESTORE below).
   CATEGORY_RULES    — JSON array of category rule objects. Same defensive
-                      parsing as AUTOTRASH_RULES.
+                      parsing as AUTOTRASH_RULES. Also backup:true.
   TRIGGER_MODE      — string: OFF / 1MIN / 5MIN / 15MIN / HOURLY / DAILY
   SUMMARY_FREQ      — string: EACH_RUN / DAILY / ALT_DAYS / WEEKLY /
                                BIWEEKLY / ERRORS_ONLY / NEVER
@@ -800,6 +813,41 @@ reviewing the backend (app/*.gs) or index.html.
                       of this key (accumulateDailyStats() and
                       sendDailyDigest()) share no lock with each other; see
                       §2b/§6/§7 for the resulting race.
+
+  CONFIG BACKUP / RESTORE (2026-09-24) — fixes a live-reported bug: a Save
+  Config click could silently replace a non-empty rule set with an empty
+  one if the initial settings load had failed or was still in flight (the
+  in-memory `rules`/`catState` default to empty until a load succeeds, and
+  the old failure handler only logged the error instead of blocking saves).
+  Two independent layers now guard against this:
+    - AUTOTRASH_CONFIG_BACKUPS — JSON array (newest first, capped at
+      CONFIG_BACKUP_MAX = 5) of prior snapshots of every CONFIG_SCHEMA
+      field marked backup:true (today: rules, categoryRules). Written by
+      snapshotConfigBackup() (app/Config.gs) at the TOP of every
+      writeConfig() call, i.e. it captures the state right before it's
+      about to be overwritten. Skipped (no backup written) when the
+      pre-write state is already empty, so a fresh install or an
+      already-empty config doesn't pile up useless snapshots. A quota
+      failure while writing this key never blocks the real config write —
+      snapshotConfigBackup() drops backups oldest-first until the value
+      fits, and gives up quietly if even one alone won't fit.
+      listConfigBackups() returns summaries only (a count per backed-up
+      field, via that field's countKey/countFn — e.g. ruleCount,
+      categoryCount — no rule bodies), and restoreConfigBackup(ts) restores
+      every backup:true field from one snapshot, leaving every other
+      setting untouched; restoring itself snapshots the pre-restore state
+      first, so a restore is undoable the same way a normal save is.
+    - Client-side (index.html): Save Config refuses to run at all until
+      the initial getUISettings() load has actually succeeded
+      (`configLoaded`), and — separately — shows a "SAVE WILL REMOVE ALL
+      RULES" uiConfirm() dialog before any save that would take a
+      previously non-empty rule/category count down to zero, so the
+      mistake is caught before it's written, not just recoverable after.
+      A "Restore a Backup…" button in the System Config panel opens a
+      picker (showBackupPicker()/renderBackupPicker()) listing each
+      backup's summary and relative age (relTime()); restoreFromBackup()
+      confirms, calls restoreConfigBackup(), and updates the in-memory
+      rules/categories from the result.
 
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

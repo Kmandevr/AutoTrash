@@ -151,6 +151,12 @@ every file into a single `vm.Script` instead of running one per file).
   pushed branch (`git merge --no-ff`, so the branch stays visible in
   history). The current token has no Pull request scope, so this is a
   local merge + push of `main`, not a GitHub PR merge.
+- **Pushed branches auto-merge nightly.** `.github/workflows/daily-merge-deploy.yml`
+  runs at 02:00 UTC: it merges every non-`main` branch, runs `npm test`,
+  and only if that passes pushes `main`, `clasp push`es to the live
+  Apps Script project, and deletes the merged branches. So don't push a
+  branch that isn't ready to go live — a branch with a merge conflict or
+  a failing test blocks the whole night's run (nothing lands).
 - **Patch what's targeted.** No drive-by rewrites of working files.
 - **A GitHub push is not a deploy.** This code only goes live via
   `clasp push` or a manual copy-paste into the Apps Script editor —

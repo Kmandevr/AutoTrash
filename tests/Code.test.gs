@@ -25,6 +25,37 @@ function test_doGet_setsMobileViewportMetaTag() {
   } finally { HtmlService = real; }
 }
 
+// FIX (2026-09-24): doGet() must fall back to the 'app/index' filename
+// Apps Script gives index.html when clasp pushes this repo with rootDir
+// at the repo root (README's recommended, tests-inclusive setup) — see
+// resolveIndexFile()'s comment in app/Code.gs for why the two names
+// exist. Reproduces "Exception: No HTML file named index was found"
+// by making the mock throw on the flat name, exactly like the real
+// HtmlService does against that deployment layout.
+function test_doGet_fallsBackToNestedAppIndexFilename() {
+  const real = HtmlService;
+  const calls = [];
+  const out = {
+    setTitle: function () { return out; },
+    setXFrameOptionsMode: function () { return out; },
+    addMetaTag: function () { return out; }
+  };
+  HtmlService = {
+    createHtmlOutputFromFile: function (name) {
+      calls.push(name);
+      if (name === 'index') throw new Error('No HTML file named index was found.');
+      return out;
+    },
+    XFrameOptionsMode: real.XFrameOptionsMode
+  };
+  try {
+    doGet();
+    assertEqual(calls[0], 'index', 'doGet() must try the flat filename first');
+    assertEqual(calls[1], 'app/index', 'doGet() must fall back to app/index when the flat name is not found');
+  } finally { HtmlService = real; }
+}
+
 const CODE_TESTS = [
-  test_doGet_setsMobileViewportMetaTag
+  test_doGet_setsMobileViewportMetaTag,
+  test_doGet_fallsBackToNestedAppIndexFilename
 ];

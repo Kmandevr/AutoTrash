@@ -59,10 +59,18 @@ No external dependencies — this runs entirely on Apps Script's built-in
 Point `.clasp.json`'s `rootDir` at the repo root (or leave it unset)
 rather than at `app/` — `clasp push` includes `app/` and `tests/` as
 nested folders automatically, which is fine (Apps Script's own editor
-displays a pushed file's `/` as a folder), and this way
-`tests/Tests.gs` gets pushed too. Pointing `rootDir` at `app/` directly
-would deploy the app fine but silently skip `Tests.gs`, since it lives
-outside that directory.
+displays a pushed file's `/` as a folder), and this way every
+`tests/*.gs` file gets pushed too. Pointing `rootDir` at `app/` directly
+would deploy the app fine but silently skip the test suite, since it
+lives outside that directory.
+
+Apps Script names a pushed file after its path relative to `rootDir` —
+there are no real server-side folders, just a `/`-joined filename. With
+`rootDir` at the repo root that makes `index.html`'s Apps Script name
+`app/index` instead of the flat `index` a manual copy-paste (or
+`rootDir` pointed straight at `app/`) would give it. `doGet()` handles
+both automatically (`resolveIndexFile()` in `Code.gs`), so either
+deployment method works without changes.
 
 </details>
 

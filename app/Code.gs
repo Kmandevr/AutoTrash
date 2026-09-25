@@ -53,8 +53,30 @@ const BG_BUDGET_MS = 55000;  // 55 s budget per background execution
 // (max-width:640px) mobile layout never applied, and the run controls at
 // the bottom were tiny and easy to miss. (2026-09-24)
 function doGet() {
-  return HtmlService.createHtmlOutputFromFile('index')
+  return HtmlService.createHtmlOutputFromFile(resolveIndexFile())
     .setTitle('AutoTrash v26')
     .addMetaTag('viewport', 'width=device-width, initial-scale=1, viewport-fit=cover')
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+}
+
+// Apps Script names a pushed file after its path relative to clasp's
+// rootDir, with folders flattened into the filename itself (there are no
+// real server-side folders) — README's "Setup" (copy-paste every file
+// under app/ as flat, top-level files) and "Deploying with clasp"
+// (rootDir at the repo root, so tests/*.gs get pushed too, which
+// prefixes every app/ file with "app/") describe two equally-supported
+// deployment methods that give index.html two different Apps Script
+// filenames: 'index' or 'app/index'. FIX (2026-09-24, reported live
+// against a clasp-pushed deployment): "Exception: No HTML file named
+// index was found" — doGet() assumed the flat name unconditionally.
+// Try the flat name first (matches manual copy-paste, and clasp with
+// rootDir pointed directly at app/), then the clasp-nested one, instead
+// of assuming a specific deployment method.
+function resolveIndexFile() {
+  try {
+    HtmlService.createHtmlOutputFromFile('index');
+    return 'index';
+  } catch (e) {
+    return 'app/index';
+  }
 }

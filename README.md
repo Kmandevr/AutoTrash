@@ -161,3 +161,14 @@ governs.
   Section 10 of the LICENSE.
 
 Paid license requests: open an issue in this repository.
+
+## Privacy
+
+[Privacy Policy](docs/privacy.md) — AutoTrash runs entirely inside your
+own Google Account. It has no server of its own and sends your Gmail
+data to no one, including the Developer.
+
+If you deploy your own copy, Google's OAuth consent screen for that
+deployment is yours to configure; you may reuse or adapt this policy's
+text and link to it (or your own copy of it) from your project's OAuth
+consent screen.

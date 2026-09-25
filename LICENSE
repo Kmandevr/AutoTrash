@@ -1,21 +1,381 @@
-MIT License
+AutoTrash Personal Use License
+Version 1.2 — Effective 24 September 2026
 
-Copyright (c) 2026 Kmandevr
+Copyright (c) 2026 Kmandevr. All rights reserved.
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+-------------------------------------------------------------------------
+PLAIN-ENGLISH SUMMARY (for convenience only — it is not part of the
+license. The numbered sections below are what actually apply.)
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+  - You CAN use AutoTrash for free, for your own personal use.
+  - You CAN change it however you like, for your own personal use.
+  - You CAN privately give a copy (changed or not) to specific people you
+    know, for free, for their own personal use.
+  - ANYONE CAN link to the official AutoTrash repository, list it in a
+    directory or "awesome list", review it, or write about it.
+  - You CANNOT publish copies of it, post it publicly, sell it, use it to
+    make money, or pass it off as your own work, unless the Licensor has
+    given you a paid license or written permission.
+  - The Licensor can revoke your license at any time, and can change
+    these terms at any time.
+  - It comes with no warranty. Use it at your own risk.
+-------------------------------------------------------------------------
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+
+1. ACCEPTANCE
+
+   By downloading, copying, installing, deploying, using, modifying, or
+   sharing the Software, you agree to these terms. If you do not agree,
+   you have no permission to do any of those things. Section 6 (Linking
+   and Listing) does not require you to accept these terms.
+
+
+2. DEFINITIONS
+
+   In this license:
+
+   "Licensor" means Kmandevr, the copyright holder of the Software, and
+   any person the Licensor transfers the copyright to.
+
+   "Official Repository" means the repository at
+   https://github.com/Kmandevr/AutoTrash, or any other location the
+   Licensor names in that repository as the official home of the
+   Software.
+
+   "Software" means AutoTrash, including all of its source code, scripts,
+   web pages, tests, and documentation, as made available by the Licensor
+   in the Official Repository, and any copy of any part of it.
+
+   "You" means the individual person who accepts these terms. A license
+   under these terms is granted to individual people only, not to
+   companies or other organizations.
+
+   "Modified Version" means any copy of the Software that has been
+   changed in any way, and any work that includes, is translated from,
+   or is based on any part of the Software.
+
+   "Personal Use" means use by You, on accounts that belong to You, for
+   Your own private, non-commercial benefit.
+
+   "Commercial Purpose" means any use or activity that is intended for,
+   or directed toward, earning money or any other commercial advantage,
+   whether for You or anyone else, and whether or not a profit is
+   actually made. This includes:
+     (i)   selling, renting, or licensing the Software;
+     (ii)  charging for access to it, installation of it, setup of it,
+           or support for it;
+     (iii) offering it, or its functionality, as a service to others for
+           a fee;
+     (iv)  including it in any product, service, course, or package that
+           is sold or used to earn money;
+     (v)   using it on, or for, accounts that belong to a business,
+           employer, client, or customer; and
+     (vi)  asking for donations, tips, or payment in exchange for a copy.
+
+   "Private Sharing" means giving a copy of the Software or a Modified
+   Version directly to one or more specific, named individual people You
+   personally know, free of charge, for their own Personal Use, through a
+   channel that only those people can access (such as a direct message,
+   a private email, or a file or link that is restricted so that only
+   those named people can open it). Private Sharing does NOT include
+   posting or sending a copy to any group, channel, server, community,
+   forum, mailing list, or organization, or sharing any link that other
+   people could open.
+
+   "Publish" means making the Software or a Modified Version (or any part
+   of either) available to the public, or to anyone other than through
+   Private Sharing, by any means. This includes posting it on a website,
+   code repository, forum, social media, file-sharing site, app store,
+   add-on marketplace, or script gallery, or sharing a link to a copy
+   that anyone can open.
+
+   "In writing" and "written permission" mean a message that comes from
+   the Licensor and clearly states the permission, such as an email, a
+   signed document, or a message from the Licensor's GitHub account. A
+   permission You cannot show came from the Licensor does not exist.
+
+
+3. LICENSE GRANT
+
+   The Licensor grants You a personal, non-exclusive, non-transferable,
+   non-sublicensable, revocable, royalty-free license, PROVIDED THAT You
+   comply with every condition and restriction in these terms, to:
+
+   a. Use. Use, copy, install, and deploy the Software to accounts that
+      belong to You, for Your Personal Use.
+
+   b. Modify. Make Modified Versions and use them for Your Personal Use.
+
+   c. Share privately. Engage in Private Sharing of the Software or of a
+      Modified Version, on the conditions in Section 4.
+
+
+4. CONDITIONS FOR PRIVATE SHARING
+
+   You may share the Software or a Modified Version under Section 3(c)
+   only on the following conditions:
+
+   a. You must include this license, unchanged, with every copy.
+
+   b. You must not remove, change, or hide any copyright notice or any
+      credit to the Licensor.
+
+   c. If the copy is a Modified Version, You must clearly state that it
+      has been modified and by whom, and must not present it as the
+      Licensor's original.
+
+   d. You must not charge anything for it, or ask for anything in
+      return.
+
+   e. The people You share with receive their license directly from the
+      Licensor under these same terms, and must accept them. You cannot
+      give them more rights than these terms allow, and You cannot grant
+      them a license of Your own.
+
+
+5. RESTRICTIONS
+
+   Unless the Licensor has first given You a paid license or written
+   permission, You must not:
+
+   a. Publish the Software or any Modified Version.
+
+   b. Sell, rent, lease, sublicense, or otherwise transfer the Software
+      or any Modified Version for money or anything else of value.
+
+   c. Use the Software or any Modified Version for any Commercial
+      Purpose.
+
+   d. Distribute the Software or any Modified Version in any way other
+      than Private Sharing under Sections 3(c) and 4.
+
+   e. Claim, suggest, or imply that You are the author, creator, or
+      owner of the Software or of any part of it, or take credit for it
+      in any other way. Making a Modified Version does not make You the
+      author or owner of the Software. You may only describe Your own
+      changes as Your own work.
+
+   f. Remove, change, or hide this license, any copyright notice, or any
+      credit to the Licensor.
+
+   g. Use the Licensor's name, or the name "AutoTrash", to endorse or
+      promote anything, or to suggest that the Licensor supports or is
+      connected with You or any Modified Version.
+
+   h. Use the Software or any Modified Version, in whole or in part, to
+      train, fine-tune, or build any artificial-intelligence or machine-
+      learning model, dataset, or code-generation tool.
+
+   i. Help, allow, or encourage anyone else to do anything this Section
+      prohibits.
+
+   Each condition and restriction in these terms limits the scope of the
+   license in Section 3. Anything You do with the Software that is not
+   expressly permitted by these terms is not licensed, and infringes the
+   Licensor's copyright.
+
+
+6. LINKING AND LISTING (ALLOWED FOR EVERYONE)
+
+   Anyone, whether or not they have accepted these terms, and whether or
+   not their website or publication is commercial, may:
+
+   a. link to the Official Repository;
+
+   b. list the Software, with a link to the Official Repository, in any
+      directory, catalog, search result, "awesome list", or collection;
+
+   c. mention, describe, review, recommend, or write about the Software,
+      using the name "AutoTrash" to identify it; and
+
+   d. show screenshots of the Software, and quote short excerpts of its
+      documentation, when discussing or reviewing it,
+
+   provided that they:
+     (i)   link only to the Official Repository, and do not host, attach,
+           mirror, or link to any other copy of the Software or of any
+           Modified Version;
+     (ii)  do not charge anyone for access to the Software, the link, or
+           any copy;
+     (iii) do not suggest that the Licensor endorses them or anything
+           else; and
+     (iv)  do not claim to be the author or owner of the Software.
+
+   A link to the Official Repository is not a copy of the Software. Any
+   copy obtained through such a link is subject to these terms.
+
+
+7. GITHUB
+
+   The Official Repository is a public repository on GitHub. GitHub's
+   Terms of Service give GitHub users a license to view the repository
+   and to reproduce it by forking it within GitHub. Nothing in these
+   terms takes away that right. However:
+
+   a. That right covers only viewing and forking the Licensor's original
+      content, within GitHub. It does not cover modifying the Software,
+      publishing Modified Versions, or taking any copy outside GitHub.
+
+   b. A fork, and anything in it, remains fully subject to these terms.
+      Pushing a Modified Version to a public fork is Publishing and is
+      not allowed without the Licensor's written permission.
+
+
+8. CONTRIBUTIONS
+
+   If You submit any code, text, or other material to the Official
+   Repository (for example, by pull request, issue, or comment), You
+   grant the Licensor a perpetual, irrevocable, worldwide, royalty-free,
+   non-exclusive license to use, copy, modify, publish, sell, sublicense,
+   and relicense that material, under these terms or any other terms,
+   including in paid licenses. You confirm that You have the right to
+   grant that license. This Section overrides any other license that
+   would otherwise apply to Your contribution.
+
+
+9. REVOCATION
+
+   a. The Licensor may revoke Your license, or any license granted under
+      these terms, at any time, for any reason or for no reason, with or
+      without cause. Every license under these terms is given free of
+      charge and is revocable. Only a separate paid license or written
+      permission from the Licensor can be irrevocable, and only if it
+      says so.
+
+   b. Revocation takes effect when the Licensor notifies You directly,
+      or when the Licensor posts a notice of revocation in the Official
+      Repository, whichever happens first.
+
+   c. When Your license is revoked, You must immediately stop using the
+      Software and all Modified Versions, and delete every copy in Your
+      possession or control.
+
+
+10. CHANGES TO THESE TERMS
+
+    a. These terms are subject to change. The Licensor may change,
+       replace, or withdraw these terms at any time.
+
+    b. The current version of these terms is the one in the LICENSE file
+       on the main branch of the Official Repository.
+
+    c. When the Licensor posts a new version, the license under the
+       previous version is revoked and replaced by a license under the
+       new version. The new version applies from the date it is posted,
+       to everything You do from that date onward. It does not make
+       anything You did before that date a violation.
+
+    d. By continuing to use, modify, or share the Software after that
+       date, You accept the new version. If You do not accept it, You
+       must stop using the Software and delete all copies.
+
+
+11. EARLIER LICENSES
+
+    Earlier versions of the Software were offered under the MIT License.
+    The MIT License does not apply to this version of the Software or to
+    any later version; only these terms do. To the extent
+    the law allows, the Licensor also revokes any license under the MIT
+    License for earlier versions that was given free of charge.
+
+
+12. AUTOMATIC TERMINATION
+
+    If You break any of these terms, all of Your licenses under these
+    terms end immediately and automatically, without notice. Section
+    9(c) then applies as if Your license had been revoked. A license
+    that ends can only be restored by the Licensor in writing.
+
+
+13. PAID LICENSES AND PERMISSIONS
+
+    Rights to Publish, sell, use for a Commercial Purpose, or distribute
+    the Software beyond Private Sharing are available only under a
+    separate paid license or written permission from the Licensor, on
+    terms the Licensor sets. Requests can be made through the Official
+    Repository. No such license or permission exists unless it is in
+    writing from the Licensor.
+
+
+14. RESERVATION OF RIGHTS
+
+    The Licensor keeps all rights, title, and ownership in the Software
+    that are not expressly granted in these terms. No other rights or
+    licenses are granted, whether by implication, estoppel, conduct, or
+    otherwise. These terms do not limit the Licensor's right to license
+    the Software to anyone else on any other terms.
+
+
+15. NO WAIVER
+
+    If the Licensor does not enforce any part of these terms, or delays
+    enforcing it, that is not a waiver of that part or of any other part.
+    Allowing one person to do something does not allow anyone else to do
+    it. A waiver is only valid if it is in writing from the Licensor.
+
+
+16. RIGHTS UNDER LAW
+
+    These terms do not limit any right You have under applicable law that
+    cannot be limited by a license, such as fair use.
+
+
+17. NO WARRANTY
+
+    THE SOFTWARE IS PROVIDED "AS IS" AND "AS AVAILABLE", WITHOUT WARRANTY
+    OR CONDITION OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT
+    LIMITED TO THE IMPLIED WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+    PARTICULAR PURPOSE, AND NON-INFRINGEMENT. THE SOFTWARE ARCHIVES AND
+    DELETES EMAIL. YOU ARE SOLELY RESPONSIBLE FOR HOW YOU CONFIGURE AND
+    USE IT, AND FOR KEEPING BACKUPS OF ANY DATA YOU WANT TO KEEP.
+
+
+18. LIMITATION OF LIABILITY
+
+    TO THE FULLEST EXTENT PERMITTED BY LAW, IN NO EVENT WILL THE LICENSOR
+    BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER LIABILITY, INCLUDING ANY
+    LOSS OR DELETION OF EMAIL OR OTHER DATA, WHETHER IN CONTRACT, TORT, OR
+    OTHERWISE, ARISING FROM, OUT OF, OR IN CONNECTION WITH THE SOFTWARE
+    OR ITS USE.
+
+
+19. GOVERNING LAW AND VENUE
+
+    These terms are governed by the laws of the State of Utah, United
+    States of America, and by applicable United States federal law,
+    including copyright law, without regard to conflict-of-law rules.
+    Any dispute arising from these terms or the Software will be heard
+    only in the state or federal courts located in the State of Utah,
+    and You consent to the jurisdiction of those courts. The Licensor may
+    also seek an injunction in any court that has jurisdiction, to stop
+    infringement of its copyright.
+
+
+20. TRANSFER BY THE LICENSOR
+
+    The Licensor may transfer the copyright in the Software, and its
+    rights under these terms, to anyone. You may not transfer Your
+    license or Your rights under these terms to anyone.
+
+
+21. SURVIVAL
+
+    Sections 5(e) to 5(i), 8, 9(c), 14, 15, 17, 18, and 19 continue to
+    apply after Your license ends for any reason.
+
+
+22. SEVERABILITY
+
+    If any part of these terms is found to be unenforceable, that part
+    will be enforced to the greatest extent possible, and the rest of
+    these terms will stay in full effect.
+
+
+23. ENTIRE LICENSE
+
+    These terms are the entire license between You and the Licensor for
+    the Software, unless You have a separate written paid license or
+    permission from the Licensor, in which case that written license or
+    permission also applies and controls where it conflicts with these
+    terms. Headings and the plain-English summary are for convenience
+    only and do not change the meaning of these terms.

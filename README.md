@@ -146,4 +146,15 @@ and how issues are labeled.
 
 ## License
 
-[MIT](LICENSE)
+[AutoTrash Personal Use License](LICENSE) — source-available, **not** open
+source.
+
+- Free to use and modify for your own personal use.
+- You may privately share copies (modified or not) with specific people
+  you know, for free, for their personal use — license included.
+- Anyone may link to or list this repository, or review and write about
+  it.
+- No publishing, public posting, selling, commercial use, or claiming
+  credit without a paid license or written permission from the author.
+- The license is revocable at any time and its terms are subject to
+  change. See [LICENSE](LICENSE) for the full terms.

@@ -35,8 +35,9 @@ dashboard or continuously in the background via a time trigger.
 1. Create a new [Google Apps Script](https://script.google.com) project.
 2. Add every file under [`app/`](app/) — `Code.gs`, `Utils.gs`, `Config.gs`,
    `RuleEngine.gs`, `Engine.gs`, `Stats.gs`, `RunState.gs`, `Runner.gs`, `EmailSend.gs`, `EmailTemplates.gs`,
-   `index.html` — plus [`tests/Tests.gs`](tests/Tests.gs) (optional but
-   recommended, see [Running the tests](#running-the-tests)) as files in
+   `index.html` — plus every `.gs` file under [`tests/`](tests/) (optional
+   but recommended, see [Running the tests](#running-the-tests); skip
+   `tests/mocks/` and `tests/harness/`, which are Node-only) as files in
    that project. Apps Script has no real folders and shares one global
    scope across every `.gs` file regardless of name or push order, so it
    doesn't matter what these end up named/ordered in the Apps Script
@@ -92,13 +93,25 @@ app/
   EmailTemplates.gs    HTML/plain-text email rendering
   index.html          Web app UI (served by doGet())
 tests/
-  Tests.gs            Test suite — run runAllTests() from the Apps
-                      Script editor; emails a pass/fail report to
-                      the script owner
+  TestFramework.gs    Assertion helpers + Gmail/Lock/ScriptApp/Cache spies
+  *.test.gs           One suite per app/*.gs file (RuleEngine, Engine,
+                      Stats, EmailTemplates, EmailSend, Code, Config,
+                      Runner, RunState, Utils)
+  RunAll.gs           Combines every suite; defines runAllTests() — the
+                      one entry point, run from the Apps Script editor
+                      or via `npm test` (see Running the tests)
+  mocks/, harness/    Node-only — power `npm test`, never pushed to
+                      Apps Script
 docs/
   feature-reference.txt     Source of truth for how every feature is
                             meant to behave — read this before changing
                             any code
+  engine.txt                How the search → match → guarded action
+                            pipeline works, for building new features
+  testing.txt               How tests/ is organized and how to add a
+                            test — read before touching anything there
+  privacy.md                What AutoTrash does and doesn't do with
+                            your data
   suggestions.txt           Proposed features and improvements, not yet
                             built
 ```
@@ -111,12 +124,20 @@ full breakdown.
 
 ## Running the tests
 
-From the Apps Script editor, select `runAllTests` (from `tests/Tests.gs`)
-and run it. Results go to the execution log and are also emailed to the
-script owner as an HTML report. The suite covers query-building, stats
-accumulation, email content, and both the live-burst and background-run
-engines against an in-memory fake `GmailApp` — no real mail is touched by
-the tests.
+Two ways to run the same suite (`runAllTests()` in `tests/RunAll.gs`):
+
+- **Apps Script editor** — select `runAllTests` and run it. Results go
+  to the execution log and are also emailed to the script owner as an
+  HTML report.
+- **Node, from a clone of this repo, no Apps Script account needed** —
+  `npm test`. Loads every `app/*.gs` + `tests/*.gs` file into a Node
+  `vm` context seeded with mocked Apps Script services and calls the
+  same `runAllTests()`. This is what CI runs on every push.
+
+The suite covers query-building, stats accumulation, email content, and
+both the live-burst and background-run engines against an in-memory fake
+`GmailApp` — no real mail is touched by the tests. See
+[`docs/testing.txt`](docs/testing.txt) for the full file map.
 
 ## Known limitations
 

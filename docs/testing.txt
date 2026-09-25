@@ -107,24 +107,48 @@ Each of these files ends with its own array, e.g.:
 following the app file's own name in SCREAMING_SNAKE_CASE + _TESTS.
 
 tests/RunAll.gs
-  Concatenates every suite's array into one TEST_FNS list:
-      const TEST_FNS = []
-        .concat(TESTFRAMEWORK_TESTS)
-        .concat(UTILS_TESTS)
-        .concat(RULEENGINE_TESTS)
-        .concat(ENGINE_TESTS)
-        .concat(STATS_TESTS)
-        .concat(EMAILTEMPLATES_TESTS)
-        .concat(EMAILSEND_TESTS)
-        .concat(CODE_TESTS)
-        .concat(CONFIG_TESTS)
-        .concat(RUNNER_TESTS)
-        .concat(RUNSTATE_TESTS);
+  buildTestFns() concatenates every suite's array into one list:
+      function buildTestFns() {
+        return []
+          .concat(TESTFRAMEWORK_TESTS)
+          .concat(UTILS_TESTS)
+          .concat(RULEENGINE_TESTS)
+          .concat(ENGINE_TESTS)
+          .concat(STATS_TESTS)
+          .concat(EMAILTEMPLATES_TESTS)
+          .concat(EMAILSEND_TESTS)
+          .concat(CODE_TESTS)
+          .concat(CONFIG_TESTS)
+          .concat(RUNNER_TESTS)
+          .concat(RUNSTATE_TESTS);
+      }
   and defines runAllTests() — the single implementation both the Apps
-  Script editor and the Node harness call. Iterates TEST_FNS, times each,
-  collects {name, status, ms, error, stack}, logs to the console, emails
-  an HTML+plain-text report via safeMail(ownerEmail(), ...), and returns
-  {passed, failed, total, results}.
+  Script editor and the Node harness call. runAllTests() calls
+  buildTestFns() as its first line (2026-09-24 fix, BUG: see below) —
+  the list is NOT a top-level const. Iterates the result, times each
+  test, collects {name, status, ms, error, stack}, logs to the console,
+  emails an HTML+plain-text report via safeMail(ownerEmail(), ...), and
+  returns {passed, failed, total, results}.
+
+  BUG FIX (2026-09-24): TEST_FNS was originally a top-level
+  `const TEST_FNS = [].concat(TESTFRAMEWORK_TESTS, ...)`, built once
+  when RunAll.gs itself loaded. That threw "ReferenceError:
+  TESTFRAMEWORK_TESTS is not defined" when run from the real Apps
+  Script editor — Google's runtime executes each file's top-level
+  statements in an order it picks for itself (observed to be roughly
+  alphabetical, which runs "RunAll.gs" before "TestFramework.gs"), and
+  a `const` in one file is NOT usable from another file's top-level
+  code until that file's own top-level code has actually run — sharing
+  one execution scope does not mean every top-level assignment across
+  every file happens before any of them runs. The Node harness never
+  caught this: run-node-tests.js hardcodes TestFramework.gs and every
+  *.test.gs to load before RunAll.gs (see WHY ONE CONCATENATED SCRIPT
+  below), which happened to match what the fix now guarantees for real.
+  Moving the concat into buildTestFns() and calling it from inside
+  runAllTests() means it only runs when someone actually invokes
+  runAllTests() — by which point every file's top-level code has
+  already executed, in the Apps Script editor or the Node harness
+  alike, regardless of file order either runtime happens to pick.
 
   Current total: 139 tests (1+10+23+22+9+10+6+1+13+25+19), as of the
   2026-09-24 cross-device run registry (app/RunState.gs), which added
@@ -223,19 +247,35 @@ WHY ONE CONCATENATED SCRIPT, NOT ONE runInContext() CALL PER FILE
   function declarations do. If each file were loaded as its own
   separate vm.Script().runInContext(context) call, every top-level
   `const X_TESTS = [...]` (every tests/*.test.gs file, plus GMAIL_CHUNK
-  and friends in app/Code.gs) would be invisible to any LATER script —
-  tests/RunAll.gs's `const TEST_FNS = [].concat(UTILS_TESTS, ...)`
-  would throw a ReferenceError on UTILS_TESTS, with no equivalent
-  problem in the real Apps Script runtime, which really does share one
-  execution scope across files. Concatenating into a single script
-  before evaluation sidesteps that Node-specific mismatch entirely and
-  is actually a MORE faithful model of Apps Script's real behavior than
-  multiple separate script evaluations would have been.
+  and friends in app/Code.gs) would be invisible to any LATER script.
+  Concatenating into a single script before evaluation sidesteps that
+  Node-specific mismatch entirely.
   (Function declarations DO attach to the context object even split
   across separate scripts, which is why runAllTests() itself — a
   function declaration — is reachable as context.runAllTests() after
   the fact regardless; it's specifically top-level const/let that this
   affects.)
+
+  CORRECTION (2026-09-24): this section used to claim the real Apps
+  Script runtime has "no equivalent problem" here because it "really
+  does share one execution scope across files" — that's true of the
+  end state (every top-level const does end up attached to the shared
+  scope eventually) but false about ORDER: Apps Script still executes
+  each file's top-level statements in an order it picks for itself
+  (observed to be roughly alphabetical), one file at a time, so a
+  top-level statement in file A that reads a `const` from file B still
+  throws a ReferenceError if A happens to run before B — the real
+  runtime's OWN version of exactly the mismatch this section describes,
+  not something the Node harness invented. tests/RunAll.gs hit this for
+  real (TESTFRAMEWORK_TESTS undefined when RunAll.gs ran before
+  TestFramework.gs) — the fix there was to stop building TEST_FNS at
+  top level at all (buildTestFns(), called from inside runAllTests()
+  itself; see the tests/RunAll.gs section above), which sidesteps file
+  order in BOTH runtimes rather than relying on either one's load
+  order to happen to come out right — this harness's hardcoded
+  TEST_FILES order above happened to mask the bug rather than avoid it,
+  which is why Node's 139/139 didn't catch what the Apps Script editor
+  hit immediately.
 
 MOCKS — WHAT'S FAKE VS. WHAT'S REAL (tests/mocks/apps-script-globals.js)
   GmailApp / LockService / ScriptApp: baseline no-ops only. Every test

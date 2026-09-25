@@ -8,26 +8,46 @@
  *
  * Split out of the former monolithic tests/Tests.gs on 2026-09-24.
  * Deploy every tests/*.gs file alongside app/*.gs in the same Apps
- * Script project — they share one global scope regardless of file, so
- * load order here doesn't matter.
+ * Script project — they share one global scope regardless of file.
+ *
+ * FIX (2026-09-24): buildTestFns() is called from INSIDE runAllTests(),
+ * not assigned to a top-level const. The Apps Script editor executes
+ * every file's top-level statements in some order it picks for itself —
+ * observed to be roughly alphabetical, which runs "RunAll.gs" before
+ * "TestFramework.gs" — and does NOT hoist a `const` the way it hoists
+ * function declarations across files. A top-level
+ * `const TEST_FNS = [].concat(TESTFRAMEWORK_TESTS, ...)` therefore threw
+ * "ReferenceError: TESTFRAMEWORK_TESTS is not defined" the moment
+ * RunAll.gs's own top-level code ran, before TestFramework.gs's array
+ * had been assigned — reproduced live in the Apps Script editor (the
+ * Node harness never caught this because run-node-tests.js hardcodes
+ * TestFramework.gs + every *.test.gs to load before RunAll.gs, which
+ * papered over the exact ordering assumption that doesn't hold in the
+ * real runtime). Building the list inside the function body instead
+ * means it only runs when runAllTests() is actually invoked — by which
+ * point every file's top-level code (all the X_TESTS arrays included)
+ * has already executed, regardless of file order.
  */
 
-const TEST_FNS = []
-  .concat(TESTFRAMEWORK_TESTS)
-  .concat(UTILS_TESTS)
-  .concat(RULEENGINE_TESTS)
-  .concat(ENGINE_TESTS)
-  .concat(STATS_TESTS)
-  .concat(EMAILTEMPLATES_TESTS)
-  .concat(EMAILSEND_TESTS)
-  .concat(CODE_TESTS)
-  .concat(CONFIG_TESTS)
-  .concat(RUNNER_TESTS)
-  .concat(RUNSTATE_TESTS);
+function buildTestFns() {
+  return []
+    .concat(TESTFRAMEWORK_TESTS)
+    .concat(UTILS_TESTS)
+    .concat(RULEENGINE_TESTS)
+    .concat(ENGINE_TESTS)
+    .concat(STATS_TESTS)
+    .concat(EMAILTEMPLATES_TESTS)
+    .concat(EMAILSEND_TESTS)
+    .concat(CODE_TESTS)
+    .concat(CONFIG_TESTS)
+    .concat(RUNNER_TESTS)
+    .concat(RUNSTATE_TESTS);
+}
 
 function runAllTests() {
   const results = [];
   const t0 = Date.now();
+  const TEST_FNS = buildTestFns();
 
   TEST_FNS.forEach(fn => {
     const name = fn.name || '(anonymous test)';

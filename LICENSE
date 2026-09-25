@@ -4,28 +4,30 @@ Version 2.1 — Effective 24 September 2026
 Copyright (c) 2026 Kmandevr. All rights reserved.
 
 -------------------------------------------------------------------------
-IN PLAIN ENGLISH (a friendly summary only — it is not part of the
-license. The numbered sections below are the actual license terms.)
+SUMMARY (not part of the license; Sections 1 to 20 govern)
 
-  Go ahead and:
-    - use AutoTrash for free on your own mailboxes, for any reason;
-    - change it, fix it, and improve it;
-    - share it, including your improved version, publicly or privately,
-      as long as it stays free;
-    - link to it, list it, review it, and tell people about it.
+  Permitted, free of charge:
+    - Use of the Software on Your Mailboxes.
+    - Modification of the Software.
+    - Distribution of the Software and of Modified Versions, publicly or
+      privately, free of charge and under these terms.
+    - Linking to, listing, and reviewing the Software.
 
-  Just please:
-    - don't sell it or make money from it without a paid license;
-    - keep the credit to the original author, and don't claim it as
-      your own;
-    - include this license when you share it, and say what you changed.
+  Prohibited without a paid license from the Licensor:
+    - Selling the Software or any Modified Version.
+    - Any other Commercial Use, as defined in Section 2.8.
 
-  Your license won't be taken away on a whim. It can only end if you
-  break these terms, and the first time, you get 30 days after being
-  told to put things right.
+  Required:
+    - Credit to the Licensor, and no claim of authorship of the Software.
+    - The full license text included with every copy distributed.
+    - A statement of changes in every Modified Version distributed.
 
-  AutoTrash deletes email. It comes with no warranty, so test it with
-  dry-run first and keep backups of anything important.
+  Termination:
+    - The license ends only on violation of these terms, as set out in
+      Section 10, including a 30-day cure period after a first Notice.
+
+  Warranty:
+    - None. The Software deletes email. Use is at Your own risk.
 -------------------------------------------------------------------------
 
 

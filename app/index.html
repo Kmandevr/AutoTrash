@@ -5,6 +5,48 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>AutoTrash v26</title>
+  <script>
+  /* BOOT DIAGNOSTICS (2026-09-25). Reported live: on the real Apps Script
+     deployment nothing responds (buttons, panels, dropdowns) and nothing
+     says why, while the same file works outside Apps Script. This block is
+     deliberately a SEPARATE, ES5-only <script> that runs first, so it
+     survives even a SyntaxError or clash that stops the main script below
+     from running at all. Any uncaught error, or the main script never
+     finishing, is shown ON SCREEN (no dev tools needed on a phone). It
+     renders nothing when everything is healthy. */
+  (function () {
+    var errs = [];
+    function show(msg) {
+      errs.push(msg); if (errs.length > 8) errs.shift();
+      var b = document.getElementById('bootdiag');
+      if (!b) {
+        b = document.createElement('div');
+        b.id = 'bootdiag';
+        b.setAttribute('style', 'position:fixed;left:8px;right:8px;top:8px;z-index:2147483647;' +
+          'background:#2a0508;color:#ffd6da;border:1px solid #ff4455;border-radius:4px;' +
+          'font:12px/1.45 monospace;padding:9px 11px;white-space:pre-wrap;word-break:break-word;' +
+          'max-height:50vh;overflow:auto');
+        (document.body || document.documentElement).appendChild(b);
+      }
+      b.textContent = '⚠ AutoTrash UI error — screenshot this:\n' + errs.join('\n');
+    }
+    window.__autotrashShowError = show;
+    window.addEventListener('error', function (e) {
+      if (!e || !(e.message || e.error)) return; // resource load failures (e.g. fonts) — not ours
+      show((e.message || String(e.error)) + (e.lineno ? '  @ line ' + e.lineno + ':' + (e.colno || 0) : ''));
+    });
+    window.addEventListener('unhandledrejection', function (e) {
+      var r = e && e.reason;
+      show('Unhandled promise: ' + ((r && r.message) || String(r)));
+    });
+    window.addEventListener('load', function () {
+      setTimeout(function () {
+        if (!window.__autotrashReady)
+          show('Main script never finished loading, so no button will work.\n' + navigator.userAgent);
+      }, 4000);
+    });
+  })();
+  </script>
   <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Exo+2:wght@300;600;800&display=swap" rel="stylesheet">
   <style>
     :root {
@@ -2097,6 +2139,10 @@ function toast(msg, kind) {
   el.classList.add('show');
   clearTimeout(_tt); _tt = setTimeout(() => el.classList.remove('show'), 2800);
 }
+
+// Keep LAST: tells the boot diagnostics in <head> that this whole script
+// evaluated. If anything above stops it, the page says so on screen.
+window.__autotrashReady = true;
 </script>
 </body>
 </html>

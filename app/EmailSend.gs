@@ -68,7 +68,20 @@ function sendDailyDigest() {
   if (!['DAILY', 'ALT_DAYS', 'WEEKLY', 'BIWEEKLY'].includes(freq)) return;
   const lastDigest = props.getProperty('LAST_DIGEST_DATE') || '';
   const today      = new Date().toISOString().slice(0, 10);
-  const daysSince  = Math.floor((new Date() - new Date(lastDigest || 0)) / 864e5);
+  // FIX 50 (Issue #98): new Date(...) never throws — an unparseable
+  // LAST_DIGEST_DATE (hand-edited in the Properties editor, corrupted, or
+  // left over from a future format change) silently becomes Invalid Date,
+  // making daysSince NaN. NaN >= 2/7/14 is always false, so `should` used to
+  // latch at false forever for every freq except DAILY — and since the
+  // `if (!should) return;` below fires BEFORE the LAST_DIGEST_DATE rewrite
+  // further down, the corrupted value was never self-corrected: the digest
+  // stopped going out permanently, with no error and no trace. An unparseable
+  // date is treated as "never sent" (daysSince = Infinity) instead, so this
+  // heals itself on the very next check — `should` becomes true, the digest
+  // sends (or is skipped only because there's nothing to report, same as
+  // any other day), and LAST_DIGEST_DATE gets overwritten with a valid value.
+  const lastDigestMs = new Date(lastDigest || 0).getTime();
+  const daysSince  = isNaN(lastDigestMs) ? Infinity : Math.floor((new Date() - lastDigestMs) / 864e5);
   const should = freq === 'DAILY' ? true
     : freq === 'ALT_DAYS' ? daysSince >= 2
     : freq === 'WEEKLY'   ? daysSince >= 7

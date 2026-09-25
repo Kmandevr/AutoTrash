@@ -293,17 +293,56 @@ function abortRun(stats, elapsedMs, dryRun, runId) {
   const finish = () => {
     const s = readRunState();
     const mine = !!s && s.id === runId;
-    if (mine && s.status !== 'running') return getProps().getProperty('LAST_RUN_TIME');
+    // FIX 52 (found in review, no issue number yet — filing alongside this
+    // fix): previously only bailed when `mine` (same run) had already moved
+    // off 'running' — a double-abort of the SAME run, e.g. two dashboards
+    // both noticing staleness. It did NOT bail when `!mine`: RUN_STATE
+    // pointing at a DIFFERENT run entirely (this runId's run already ended
+    // AND a brand-new run has since started and overwritten RUN_STATE) —
+    // that case fell through to abortRunCore() below using this stale
+    // runId's own cached detail/stats, re-sending an "aborted" email and
+    // re-running accumulateDailyStats() for a run that (per this file's own
+    // comment above) already finalized through its own normal path. Net
+    // effect: a late stale-abort call (requestAbort()'s staleness branch,
+    // queued behind a slow lock acquisition — see withRunLock's up-to-60s
+    // wait above) could double-count an already-finished run's stats into
+    // DAILY_STATS/the digest, and fire a second, spurious abort email for a
+    // run nobody would recognize as still active. endRun()'s own `s.id !==
+    // runId` guard already stops it from touching the NEW run's RUN_STATE —
+    // this only closes the stats/email side, which had no such guard. Any
+    // finalize this call would have performed for the old run either
+    // already happened (normal completion) or is not this call's job to
+    // redo — bail exactly like the already-finalized case does.
+    if (!mine || s.status !== 'running') return getProps().getProperty('LAST_RUN_TIME');
+    // `mine` is guaranteed true past the guard above now (FIX 52), so this
+    // always reads the server's own record for the run being aborted, never
+    // the caller-supplied elapsedMs/dryRun — those two params only still
+    // matter for the runId-less abortRunCore(stats, elapsedMs, dryRun) path.
     const detail  = cacheGetJson(RUN_DETAIL_PREFIX + runId);
     const best    = fullerStats(stats, detail && detail.stats);
-    const elapsed = mine ? Date.now() - (s.startedAt || Date.now()) : elapsedMs;
-    const dry     = mine ? !!s.dryRun : !!dryRun;
+    const elapsed = Date.now() - (s.startedAt || Date.now());
+    const dry     = !!s.dryRun;
     const ts = abortRunCore(best, elapsed, dry);
     endRun(runId, 'aborted', `⚠ Aborted after ${((elapsed || 0) / 1000).toFixed(1)}s · ${fmtNum(best.totalMoved || 0)} ${dry ? 'scanned (dry run)' : 'actioned'}`, best);
     return ts;
   };
   const r = withRunLock(60000, finish);
-  return r.ok ? r.value : finish();
+  // FIX 51 (found in review, no issue number yet — filing alongside this
+  // fix): previously fell back to `finish()` a SECOND time, run completely
+  // UNLOCKED, whenever the 60s lock wait itself timed out — directly
+  // contradicting this function's own documented guarantee ("the abort waits
+  // for an in-flight burst to finish (script lock)", feature-reference.txt
+  // §4) and reopening exactly the kind of torn read-modify-write against
+  // RUN_STATE/RUN_DETAIL_<id>/DAILY_STATS the lock exists to prevent — just
+  // via this function's own fallback, not a caller that forgot to lock at
+  // all. Every other withRunLock() caller in this file/RunState.gs
+  // (processLiveBurst, startLiveRun, claimRun) already treats `!r.ok` as
+  // "signal busy, touch nothing unlocked"; this was the one place that
+  // didn't. Safe to just skip the unlocked retry: the abort-request flag
+  // (RUN_ABORT_KEY, set by requestAbort() independently of this call) is
+  // untouched either way, so a run whose finalize is missed here still stops
+  // itself at its very next checkpoint (next burst / next background rule).
+  return r.ok ? r.value : getProps().getProperty('LAST_RUN_TIME');
 }
 
 // Picks the stats object that has seen more of the run.
@@ -437,11 +476,24 @@ function backgroundRun() {
       // next rule. The in-flight rule, if any, already completed.
       if (abortRequestedFor(run.id)) { aborted = true; break; }
       const rule = workQueue[0];
-      // FIX 17 (BUG-C8): Use toUpperCase() fallback so old configs without a
-      // label field don't produce lowercase keys in daily stats, which would
-      // make category totals invisible in the digest per-rule table.
-      const lbl  = ruleLabel(rule);
+      // FIX 49 (Issue #97): `lbl` is declared HERE, outside the try block, and
+      // only assigned once the rule is known — the same structure FIX 38
+      // (BUG-C15) already uses in processLiveBurstCore() for the identical
+      // reason. Previously `const lbl = ruleLabel(rule);` sat ABOVE this try,
+      // so an exception computing it (e.g. Issue #96's missing-category case)
+      // was not caught by the loop's own catch block and had no outer catch
+      // to fall back on either — it escaped backgroundRun() entirely, killing
+      // the whole trigger firing with no error email and no partial stats
+      // saved (accumulateDailyStats() never reached). Fixing #96 removes
+      // today's only known way to trigger this, but the structural gap would
+      // still swallow any FUTURE exception source added to this line, so it
+      // is closed here too, independent of that fix.
+      let lbl = '?';
       try {
+        // FIX 17 (BUG-C8): Use toUpperCase() fallback so old configs without a
+        // label field don't produce lowercase keys in daily stats, which would
+        // make category totals invisible in the digest per-rule table.
+        lbl = ruleLabel(rule);
         // Engine (Engine.gs): search → dedup → act. FIX 15 (BUG-C3): the
         // engine registers thread IDs in seenIds BEFORE the Gmail call, so if
         // it throws mid-batch (e.g. quota error), threads already processed in

@@ -150,7 +150,40 @@ tests/RunAll.gs
   already executed, in the Apps Script editor or the Node harness
   alike, regardless of file order either runtime happens to pick.
 
-  Current total: 139 tests (1+10+23+22+9+10+6+1+13+25+19), as of the
+  Current total: 161 tests, as of a second 2026-09-25 pass on top of the
+  Issues #96/#97/#98 bug-fix pass (see feature-reference.txt's "Regression
+  tests worth knowing about by name" for what each new test guards). That
+  first pass landed 159 (see the prior entry below for its own breakdown);
+  this second pass added 2 more, both found in review rather than filed as
+  Issues first: 1 RunState test (abortRun()'s stale-abort path
+  double-accumulating a SUPERSEDED run's stats into DAILY_STATS — see FIX 52
+  in app/Runner.gs) and 1 RuleEngine test (Global Purge's query missing
+  -in:sent/-in:drafts, silently contradicting this project's own "excludes
+  ... drafts, and sent mail" safety promise — see FIX 53 in
+  app/RuleEngine.gs and §9 of feature-reference.txt). This document's own
+  count had already drifted from a fresh `npm test` total before the first
+  of these two passes (last read 139, actual 150) — per this section's own
+  instruction below, the RUN is the source of truth, not a
+  manually-maintained arithmetic trail; if you need the exact per-file
+  breakdown, count each tests/*.test.gs file's own `..._TESTS` array (plus
+  any `.push(...)` calls appended after it, e.g. tests/Config.test.gs's
+  config-backup tests) rather than trusting the historical entries below,
+  which are kept for narrative context, not as a running total to
+  reconcile against.
+
+  Prior entry for the first 2026-09-25 pass (159 tests: Issues #96/#97/#98
+  plus an unfiled abortRun()/withRunLock fallback bug): 1 RuleEngine test
+  (ruleLabel missing-category fallback), 2 Runner tests (backgroundRun
+  surviving a missing category field and a monkeypatched ruleLabel throw),
+  5 EmailSend tests (sendDailyDigest had NO direct tests before this pass —
+  the corrupted-LAST_DIGEST_DATE regression plus 4 basic sanity tests for
+  behavior that was previously only exercised indirectly), and 1 RunState
+  test (abortRun() under simulated lock contention).
+
+  Prior entries (kept for context; do not re-derive the current total from
+  the arithmetic below — see above):
+
+  139 tests (1+10+23+22+9+10+6+1+13+25+19), as of the
   2026-09-24 cross-device run registry (app/RunState.gs), which added
   tests/RunState.test.gs (19) and the first tests/Code.test.gs test (1).
   Before that: 119 tests, as of the

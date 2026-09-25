@@ -201,6 +201,33 @@ function installScriptAppSpy(existingTriggers) {
   };
 }
 
+// ── CACHESERVICE SPY (defensive-cache-failure tests) ─────────────────────
+// runCache() (RunState.gs) wraps CacheService.getUserCache() in its own
+// try/catch specifically because the call can fail on the real platform —
+// cacheGetJson()/cachePutJson() are documented to degrade to null/false
+// rather than let that propagate and break the run they're tracking. Every
+// other spy above swaps in a fake that WORKS; this one swaps in a
+// CacheService that throws, so a test can prove that degrade-gracefully
+// path actually holds instead of just trusting the try/catch is never
+// exercised. The baseline Node mock (tests/mocks/apps-script-globals.js)
+// never throws on its own, so nothing else in the suite reaches this path.
+function installCacheSpy(opts) {
+  opts = opts || {};
+  const real = (typeof CacheService !== 'undefined') ? CacheService : null;
+  const fake = {
+    getUserCache: function () {
+      if (opts.throwOnGet) throw new Error('CacheService unavailable (simulated).');
+      return real ? real.getUserCache() : null;
+    },
+    getScriptCache: function () {
+      if (opts.throwOnGet) throw new Error('CacheService unavailable (simulated).');
+      return real ? real.getScriptCache() : null;
+    }
+  };
+  CacheService = fake;
+  return { restore: function () { CacheService = real; } };
+}
+
 const TESTFRAMEWORK_TESTS = [
   test_assertThrows_frameworkHelperWorks
 ];

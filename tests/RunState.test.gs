@@ -414,6 +414,47 @@ function test_abortRun_withRunId_cachedDetailEvicted_fallsBackToCallerStats() {
   });
 }
 
+// ── CacheService unavailable (defensive fallback) ─────────────────────────
+// runCache() intentionally swallows a throwing CacheService.getUserCache()
+// so a cache-service outage degrades run tracking (an emptier log for
+// viewers) instead of breaking the run itself — the same "cache is
+// disposable, the run record is not" guarantee proven above for eviction
+// (test_abortRun_withRunId_cachedDetailEvicted_fallsBackToCallerStats and
+// test_claimRun_oversizedPayload_warnsDedupResetInLog), extended to the
+// whole service being unreachable rather than just one evicted key. Nothing
+// in the suite exercised the actual throw path before this — the Node
+// harness's baseline CacheService mock never throws on its own.
+function test_cacheGetJson_returnsNullWhenCacheServiceThrows() {
+  const cs = installCacheSpy({ throwOnGet: true });
+  try {
+    assertEqual(cacheGetJson('anything'), null,
+      'a throwing CacheService must read back as "nothing cached", not crash the caller');
+  } finally { cs.restore(); }
+}
+
+function test_cachePutJson_returnsFalseWhenCacheServiceThrows() {
+  const cs = installCacheSpy({ throwOnGet: true });
+  try {
+    assertEqual(cachePutJson('anything', { x: 1 }), false,
+      'a throwing CacheService must report the write as skipped, not crash the caller');
+  } finally { cs.restore(); }
+}
+
+function test_beginRun_survivesCacheServiceOutage() {
+  withRunProps(() => {
+    const cs = installCacheSpy({ throwOnGet: true });
+    try {
+      const s = beginRun({ source: 'live', driverId: 'tabA', left: 1, queue: ['A'], stats: freshStats(),
+        log: [{ level: 'INFO', msg: 'START' }] });
+      assert(s && s.id, 'beginRun must still register the run via PropertiesService even when the cache detail write silently fails');
+      const status = getRunStatus(-1, null);
+      assertEqual(status.run.id, s.id, 'the run itself must stay visible to dashboards even without a working cache');
+      assertEqual(status.log.length, 0,
+        'with no working cache the log tail reads empty — not a crash — matching the documented "blanks a log, never the run" guarantee');
+    } finally { cs.restore(); }
+  });
+}
+
 // ── pauseBackgroundTrigger ─────────────────────────────────────────────────
 
 function test_pauseBackgroundTrigger_turnsTriggerOffKeepingOtherSettings() {
@@ -468,6 +509,9 @@ const RUNSTATE_TESTS = [
   test_saveRunPayload_oversizedPayload_dropsSeenIdsButStaysResumable,
   test_claimRun_oversizedPayload_warnsDedupResetInLog,
   test_abortRun_withRunId_cachedDetailEvicted_fallsBackToCallerStats,
+  test_cacheGetJson_returnsNullWhenCacheServiceThrows,
+  test_cachePutJson_returnsFalseWhenCacheServiceThrows,
+  test_beginRun_survivesCacheServiceOutage,
   test_backgroundRun_registersRunVisibleToDashboards,
   test_backgroundRun_stopsWhenAbortRequestedFromDashboard,
   test_backgroundRun_yieldsToActiveManualRun,

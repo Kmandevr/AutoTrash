@@ -150,7 +150,18 @@ tests/RunAll.gs
   already executed, in the Apps Script editor or the Node harness
   alike, regardless of file order either runtime happens to pick.
 
-  Current total: 180 tests, as of the 2026-09-25 UI flight recorder
+  Current total: 183 tests, as of a 2026-09-25 batch that added
+  installCacheSpy() (TestFramework.gs) plus 3 tests/RunState.test.gs
+  proving runCache()'s try/catch around CacheService.getUserCache()
+  actually degrades to null/false (cacheGetJson/cachePutJson) and lets
+  beginRun() keep registering a run in PropertiesService, instead of
+  crashing, when CacheService itself throws — the same "cache is
+  disposable, the run record is not" guarantee §2e already documents for
+  plain cache eviction, now proven for the whole service being
+  unreachable too. Mutation-checked: removing runCache()'s try/catch
+  makes all 3 fail. Changed no app/ behavior.
+
+  Prior total: 180 tests, as of the 2026-09-25 UI flight recorder
   (?diag=1 boot/lifecycle/tap diagnostics for the live "nothing responds"
   failure): +3 tests/Code.test.gs — the diag flag is only appended when
   ?diag=1 is present, reportUiDiagnostics() mails the owner only, pretty-

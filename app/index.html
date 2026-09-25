@@ -545,6 +545,18 @@
       body { padding:16px 10px 48px; }
       .app { gap:10px; }
 
+      /* The pinned Save/Dry Run/Engage bar (.brow, sticky bottom:0) is
+         opaque and up to ~113px tall (two button rows) while a run isn't
+         active. Mobile browsers scroll a focused input to the edge of the
+         viewport, not past the sticky bar sitting on top of that edge, so
+         without this a field near the end of an open panel (e.g. "Label
+         name" in Custom Label Rules) can land underneath the bar instead
+         of above it. scroll-padding-bottom tells that same browser
+         scroll-into-view behavior to stop short of the bar's height. 140px
+         covers the two-row bar with margin; env() adds the iOS home-
+         indicator inset .brow's own padding already reserves. */
+      html { scroll-padding-bottom:calc(140px + env(safe-area-inset-bottom, 0px)); }
+
       .hdr { flex-wrap:wrap; row-gap:4px; }
       .logo { font-size:18px; }
       .hdr-ts { flex-basis:100%; margin-left:0; text-align:right; }
@@ -575,6 +587,18 @@
       .tog.on::after { transform:translateX(18px); }
       .rdel { padding:7px 9px; font-size:14px; }
       .ri { flex-wrap:wrap; padding:9px 10px; }
+
+      /* Touch target sizes (WCAG 2.2 SC 2.5.8, noted by the GUI lab audit):
+         the category switch was 40x22 — under the 24px minimum on its short
+         side — and the panel header row / ✕ delete button were ~30px tall,
+         short of the ~44px comfortable target both platform guidelines
+         recommend. box-sizing:border-box (set globally above) means
+         min-height/min-width alone grow the tap area without changing how
+         anything looks; .rdel additionally centers its "✕" now that the
+         button is taller than its text. */
+      .tog { height:24px; }
+      .phead { min-height:44px; }
+      .rdel { min-width:44px; min-height:44px; display:inline-flex; align-items:center; justify-content:center; }
 
       /* 16px: iOS Safari auto-zooms the whole page when focusing any
          input/select smaller than that, and doesn't zoom back out. */

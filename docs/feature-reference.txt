@@ -681,7 +681,22 @@ reviewing the backend (app/*.gs) or index.html.
                   (color-scheme:dark, one custom select arrow, no number
                   spinners); inputs are 16px on phones so iOS doesn't zoom
                   on focus; Engage/Dry Run hide on phones during a run
-                  (they are disabled anyway).
+                  (they are disabled anyway). (2026-09-25) Touch target
+                  sizes on phones (@media max-width:640px): the category
+                  on/off switch is 40x24px (>= WCAG 2.2's 24px minimum;
+                  was 40x22px) and the panel header row (System Config /
+                  Gmail Category Rules / Custom Label Rules) and the "✕"
+                  delete-rule button are both >= 44x44px (was ~30px tall) —
+                  found as GUI-lab audit notes, not user-filed bugs.
+                  (2026-09-25) The pinned Save/Dry Run/Engage bar (.brow) is
+                  opaque and up to ~113px tall on a phone; a mobile
+                  browser's native "scroll the focused input into view"
+                  behavior doesn't know about it and can leave a field —
+                  e.g. "Label name" in an open Custom Label Rules panel —
+                  scrolled to just behind it instead of above it. Fixed
+                  with `html { scroll-padding-bottom: calc(140px +
+                  env(safe-area-inset-bottom, 0px)) }` in the same media
+                  query, so scroll-into-view stops clear of the bar.
   Traffic dots  : Red + yellow opacity raised during run, dimmed when stopped.
   Dry Run tag   : Amber "DRY RUN" badge shown in status bar when active.
   Save Config   : Saves rules + category states + all system settings.

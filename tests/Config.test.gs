@@ -202,3 +202,180 @@ CONFIG_TESTS.push(
   test_parseStoredRules_missingProperties_defaultToEmptyArrays,
   test_readConfig_usesParseStoredRules_matchesGetUISettings
 );
+
+// ── CONFIG BACKUP / RESTORE (2026-09-24) ──────────────────────────────────
+// Guards against the exact failure reported live: a Save Config click that
+// silently replaced a non-empty rule set with an empty one, with nothing to
+// recover from. See app/Config.gs's "CONFIG BACKUP / RESTORE" comment.
+const CONFIG_BACKUP_PROP_KEYS = ['AUTOTRASH_RULES', 'CATEGORY_RULES', 'AUTOTRASH_CONFIG_BACKUPS', 'TRIGGER_MODE'];
+
+function test_writeConfig_snapshotsPreviousNonEmptyStateBeforeOverwriting() {
+  withSavedProps(CONFIG_BACKUP_PROP_KEYS, function () {
+    writeConfig(baseCfg({ rules: [{ label: 'Old', days: 30, isTrash: true }] }));
+    writeConfig(baseCfg({ rules: [{ label: 'New', days: 10, isTrash: false }] }));
+    const backups = listConfigBackups();
+    assertEqual(backups.length, 1, 'a save over a non-empty config must create exactly one backup');
+    assertEqual(backups[0].ruleCount, 1, 'the backup must summarize the PREVIOUS rule count, not the new one');
+  });
+}
+
+function test_writeConfig_firstEverSave_createsNoBackup() {
+  withSavedProps(CONFIG_BACKUP_PROP_KEYS, function (props) {
+    props.deleteProperty('AUTOTRASH_RULES');
+    props.deleteProperty('CATEGORY_RULES');
+    props.deleteProperty('AUTOTRASH_CONFIG_BACKUPS');
+    writeConfig(baseCfg({ rules: [{ label: 'First', days: 5, isTrash: true }] }));
+    assertEqual(listConfigBackups(), [], 'the very first save (nothing to protect yet) must not create a backup entry');
+  });
+}
+
+function test_snapshotConfigBackup_capsHistoryAtMaxNewestFirst() {
+  withSavedProps(CONFIG_BACKUP_PROP_KEYS, function () {
+    for (let i = 0; i < CONFIG_BACKUP_MAX + 2; i++) {
+      writeConfig(baseCfg({ rules: [{ label: 'R' + i, days: 1, isTrash: true }] }));
+    }
+    assertEqual(listConfigBackups().length, CONFIG_BACKUP_MAX, 'backup history must be capped at CONFIG_BACKUP_MAX entries');
+  });
+}
+
+function test_restoreConfigBackup_restoresRulesButLeavesOtherSettingsAlone() {
+  withSavedProps(CONFIG_BACKUP_PROP_KEYS, function () {
+    writeConfig(baseCfg({ rules: [{ label: 'Old', days: 30, isTrash: true }], triggerMode: 'OFF' }));
+    writeConfig(baseCfg({ rules: [{ label: 'New', days: 10, isTrash: false }, { label: 'New2', days: 20, isTrash: false }], triggerMode: '5MIN' }));
+    const backupTs = listConfigBackups()[0].ts;
+    const result = restoreConfigBackup(backupTs);
+    assertEqual(result.ok, true, 'restoring a known backup must report success');
+    assertEqual(result.rules, [{ label: 'Old', days: 30, isTrash: true }], 'restore must return the backed-up rules');
+    const after = readConfig();
+    assertEqual(after.rules, [{ label: 'Old', days: 30, isTrash: true }], 'restore must bring back the backed-up rules as the current config');
+    assertEqual(after.triggerMode, '5MIN', 'restore must not touch unrelated settings like triggerMode');
+  });
+}
+
+function test_restoreConfigBackup_itselfCreatesARecoverableBackupOfPriorState() {
+  withSavedProps(CONFIG_BACKUP_PROP_KEYS, function () {
+    writeConfig(baseCfg({ rules: [{ label: 'Old', days: 30, isTrash: true }] }));
+    writeConfig(baseCfg({ rules: [{ label: 'New', days: 10, isTrash: false }, { label: 'New2', days: 20, isTrash: false }] }));
+    const beforeRestoreTs = listConfigBackups()[0].ts;
+    restoreConfigBackup(beforeRestoreTs);
+    const backups = listConfigBackups();
+    assertEqual(backups[0].ruleCount, 2, 'restoring must itself snapshot the pre-restore state first, so restoring is undoable too');
+    assertEqual(backups[1].ruleCount, 1, 'the original backup being restored from must still be there afterward');
+  });
+}
+
+function test_restoreConfigBackup_unknownTimestamp_returnsNotOkAndChangesNothing() {
+  withSavedProps(CONFIG_BACKUP_PROP_KEYS, function () {
+    writeConfig(baseCfg({ rules: [{ label: 'Keep', days: 30, isTrash: true }] }));
+    const result = restoreConfigBackup(123456789);
+    assertEqual(result.ok, false, 'restoring an unknown timestamp must report failure');
+    assertEqual(readConfig().rules, [{ label: 'Keep', days: 30, isTrash: true }], 'a failed restore must leave the current config untouched');
+  });
+}
+
+function test_writeConfig_backupWriteFailure_neverBlocksTheRealSave() {
+  withSavedProps(CONFIG_BACKUP_PROP_KEYS, function (props) {
+    writeConfig(baseCfg({ rules: [{ label: 'Old', days: 30, isTrash: true }] }));
+    const realSetProperty = props.setProperty;
+    props.setProperty = function (key, value) {
+      if (key === 'AUTOTRASH_CONFIG_BACKUPS') throw new Error('simulated quota exceeded');
+      return realSetProperty.call(props, key, value);
+    };
+    try {
+      let threw = false;
+      try { writeConfig(baseCfg({ rules: [{ label: 'New', days: 10, isTrash: false }] })); }
+      catch (e) { threw = true; }
+      assertEqual(threw, false, 'a backup write failure must never throw out of writeConfig()');
+      assertEqual(readConfig().rules, [{ label: 'New', days: 10, isTrash: false }],
+        'the real config write must still succeed even when the backup itself could not be saved');
+    } finally { props.setProperty = realSetProperty; }
+  });
+}
+
+CONFIG_TESTS.push(
+  test_writeConfig_snapshotsPreviousNonEmptyStateBeforeOverwriting,
+  test_writeConfig_firstEverSave_createsNoBackup,
+  test_snapshotConfigBackup_capsHistoryAtMaxNewestFirst,
+  test_restoreConfigBackup_restoresRulesButLeavesOtherSettingsAlone,
+  test_restoreConfigBackup_itselfCreatesARecoverableBackupOfPriorState,
+  test_restoreConfigBackup_unknownTimestamp_returnsNotOkAndChangesNothing,
+  test_writeConfig_backupWriteFailure_neverBlocksTheRealSave
+);
+
+// ── CONFIG_SCHEMA (2026-09-24) — read/write/backup are schema-driven ──────
+// These guard the actual point of the refactor: readConfig()/writeConfig()
+// must not hardcode field names anywhere else in this file, so a new
+// setting added to CONFIG_SCHEMA in app/Config.gs is automatically read,
+// written, and (if backup:true) included in backups/restore — without
+// touching readConfig(), writeConfig(), snapshotConfigBackup(),
+// listConfigBackups() or restoreConfigBackup() at all.
+
+function test_configSchema_everyFieldRoundTripsThroughReadAndWriteConfig() {
+  const keys = CONFIG_SCHEMA.map(f => f.prop);
+  withSavedProps(keys.concat(['AUTOTRASH_CONFIG_BACKUPS']), function () {
+    writeConfig(baseCfg({
+      rules: [{ label: 'RoundTrip', days: 7, isTrash: true }],
+      categoryRules: [{ category: 'promos', enabled: true, days: 14 }],
+      triggerMode: 'HOURLY', summaryFreq: 'ALT_DAYS',
+      globalPurgeDays: '180', inboxPurgeDays: '45', digestHour: 6
+    }));
+    const cfg = readConfig();
+    CONFIG_SCHEMA.forEach(function (field) {
+      assert(cfg[field.key] !== undefined, 'readConfig() must return every CONFIG_SCHEMA field: ' + field.key);
+    });
+    assertEqual(cfg.triggerMode, 'HOURLY');
+    assertEqual(cfg.summaryFreq, 'ALT_DAYS');
+    assertEqual(cfg.globalPurgeDays, '180');
+    assertEqual(cfg.inboxPurgeDays, '45');
+    assertEqual(cfg.digestHour, '6');
+  });
+}
+
+function test_configSchema_addingAFieldAtRuntime_isPickedUpByReadWriteWithNoOtherCodeChange() {
+  // Simulates "add a future setting": push one schema entry, not marked for
+  // backup, and confirm readConfig()/writeConfig() honor it purely by
+  // walking CONFIG_SCHEMA — the whole point of the refactor.
+  withSavedProps(['AUTOTRASH_TEST_FUTURE_SETTING'], function () {
+    const fakeField = { key: 'futureSetting', prop: 'AUTOTRASH_TEST_FUTURE_SETTING', type: 'string', default: 'DEFAULT_VAL' };
+    CONFIG_SCHEMA.push(fakeField);
+    try {
+      assertEqual(readConfig().futureSetting, 'DEFAULT_VAL', 'a brand-new schema field must read its default with nothing stored yet');
+      writeConfig(baseCfg({ futureSetting: 'CUSTOM_VAL' }));
+      assertEqual(readConfig().futureSetting, 'CUSTOM_VAL', 'writeConfig() must persist a field it only knows about via CONFIG_SCHEMA');
+      assertEqual(getProps().getProperty('AUTOTRASH_TEST_FUTURE_SETTING'), 'CUSTOM_VAL');
+    } finally {
+      CONFIG_SCHEMA.pop();
+    }
+  });
+}
+
+function test_configSchema_backupEligibleFieldIsGenericallyIncludedInBackupsAndRestore() {
+  // A future backup:true field (not just today's rules/categoryRules) must
+  // flow through snapshotConfigBackup()/listConfigBackups()/
+  // restoreConfigBackup() with zero changes to those functions.
+  withSavedProps(['AUTOTRASH_TEST_FUTURE_LIST', 'AUTOTRASH_CONFIG_BACKUPS', 'AUTOTRASH_RULES', 'CATEGORY_RULES'], function () {
+    const fakeField = {
+      key: 'futureList', prop: 'AUTOTRASH_TEST_FUTURE_LIST', type: 'json', default: [],
+      backup: true, countKey: 'futureListCount', countFn: v => (v || []).length
+    };
+    CONFIG_SCHEMA.push(fakeField);
+    try {
+      writeConfig(baseCfg({ futureList: [{ x: 1 }] }));
+      writeConfig(baseCfg({ futureList: [{ x: 1 }, { x: 2 }] }));
+      const backups = listConfigBackups();
+      assertEqual(backups[0].futureListCount, 1, 'a new backup:true field must show up in listConfigBackups() automatically');
+
+      const result = restoreConfigBackup(backups[0].ts);
+      assertEqual(result.futureList, [{ x: 1 }], 'restoreConfigBackup() must restore a new backup:true field automatically');
+      assertEqual(readConfig().futureList, [{ x: 1 }]);
+    } finally {
+      CONFIG_SCHEMA.pop();
+    }
+  });
+}
+
+CONFIG_TESTS.push(
+  test_configSchema_everyFieldRoundTripsThroughReadAndWriteConfig,
+  test_configSchema_addingAFieldAtRuntime_isPickedUpByReadWriteWithNoOtherCodeChange,
+  test_configSchema_backupEligibleFieldIsGenericallyIncludedInBackupsAndRestore
+);

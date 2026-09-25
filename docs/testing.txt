@@ -150,7 +150,23 @@ tests/RunAll.gs
   already executed, in the Apps Script editor or the Node harness
   alike, regardless of file order either runtime happens to pick.
 
-  Current total: 165 tests, as of the 2026-09-25 §9 thread-level starred
+  Current total: 177 tests, as of the 2026-09-25 coverage batch that added
+  12 tests and changed no behavior (written by three read-only scheduled
+  sessions, consolidated into one Project-knowledge patch, landed here):
+    - +3 tests/RunState.test.gs: feature-reference.txt §2e guarantees —
+      saveRunPayload()/claimRun() drop seenIds (not fail) once a payload
+      exceeds the single-cache-value cap, and tell the resuming device why;
+      abortRun()'s fullerStats() falls back to the caller's stats when
+      RUN_DETAIL_<id> was evicted.
+    - +6 tests/EmailTemplates.test.gs: buildEmailHtml() dry-run banner and
+      "Would …" labels vs live wording, the open-app button present/absent,
+      Global/Inbox Purge rows, per-line log color coding.
+    - +3 tests/EmailSend.test.gs: sendErrorEmail() footer text for live vs
+      background runs, and the dry-run stat swap.
+  Mutation-checked: removing the dry-run banner text or changing the
+  background-retry footer each makes exactly the matching test fail.
+
+  Prior total: 165 tests, as of the 2026-09-25 §9 thread-level starred
   guard (Engine.gs findMatches()): 4 new tests in tests/Engine.test.gs, all
   shown to FAIL on the pre-fix code and PASS after. Also verified end to end
   on the sim harness's realistic mailbox (per-message stars): an Inbox

@@ -146,7 +146,13 @@ and how issues are labeled.
 
 ## License
 
-[AutoTrash Personal Use License](LICENSE) — free to use and modify for
-your own personal use. Publishing, redistributing, selling, commercial use,
-or claiming credit for this project is not allowed without a paid license
-or written permission from the author.
+[AutoTrash Personal Use License](LICENSE) — source-available, **not** open
+source.
+
+- Free to use and modify for your own personal use.
+- You may privately share copies (modified or not) with people you know,
+  for free, for their personal use — license included.
+- No publishing, public posting, selling, commercial use, or claiming
+  credit without a paid license or written permission from the author.
+- The license is revocable at any time and its terms are subject to
+  change. See [LICENSE](LICENSE) for the full terms.

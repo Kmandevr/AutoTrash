@@ -67,6 +67,64 @@ function test_buildEmailHtml_escapesRuleNameInPerRuleTable() {
     'rule name must appear HTML-escaped in the per-rule table');
 }
 
+// ── buildEmailHtml: dry-run vs live wording (the one visual signal telling
+// the user whether mail actually moved). Coverage only, no code change.
+function test_buildEmailHtml_dryRunShowsSimulationBannerAndWouldLabels() {
+  const html = buildEmailHtml('DRY RUN COMPLETE', ['✓ done'], '#00ff88',
+    { totalMoved: 5, totalTrashed: 3, totalArchived: 2, labels: {} }, 1000, true);
+  assert(html.includes('SIMULATION ONLY'), 'a dry-run email must show the simulation banner');
+  assert(html.includes('>Would Action<'), 'dry-run stat box must relabel Actioned as Would Action');
+  assert(html.includes('>Would Trash<'), 'dry-run stat box must relabel Trashed as Would Trash');
+  assert(html.includes('>Would Archive<'), 'dry-run stat box must relabel Archived as Would Archive');
+}
+function test_buildEmailHtml_liveRunHasNoSimulationBannerOrWouldLabels() {
+  const html = buildEmailHtml('LIVE RUN COMPLETE', ['✓ done'], '#00ff88',
+    { totalMoved: 5, totalTrashed: 3, totalArchived: 2, labels: {} }, 1000, false);
+  assert(!html.includes('SIMULATION ONLY'), 'a live run email must never show the dry-run simulation banner');
+  assert(html.includes('>Actioned<'), 'a live run stat box must use the real "Actioned" label');
+  assert(!html.includes('Would Action'), 'a live run must never use dry-run wording');
+}
+
+// ── buildEmailHtml: open-app button (FIX 26/BUG-E7) ────────────────────────
+function test_buildEmailHtml_omitsOpenButtonWhenNotDeployedAsWebApp() {
+  const html = buildEmailHtml('LIVE RUN COMPLETE', ['✓ done'], '#00ff88', { labels: {} }, 1000, false);
+  assert(!html.includes('Open AutoTrash'), 'must omit the open-app button when getAppUrl() has no URL to link to');
+}
+function test_buildEmailHtml_includesOpenButtonLinkingToDeployedAppUrl() {
+  const real = ScriptApp.getService;
+  ScriptApp.getService = function () { return { getUrl: function () { return 'https://script.google.com/x/exec'; } }; };
+  try {
+    const html = buildEmailHtml('LIVE RUN COMPLETE', ['✓ done'], '#00ff88', { labels: {} }, 1000, false);
+    assert(html.includes('Open AutoTrash'), 'must show the open-app button when a deployed web app URL is available');
+    assert(html.includes('href="https://script.google.com/x/exec"'), 'button must link to the actual deployed app URL, not a placeholder');
+  } finally {
+    ScriptApp.getService = real;
+  }
+}
+
+// ── buildEmailHtml: Global/Inbox Purge rows in the per-rule table ──────────
+function test_buildEmailHtml_includesPurgeRowsInTable() {
+  const html = buildEmailHtml('LIVE RUN COMPLETE', ['✓ done'], '#00ff88',
+    { labels: {}, globalPurgeMoved: 40, inboxPurgeMoved: 10 }, 1000, false);
+  assert(html.includes('GLOBAL PURGE'), 'table must include a Global Purge row when it moved mail');
+  assert(html.includes('INBOX PURGE'), 'table must include an Inbox Purge row when it moved mail');
+}
+
+// ── buildEmailHtml: per-line log color coding ───────────────────────────────
+function test_buildEmailHtml_colorCodesLogLinesByPrefix() {
+  const html = buildEmailHtml('LIVE RUN COMPLETE',
+    ['⚠ warning line', '✓ success line', '  indented detail', 'plain line'],
+    '#00ff88', { labels: {} }, 1000, false);
+  assert(html.includes('color:#ff6677;line-height:1.6;white-space:pre;">⚠ warning line'),
+    'a line starting with ⚠ must render in the warning color');
+  assert(html.includes('color:#00ff88;line-height:1.6;white-space:pre;">✓ success line'),
+    'a line starting with ✓ must render in the success color');
+  assert(html.includes('color:#88bb99;line-height:1.6;white-space:pre;">  indented detail'),
+    'an indented detail line must render in the muted color');
+  assert(html.includes('color:#aaffcc;line-height:1.6;white-space:pre;">plain line'),
+    'an unprefixed line must render in the default color');
+}
+
 const EMAILTEMPLATES_TESTS = [
   test_buildAsciiChart_emptyStatsReturnsEmptyString,
   test_buildAsciiChart_tinyRuleNeverRendersAsBlankBar,
@@ -77,5 +135,11 @@ const EMAILTEMPLATES_TESTS = [
   test_plainBody_noChartWhenStatsEmpty,
   test_escHtml_escapesAngleBracketsAmpersandsAndQuotes,
   test_escHtml_plainTextUnchanged,
-  test_buildEmailHtml_escapesRuleNameInPerRuleTable
+  test_buildEmailHtml_escapesRuleNameInPerRuleTable,
+  test_buildEmailHtml_dryRunShowsSimulationBannerAndWouldLabels,
+  test_buildEmailHtml_liveRunHasNoSimulationBannerOrWouldLabels,
+  test_buildEmailHtml_omitsOpenButtonWhenNotDeployedAsWebApp,
+  test_buildEmailHtml_includesOpenButtonLinkingToDeployedAppUrl,
+  test_buildEmailHtml_includesPurgeRowsInTable,
+  test_buildEmailHtml_colorCodesLogLinesByPrefix
 ];

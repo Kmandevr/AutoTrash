@@ -158,6 +158,52 @@ function test_sendDailyDigest_noActivity_updatesDateButSendsNoEmail() {
   });
 }
 
+// ── sendErrorEmail ──────────────────────────────────────────────────────────
+// Exercised indirectly throughout Runner.test.gs, but two of its own
+// documented behaviors had zero direct coverage: FIX 23 (BUG-E4)'s
+// source-dependent footer text (whether AutoTrash will retry on its own or is
+// waiting on the user), and the dry-run stat swap that feeds buildEmailHtml's
+// stat boxes from dryTrashed/dryArchived. Coverage only, no code change.
+
+function test_sendErrorEmail_liveSource_footerTellsUserToReRun() {
+  const spy = installGmailSpy([]);
+  try {
+    sendErrorEmail(new Error('boom'), { activeQueue: [{ label: 'X' }], stats: {} }, 'live', false);
+    assertEqual(spy.calls.emails.length, 1);
+    const body = spy.calls.emails[0].body;
+    assert(body.indexOf('Engine stopped. Re-run when ready.') > -1,
+      'a live-run error footer must tell the user to re-run manually: ' + body);
+    assert(body.indexOf('will retry automatically') === -1,
+      'a live-run error footer must not claim an automatic retry that will not happen: ' + body);
+  } finally { spy.restore(); }
+}
+function test_sendErrorEmail_backgroundSource_footerSaysWillRetryAutomatically() {
+  const spy = installGmailSpy([]);
+  try {
+    sendErrorEmail(new Error('boom'), { activeQueue: [{ label: 'X' }], stats: {} }, 'background', false);
+    assertEqual(spy.calls.emails.length, 1);
+    const body = spy.calls.emails[0].body;
+    assert(body.indexOf('Background trigger will retry automatically on next scheduled run.') > -1,
+      'a background error footer must tell the user it will retry on its own: ' + body);
+    assert(body.indexOf('Re-run when ready') === -1,
+      'a background error footer must not ask the user to manually re-run: ' + body);
+  } finally { spy.restore(); }
+}
+// A dry run only ever populates dryTrashed/dryArchived, never totalTrashed/
+// totalArchived — without the swap, an error mid-dry-scan would show 0/0 in
+// the email's stat boxes instead of the real projected counts.
+function test_sendErrorEmail_dryRun_statBoxesShowProjectedCountsNotZero() {
+  const spy = installGmailSpy([]);
+  try {
+    const payload = { activeQueue: [{ label: 'X' }], stats: { totalMoved: 10, dryTrashed: 7, dryArchived: 3 } };
+    sendErrorEmail(new Error('boom'), payload, 'live', true);
+    assertEqual(spy.calls.emails.length, 1);
+    const html = spy.calls.emails[0].opts.htmlBody;
+    assert(html.indexOf('>7<') > -1, 'dry-run error email stat box must show dryTrashed (7), not 0: ' + html);
+    assert(html.indexOf('>3<') > -1, 'dry-run error email stat box must show dryArchived (3), not 0: ' + html);
+  } finally { spy.restore(); }
+}
+
 const EMAILSEND_TESTS = [
   test_sendReportEmail_rendersHtmlAndPlainBodiesAndMails,
   test_subject_dryRun_saysWouldBeActioned_notActioned,
@@ -170,5 +216,9 @@ const EMAILSEND_TESTS = [
   test_sendDailyDigest_unparseableLastDigestDate_healsForEveryFrequency,
   test_sendDailyDigest_freqNever_doesNothing,
   test_sendDailyDigest_belowFrequencyThreshold_doesNotSendYet,
-  test_sendDailyDigest_noActivity_updatesDateButSendsNoEmail
+  test_sendDailyDigest_noActivity_updatesDateButSendsNoEmail,
+
+  test_sendErrorEmail_liveSource_footerTellsUserToReRun,
+  test_sendErrorEmail_backgroundSource_footerSaysWillRetryAutomatically,
+  test_sendErrorEmail_dryRun_statBoxesShowProjectedCountsNotZero
 ];

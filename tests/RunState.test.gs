@@ -348,6 +348,72 @@ function test_backgroundRun_yieldsToActiveManualRun() {
   } finally { spy.restore(); lock.restore(); }
 }
 
+// ── saveRunPayload / claimRun resilience (cache-size edge cases) ───────────
+// feature-reference.txt §2e documents this behavior ("If it would exceed the
+// 100 KB cache cap, it is saved without seenIds... a resume then starts a
+// fresh dedup set") but until now nothing actually exercised it — the only
+// coverage was indirect, through runs small enough that saveRunPayload()
+// always took its normal, non-slimmed path. Coverage only, no code change.
+
+function test_saveRunPayload_oversizedPayload_dropsSeenIdsButStaysResumable() {
+  withRunProps(() => {
+    const runId = 'test-run-oversized';
+    const hugeSeenIds = [];
+    for (let i = 0; i < 20000; i++) hugeSeenIds.push('thread-id-' + i);
+    const payload = { runId: runId, activeQueue: [{ label: 'A' }], seenIds: hugeSeenIds, stats: freshStats() };
+    // Sanity check on the fixture itself — if this doesn't actually exceed
+    // RUN_CACHE_MAX, the rest of the test proves nothing.
+    assert(JSON.stringify(payload).length > RUN_CACHE_MAX, 'test fixture must actually exceed the cache cap');
+
+    const ok = saveRunPayload(runId, payload);
+    assert(ok, 'saveRunPayload must still succeed by dropping seenIds rather than failing outright');
+
+    const saved = cacheGetJson(RUN_PAYLOAD_PREFIX + runId);
+    assert(saved, 'a slimmed payload must still be cached so another device can resume');
+    assertEqual(saved.seenIds, [], 'seenIds must be dropped when the full payload will not fit in one cache value');
+    assertEqual(saved.seenIdsDropped, true, 'the slim flag is what lets claimRun warn the resuming device');
+    assertEqual(saved.activeQueue, payload.activeQueue, 'everything else about the payload must survive the slim-down untouched');
+  });
+}
+
+function test_claimRun_oversizedPayload_warnsDedupResetInLog() {
+  withRunProps(() => {
+    const started = startLiveRun({ driverId: 'tabA', left: 1, queue: ['A'] });
+    const hugeSeenIds = [];
+    for (let i = 0; i < 20000; i++) hugeSeenIds.push('thread-id-' + i);
+    const bigPayload = { runId: started.runId, driverId: 'tabA', activeQueue: [{ label: 'A' }], seenIds: hugeSeenIds, stats: freshStats() };
+    assert(saveRunPayload(started.runId, bigPayload), 'fixture payload must round-trip (slimmed) before claimRun is exercised');
+
+    const claim = claimRun(started.runId, 'phoneB');
+    assert(claim.ok, 'a claim must succeed even though the cached payload had to be slimmed');
+    assertEqual(claim.payload.seenIds, [], 'the resuming device must start dedup fresh when seenIds could not be carried over');
+
+    const st = getRunStatus(-1, null);
+    assert(st.log.some(e => /dedup list was too large/.test(e.msg)),
+      'the resuming device must be told in the log why its dedup set came back empty, not left to wonder');
+  });
+}
+
+// fullerStats() (Runner.gs) picks whichever stats object has seen more of the
+// run — the caller's, or the server's own RUN_DETAIL_<id> cache entry. That
+// cache entry is documented (§2e) as disposable: "losing it to cache
+// eviction only blanks a viewer's log, never the run itself." This proves
+// abortRun() honors that end to end.
+function test_abortRun_withRunId_cachedDetailEvicted_fallsBackToCallerStats() {
+  withRunProps(props => {
+    props.deleteProperty('DAILY_STATS');
+    const payload = startTestLiveRun([{ label: 'A', days: 30, isTrash: true }]);
+    // Simulate the run's cached detail being evicted between the last burst
+    // and the abort — cache pressure, or simply the 6h TTL.
+    CacheService.getUserCache().remove(RUN_DETAIL_PREFIX + payload.runId);
+    const stats = { totalMoved: 7, totalTrashed: 7, totalArchived: 0, labels: {}, errors: [] };
+    abortRun(stats, 1000, false, payload.runId);
+    const d = JSON.parse(props.getProperty('DAILY_STATS'));
+    assertEqual(d.totalMoved, 7, 'with no cached detail left to compare against, the caller-supplied stats must still be used, not dropped');
+    assertEqual(getRunStatus(-1, null).run.status, 'aborted');
+  });
+}
+
 // ── pauseBackgroundTrigger ─────────────────────────────────────────────────
 
 function test_pauseBackgroundTrigger_turnsTriggerOffKeepingOtherSettings() {
@@ -399,6 +465,9 @@ const RUNSTATE_TESTS = [
   test_abortRun_withRunId_staleForSupersededRun_doesNotDoubleAccumulate,
   test_requestAbort_staleLiveRun_isFinalizedImmediately,
   test_requestAbort_wrongRunId_isRejected,
+  test_saveRunPayload_oversizedPayload_dropsSeenIdsButStaysResumable,
+  test_claimRun_oversizedPayload_warnsDedupResetInLog,
+  test_abortRun_withRunId_cachedDetailEvicted_fallsBackToCallerStats,
   test_backgroundRun_registersRunVisibleToDashboards,
   test_backgroundRun_stopsWhenAbortRequestedFromDashboard,
   test_backgroundRun_yieldsToActiveManualRun,

@@ -1,21 +1,66 @@
-MIT License
+AutoTrash Personal Use License
 
-Copyright (c) 2026 Kmandevr
+Copyright (c) 2026 Kmandevr. All rights reserved.
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+This is a source-available license, not an open-source license. By using,
+copying, or modifying this software and its associated files (the
+"Software"), you agree to the terms below.
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+1. WHAT YOU MAY DO (FREE OF CHARGE)
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+   a. Use the Software for your own personal or internal purposes.
+   b. Copy the Software and deploy it to your own Google account(s).
+   c. Modify the Software and use your modified version for your own
+      personal or internal purposes.
+
+2. WHAT YOU MAY NOT DO WITHOUT A PAID LICENSE OR WRITTEN PERMISSION
+
+   Unless you have obtained a separate paid license or prior written
+   permission from the copyright holder, you may not:
+
+   a. Sell, rent, lease, or sublicense the Software, or any modified
+      version of it, or any product or service that includes it.
+   b. Use the Software, or any modified version of it, for any
+      commercial purpose, including offering it (or its functionality) as
+      a paid service, hosted service, or part of a paid product.
+   c. Publish, distribute, or redistribute the Software or any modified
+      version of it, whether commercially or otherwise, in any form,
+      including as source code, as a deployed script or add-on, or in
+      any marketplace or store.
+
+3. ATTRIBUTION AND CREDIT
+
+   a. You may not claim, or imply, that you are the author or owner of
+      the Software or of any part of it, and you may not remove or alter
+      this license or any copyright notice.
+   b. A modified version remains subject to this license. Your changes do
+      not make you the author or owner of the Software as a whole.
+   c. This notice must be kept in all copies and modified versions of the
+      Software.
+
+4. PAID LICENSES
+
+   Commercial use, publishing, selling, or distribution rights may be
+   granted by the copyright holder in exchange for payment, under separate
+   written terms. To request one, contact the copyright holder through
+   https://github.com/Kmandevr/AutoTrash.
+
+5. TERMINATION
+
+   Any use of the Software that breaks these terms automatically ends your
+   permission to use it. You must then stop using it and delete all
+   copies, including modified versions.
+
+6. NO WARRANTY
+
+   THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+   OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+   MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+   IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+   CLAIM, DAMAGES OR OTHER LIABILITY, INCLUDING ANY LOSS OR DELETION OF
+   EMAIL OR OTHER DATA, WHETHER IN AN ACTION OF CONTRACT, TORT OR
+   OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR
+   THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+All rights not expressly granted in this license are reserved by the
+copyright holder.

@@ -146,4 +146,7 @@ and how issues are labeled.
 
 ## License
 
-[MIT](LICENSE)
+[AutoTrash Personal Use License](LICENSE) — free to use and modify for
+your own personal use. Publishing, redistributing, selling, commercial use,
+or claiming credit for this project is not allowed without a paid license
+or written permission from the author.

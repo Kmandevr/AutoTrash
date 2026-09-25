@@ -411,12 +411,72 @@ function test_backgroundRun_errorOnOneRule_continuesToNextRule() {
   });
 }
 
+// ── Issues #96/#97 regression: ruleLabel() must never kill backgroundRun() ──
+
+// #96's concrete repro: a category rule that reaches backgroundRun() with
+// isCategory:true but no `category` field (CATEGORY_RULES is only validated
+// as parseable JSON — see parseStoredRules() — not per-field). Before the
+// fix, ruleLabel() threw TypeError computing `lbl` for this rule, and that
+// line sat OUTSIDE backgroundRun()'s per-rule try — so the exception escaped
+// the whole function uncaught: no error email, no partial stats saved, the
+// trigger just silently died. Now it must process like any other unlabeled
+// rule (label '?'), with no error at all.
+function test_backgroundRun_categoryRuleMissingCategoryField_processesWithoutError() {
+  withSavedProps(['AUTOTRASH_RULES', 'CATEGORY_RULES', 'GLOBAL_PURGE_DAYS', 'INBOX_PURGE_DAYS'], props => {
+    props.setProperty('AUTOTRASH_RULES', '[]');
+    props.setProperty('CATEGORY_RULES', JSON.stringify([{ enabled: true, days: 30 }])); // no `category`
+    props.setProperty('GLOBAL_PURGE_DAYS', 'OFF');
+    props.setProperty('INBOX_PURGE_DAYS', 'OFF');
+    const thread = makeFakeThread('t1');
+    const gmailSpy = installGmailSpy([thread]);
+    const lockSpy = installLockSpy();
+    try {
+      let threw = false;
+      try { backgroundRun(); } catch (e) { threw = true; }
+      assertEqual(threw, false, 'a category rule missing its category field must not crash backgroundRun()');
+      assertEqual(gmailSpy.calls.emails.length, 0, 'a rule that ran cleanly must not trigger an error email');
+      assert(thread.__trashed, 'the rule must still actually run (fallback label only affects reporting, not the query/action)');
+    } finally { lockSpy.restore(); gmailSpy.restore(); }
+  });
+}
+
+// #97's structural claim: even after #96 removes today's only known trigger,
+// the try/catch STRUCTURE around `lbl` must independently guard against any
+// future exception computing it. Simulated here by monkeypatching the global
+// ruleLabel() itself (same save/restore-in-finally pattern already used for
+// GmailApp/props methods elsewhere in this suite) so the rule's real shape
+// is irrelevant — only the structural guarantee is under test.
+function test_backgroundRun_ruleLabelThrows_stillEmailsAndDoesNotCrashCycle() {
+  withSavedProps(['AUTOTRASH_RULES', 'CATEGORY_RULES', 'GLOBAL_PURGE_DAYS', 'INBOX_PURGE_DAYS'], props => {
+    props.setProperty('AUTOTRASH_RULES', JSON.stringify([{ label: 'ANYRULE', days: 30, isTrash: true }]));
+    props.setProperty('CATEGORY_RULES', '[]');
+    props.setProperty('GLOBAL_PURGE_DAYS', 'OFF');
+    props.setProperty('INBOX_PURGE_DAYS', 'OFF');
+    const gmailSpy = installGmailSpy([makeFakeThread('t1')]);
+    const lockSpy = installLockSpy();
+    const realRuleLabel = ruleLabel;
+    ruleLabel = function () { throw new Error('Simulated future exception computing lbl'); };
+    try {
+      let threw = false;
+      try { backgroundRun(); } catch (e) { threw = true; }
+      assertEqual(threw, false, 'an exception computing lbl must not escape backgroundRun() uncaught');
+      assert(lockSpy.wasReleased(), 'the lock must still be released');
+      assertEqual(gmailSpy.calls.emails.length, 1, 'an error email must still be sent when lbl itself cannot be computed');
+      const body = gmailSpy.calls.emails[0].opts.htmlBody;
+      assert(body.includes('Simulated future exception computing lbl'),
+        'the error email must carry the real failure, not a secondary error about lbl being undefined');
+    } finally { lockSpy.restore(); gmailSpy.restore(); ruleLabel = realRuleLabel; }
+  });
+}
+
 const RUNNER_TESTS = [
   test_abortRun_liveRun_accumulatesDailyStats,
   test_abortRun_dryRun_doesNotAccumulateDailyStats,
 
   test_backgroundRun_corruptRulesProperty_doesNotThrow,
   test_backgroundRun_corruptCategoryRulesProperty_doesNotThrow,
+  test_backgroundRun_categoryRuleMissingCategoryField_processesWithoutError,
+  test_backgroundRun_ruleLabelThrows_stillEmailsAndDoesNotCrashCycle,
 
   test_processLiveBurst_ejectsRuleWithZeroThreads,
   test_processLiveBurst_liveRun_trashesAndRotatesToBack,

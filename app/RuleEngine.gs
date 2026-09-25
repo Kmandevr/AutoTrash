@@ -58,8 +58,16 @@ function resolveRuleAction(rule) {
 // without a label field fall back to the UPPERCASE category name, so daily
 // stats keys match the digest's per-rule table. Previously computed inline,
 // identically, in both processLiveBurst() and backgroundRun().
+// FIX 48 (Issue #96): a category rule can reach here with no `category`
+// field at all (CATEGORY_RULES is only validated for being parseable JSON —
+// see parseStoredRules() in Config.gs — not for which fields each entry
+// has). rule.category.toUpperCase() used to throw TypeError in that case
+// instead of falling through to the '?' fallback every OTHER unlabeled rule
+// already gets. Guard rule.category's own truthiness too, matching the
+// client-side ruleName()/renderBars() logic in index.html, which already
+// checked this correctly.
 function ruleLabel(rule) {
-  return rule.label || (rule.isCategory ? rule.category.toUpperCase() : '?');
+  return rule.label || (rule.isCategory && rule.category ? rule.category.toUpperCase() : '?');
 }
 
 // ─── QUEUE BUILDER ────────────────────────────────────────────────────────────

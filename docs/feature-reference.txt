@@ -803,7 +803,19 @@ reviewing the backend (app/*.gs) or index.html.
   RUN_STATE         — JSON: the current/last run's registry record (§2e).
                       Read defensively — corrupt reads as "no run".
   RUN_ABORT         — string: id of the run an abort was requested for (§2e)
-  LAST_DIGEST_DATE  — string: ISO date of last digest email sent
+  LAST_DIGEST_DATE  — string: ISO date of last digest email sent. FIXED
+                      (Issue #98, 2026-09-25): an unparseable stored value
+                      (hand-edited, corrupted, or from a future format
+                      change) used to make sendDailyDigest()'s daysSince
+                      computation NaN, which made `should send?` latch at
+                      false FOREVER for every SUMMARY_FREQ except DAILY —
+                      and since that early return happens before this
+                      property is ever rewritten, the corrupted value never
+                      self-corrected. sendDailyDigest() now treats an
+                      unparseable date the same as "never sent"
+                      (daysSince = Infinity), so a corrupted value heals
+                      itself on the very next check instead of permanently
+                      silencing the digest.
   DAILY_STATS       — JSON: accumulated stats for current digest period.
                       Already parsed defensively (try/catch → {}) since
                       before this pass — accumulateDailyStats() and
@@ -1020,6 +1032,36 @@ reviewing the backend (app/*.gs) or index.html.
       — guard BUG-E15 (§6/§1a): a Gmail label/rule name containing HTML
       metacharacters must render as literal text in the per-rule breakdown
       table of every summary/digest/abort/error email, never as live markup.
+    test_ruleLabel_categoryRuleMissingCategoryField_fallsBackInsteadOfThrowing
+    test_backgroundRun_categoryRuleMissingCategoryField_processesWithoutError
+    test_backgroundRun_ruleLabelThrows_stillEmailsAndDoesNotCrashCycle
+      — guard Issues #96/#97 (2026-09-25): a category rule reaching
+      ruleLabel() with isCategory:true but no `category` field used to throw
+      TypeError instead of falling back to '?' like every other unlabeled
+      rule. That line sat OUTSIDE backgroundRun()'s per-rule try, so the
+      exception escaped the whole function uncaught — no error email, no
+      partial stats saved, the trigger just silently died. Fixed at both
+      layers: ruleLabel() itself now guards rule.category's truthiness (not
+      just rule.isCategory), and backgroundRun() now computes `lbl` INSIDE
+      its per-rule try (mirroring FIX 38/BUG-C15's identical structure in
+      processLiveBurstCore) so any FUTURE exception source on that line is
+      caught too, independent of #96.
+    test_sendDailyDigest_unparseableLastDigestDate_selfHeals
+    test_sendDailyDigest_unparseableLastDigestDate_healsForEveryFrequency
+      — guard Issue #98 (2026-09-25): see the LAST_DIGEST_DATE entry above.
+    test_abortRun_withRunId_lockContention_doesNotRunUnlocked
+      — guards a bug found in this pass, no issue number filed (fixed
+      directly per this file's own "single obvious direction, not a
+      judgment call" bar): abortRun(..., runId)'s fallback used to call its
+      own finish() a SECOND time, completely UNLOCKED, whenever the 60s
+      script-lock wait timed out — the opposite of what this function
+      documents in §4 ("the abort waits for an in-flight burst to finish").
+      Every other withRunLock() caller (processLiveBurst, startLiveRun,
+      claimRun) already treated a failed lock as "signal busy, touch
+      nothing"; abortRun() was the one exception. Fixed to match; the
+      abort-request flag (RUN_ABORT) is set independently by requestAbort(),
+      so a run whose finalize is missed this way still stops at its very
+      next checkpoint.
       The last one was confirmed to FAIL (raw unescaped markup present in
       the generated email HTML) against a reverted copy of buildEmailHtml()
       with the escHtml() call removed, before being accepted into the suite.

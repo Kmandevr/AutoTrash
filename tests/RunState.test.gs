@@ -199,6 +199,34 @@ function test_abortRun_withRunId_usesFullerServerStats() {
   } finally { spy.restore(); }
 }
 
+// FIX 51: abortRun(..., runId) used to fall back to running finish() a
+// SECOND time, completely UNLOCKED, whenever the 60s script-lock wait itself
+// timed out — the opposite of what this function documents ("the abort
+// waits for an in-flight burst to finish"). Simulated here the same way
+// backgroundRun()'s own lock-contention test does (installLockSpy with
+// failToAcquire), which makes ANY withRunLock() call in this process fail to
+// acquire — proving abortRun() must not silently do the unlocked work anyway.
+function test_abortRun_withRunId_lockContention_doesNotRunUnlocked() {
+  withRunProps(props => {
+    props.deleteProperty('DAILY_STATS');
+    const payload = startTestLiveRun([{ label: 'A', days: 30, isTrash: true }]);
+    const gmailSpy = installGmailSpy([]);
+    const lockSpy = installLockSpy({ failToAcquire: true });
+    try {
+      const stats = { totalMoved: 4, totalTrashed: 4, totalArchived: 0, labels: {}, errors: [] };
+      let threw = false;
+      try { abortRun(stats, 1000, false, payload.runId); } catch (e) { threw = true; }
+      assertEqual(threw, false, 'lock contention must not throw out of abortRun()');
+      assertEqual(gmailSpy.calls.emails.length, 0,
+        'abortRun() must not send the abort email unlocked when it could not acquire the script lock');
+      assertEqual(getRunStatus(-1, null).run.status, 'running',
+        'a run whose abort lost the lock race must be left running, not torn between two writers — it stops at its next checkpoint instead');
+      assertEqual(props.getProperty('DAILY_STATS'), null,
+        'DAILY_STATS must not be touched by an abort that never actually acquired the lock');
+    } finally { lockSpy.restore(); gmailSpy.restore(); }
+  });
+}
+
 function test_requestAbort_staleLiveRun_isFinalizedImmediately() {
   withRunProps(props => {
     const payload = startTestLiveRun([{ label: 'A', days: 30, isTrash: true }]);
@@ -325,6 +353,7 @@ const RUNSTATE_TESTS = [
   test_processLiveBurst_withoutRunId_unchangedAndUnregistered,
   test_abortRun_withRunId_marksAbortedAndIsIdempotent,
   test_abortRun_withRunId_usesFullerServerStats,
+  test_abortRun_withRunId_lockContention_doesNotRunUnlocked,
   test_requestAbort_staleLiveRun_isFinalizedImmediately,
   test_requestAbort_wrongRunId_isRejected,
   test_backgroundRun_registersRunVisibleToDashboards,

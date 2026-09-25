@@ -97,6 +97,15 @@ function test_ruleLabel_prefersLabel_thenUppercaseCategory() {
   assertEqual(ruleLabel({ isCategory: true, category: 'promotions' }), 'PROMOTIONS');
   assertEqual(ruleLabel({ days: 3 }), '?');
 }
+// Issue #96: a category rule with isCategory:true but no `category` field
+// (CATEGORY_RULES is only validated as parseable JSON, not per-field) used to
+// throw TypeError on rule.category.toUpperCase() instead of falling through
+// to the '?' every other unlabeled rule gets.
+function test_ruleLabel_categoryRuleMissingCategoryField_fallsBackInsteadOfThrowing() {
+  assertEqual(ruleLabel({ isCategory: true, enabled: true, days: 30 }), '?');
+  assertEqual(ruleLabel({ isCategory: true, category: '' , days: 30 }), '?');
+  assertEqual(ruleLabel({ isCategory: true, category: null, days: 30 }), '?');
+}
 
 function test_buildQueue_order_labelsThenCategoriesThenPurges() {
   const q = buildQueue(
@@ -142,6 +151,7 @@ const RULEENGINE_TESTS = [
   test_resolveRuleAction_globalPurgeAlwaysTrash_ignoresIsTrash,
   test_resolveRuleAction_inboxPurgeAlwaysTrash_ignoresIsTrash,
   test_ruleLabel_prefersLabel_thenUppercaseCategory,
+  test_ruleLabel_categoryRuleMissingCategoryField_fallsBackInsteadOfThrowing,
   test_buildQueue_order_labelsThenCategoriesThenPurges,
   test_buildQueue_disabledCategoriesExcluded,
   test_buildQueue_categoryRulesFlaggedIsCategory,

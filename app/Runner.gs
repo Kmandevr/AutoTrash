@@ -303,7 +303,22 @@ function abortRun(stats, elapsedMs, dryRun, runId) {
     return ts;
   };
   const r = withRunLock(60000, finish);
-  return r.ok ? r.value : finish();
+  // FIX 51 (found in review, no issue number yet — filing alongside this
+  // fix): previously fell back to `finish()` a SECOND time, run completely
+  // UNLOCKED, whenever the 60s lock wait itself timed out — directly
+  // contradicting this function's own documented guarantee ("the abort waits
+  // for an in-flight burst to finish (script lock)", feature-reference.txt
+  // §4) and reopening exactly the kind of torn read-modify-write against
+  // RUN_STATE/RUN_DETAIL_<id>/DAILY_STATS the lock exists to prevent — just
+  // via this function's own fallback, not a caller that forgot to lock at
+  // all. Every other withRunLock() caller in this file/RunState.gs
+  // (processLiveBurst, startLiveRun, claimRun) already treats `!r.ok` as
+  // "signal busy, touch nothing unlocked"; this was the one place that
+  // didn't. Safe to just skip the unlocked retry: the abort-request flag
+  // (RUN_ABORT_KEY, set by requestAbort() independently of this call) is
+  // untouched either way, so a run whose finalize is missed here still stops
+  // itself at its very next checkpoint (next burst / next background rule).
+  return r.ok ? r.value : getProps().getProperty('LAST_RUN_TIME');
 }
 
 // Picks the stats object that has seen more of the run.
@@ -437,11 +452,24 @@ function backgroundRun() {
       // next rule. The in-flight rule, if any, already completed.
       if (abortRequestedFor(run.id)) { aborted = true; break; }
       const rule = workQueue[0];
-      // FIX 17 (BUG-C8): Use toUpperCase() fallback so old configs without a
-      // label field don't produce lowercase keys in daily stats, which would
-      // make category totals invisible in the digest per-rule table.
-      const lbl  = ruleLabel(rule);
+      // FIX 49 (Issue #97): `lbl` is declared HERE, outside the try block, and
+      // only assigned once the rule is known — the same structure FIX 38
+      // (BUG-C15) already uses in processLiveBurstCore() for the identical
+      // reason. Previously `const lbl = ruleLabel(rule);` sat ABOVE this try,
+      // so an exception computing it (e.g. Issue #96's missing-category case)
+      // was not caught by the loop's own catch block and had no outer catch
+      // to fall back on either — it escaped backgroundRun() entirely, killing
+      // the whole trigger firing with no error email and no partial stats
+      // saved (accumulateDailyStats() never reached). Fixing #96 removes
+      // today's only known way to trigger this, but the structural gap would
+      // still swallow any FUTURE exception source added to this line, so it
+      // is closed here too, independent of that fix.
+      let lbl = '?';
       try {
+        // FIX 17 (BUG-C8): Use toUpperCase() fallback so old configs without a
+        // label field don't produce lowercase keys in daily stats, which would
+        // make category totals invisible in the digest per-rule table.
+        lbl = ruleLabel(rule);
         // Engine (Engine.gs): search → dedup → act. FIX 15 (BUG-C3): the
         // engine registers thread IDs in seenIds BEFORE the Gmail call, so if
         // it throws mid-batch (e.g. quota error), threads already processed in

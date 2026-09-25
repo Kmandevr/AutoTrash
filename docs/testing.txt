@@ -150,7 +150,29 @@ tests/RunAll.gs
   already executed, in the Apps Script editor or the Node harness
   alike, regardless of file order either runtime happens to pick.
 
-  Current total: 139 tests (1+10+23+22+9+10+6+1+13+25+19), as of the
+  Current total: 159 tests, as of 2026-09-25's bug-fix pass (Issues
+  #96/#97/#98 plus an unfiled abortRun()/withRunLock fallback bug — see
+  feature-reference.txt's "Regression tests worth knowing about by name"
+  for what each new test guards): 1 RuleEngine test
+  (ruleLabel missing-category fallback), 2 Runner tests (backgroundRun
+  surviving a missing category field and a monkeypatched ruleLabel throw),
+  5 EmailSend tests (sendDailyDigest had NO direct tests before this pass —
+  the corrupted-LAST_DIGEST_DATE regression plus 4 basic sanity tests for
+  behavior that was previously only exercised indirectly), and 1 RunState
+  test (abortRun() under simulated lock contention). This document's own
+  count had already drifted from a fresh `npm test` total before this pass
+  (last read 139, actual 150) — per this section's own instruction below,
+  the RUN is the source of truth, not a manually-maintained arithmetic
+  trail; if you need the exact per-file breakdown, count each
+  tests/*.test.gs file's own `..._TESTS` array (plus any `.push(...)` calls
+  appended after it, e.g. tests/Config.test.gs's config-backup tests) rather
+  than trusting the historical entries below, which are kept for narrative
+  context, not as a running total to reconcile against.
+
+  Prior entries (kept for context; do not re-derive the current total from
+  the arithmetic below — see above):
+
+  139 tests (1+10+23+22+9+10+6+1+13+25+19), as of the
   2026-09-24 cross-device run registry (app/RunState.gs), which added
   tests/RunState.test.gs (19) and the first tests/Code.test.gs test (1).
   Before that: 119 tests, as of the

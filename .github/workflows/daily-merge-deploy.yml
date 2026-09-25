@@ -1,0 +1,186 @@
+# Nightly: merge every pushed branch into main, run the test suite, and —
+# only if main actually changed and every test passes — push main, push the
+# code to the live Apps Script project with clasp, and delete the merged
+# branches.
+#
+# Nothing is pushed, deployed, or deleted if any merge conflicts or any test
+# fails. Run it by hand any time from the Actions tab ("Run workflow").
+#
+# Repository secrets (Settings → Secrets and variables → Actions):
+#   CLASP_AUTH     required — full contents of ~/.clasprc.json after
+#                  `clasp login` (see claude/deploying-with-clasp-phone.md)
+#   SCRIPT_ID      required — Apps Script project ID (Project Settings →
+#                  Script ID)
+#   DEPLOYMENT_ID  optional — the web app's deployment ID (Deploy → Manage
+#                  deployments). If set, that deployment is moved to a new
+#                  version so the /exec link serves the new code too. If
+#                  unset, only the /dev (HEAD) link updates.
+
+name: Daily merge and Apps Script deploy
+
+on:
+  schedule:
+    - cron: '0 2 * * *'   # 02:00 UTC = 8 pm Mountain (7 pm in winter)
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: daily-merge-and-deploy
+  cancel-in-progress: false
+
+jobs:
+  merge-and-deploy:
+    runs-on: ubuntu-latest
+    env:
+      MAIN_BRANCH: main
+
+    steps:
+      - name: Check out all branches
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: main
+
+      - name: Configure Git
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Merge all non-main branches (locally)
+        id: merge
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --prune origin
+          git checkout "$MAIN_BRANCH"
+          git pull --ff-only origin "$MAIN_BRANCH"
+          start_sha=$(git rev-parse HEAD)
+
+          mapfile -t branches < <(
+            git for-each-ref --format='%(refname:strip=3)' refs/remotes/origin/ \
+              | grep -v '^HEAD$' \
+              | grep -v "^${MAIN_BRANCH}$" \
+              | sort || true
+          )
+
+          : > "$RUNNER_TEMP/merged-branches"
+          for branch in "${branches[@]}"; do
+            echo "Merging origin/$branch into $MAIN_BRANCH"
+            if git merge --no-ff --no-edit "origin/$branch"; then
+              printf '%s\n' "$branch" >> "$RUNNER_TEMP/merged-branches"
+            else
+              git merge --abort || true
+              echo "::error::Merge conflict in $branch. Nothing was pushed, deployed or deleted."
+              exit 1
+            fi
+          done
+
+          if [[ "$(git rev-parse HEAD)" != "$start_sha" ]]; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "main is unchanged (every branch was already merged)."
+          fi
+
+      # Same suite CI runs. If anything fails, the job stops here and main
+      # on GitHub stays exactly as it was.
+      - name: Run tests on the merged result
+        run: npm test
+
+      - name: Push main
+        if: steps.merge.outputs.changed == 'true'
+        run: git push origin "$MAIN_BRANCH"
+
+      # Deploy only when main changed (or on a manual run), so a quiet night
+      # doesn't burn one of Apps Script's 200 saved versions.
+      - name: Decide whether to deploy
+        id: gate
+        run: |
+          if [[ '${{ steps.merge.outputs.changed }}' == 'true' || '${{ github.event_name }}' == 'workflow_dispatch' ]]; then
+            echo "deploy=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "deploy=false" >> "$GITHUB_OUTPUT"
+            echo "Nothing new to deploy."
+          fi
+
+      - name: Install clasp
+        if: steps.gate.outputs.deploy == 'true'
+        run: npm install --global @google/clasp
+
+      - name: Authenticate clasp and link the script
+        if: steps.gate.outputs.deploy == 'true'
+        env:
+          CLASP_AUTH: ${{ secrets.CLASP_AUTH }}
+          SCRIPT_ID: ${{ secrets.SCRIPT_ID }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$CLASP_AUTH" || { echo '::error::Missing CLASP_AUTH repository secret.'; exit 1; }
+          test -n "$SCRIPT_ID"  || { echo '::error::Missing SCRIPT_ID repository secret.'; exit 1; }
+          printf '%s' "$CLASP_AUTH" > "$HOME/.clasprc.json"
+          chmod 600 "$HOME/.clasprc.json"
+          # .clasp.json is gitignored (public repo), so build it here.
+          # rootDir "." + the repo's .claspignore pushes only app/*.gs,
+          # app/index.html, tests/**/*.gs and appsscript.json.
+          printf '{"scriptId":"%s","rootDir":"."}' "$SCRIPT_ID" > .clasp.json
+
+      # The repo doesn't track appsscript.json (the manifest: time zone,
+      # scopes, web app settings), but clasp push needs one and would
+      # overwrite the live manifest with it. Pull the live one so it's
+      # pushed back unchanged.
+      - name: Fetch the live manifest
+        if: steps.gate.outputs.deploy == 'true'
+        env:
+          SCRIPT_ID: ${{ secrets.SCRIPT_ID }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          live="$RUNNER_TEMP/live"
+          mkdir -p "$live"
+          printf '{"scriptId":"%s"}' "$SCRIPT_ID" > "$live/.clasp.json"
+          (cd "$live" && clasp pull)
+          test -f "$live/appsscript.json" || { echo '::error::clasp pull returned no appsscript.json.'; exit 1; }
+          cp "$live/appsscript.json" ./appsscript.json
+
+      - name: Push code to Apps Script
+        if: steps.gate.outputs.deploy == 'true'
+        run: clasp push --force
+
+      - name: Publish a new version of the web app deployment
+        if: steps.gate.outputs.deploy == 'true'
+        env:
+          DEPLOYMENT_ID: ${{ secrets.DEPLOYMENT_ID }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "$DEPLOYMENT_ID" ]]; then
+            echo 'DEPLOYMENT_ID not set — skipped. The /dev link has the new code; the /exec link still serves its old version.'
+            exit 0
+          fi
+          clasp deploy --deploymentId "$DEPLOYMENT_ID" \
+            --description "Auto deploy $(git rev-parse --short HEAD) $(date -u +%F)"
+
+      - name: Delete successfully merged branches
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ ! -s "$RUNNER_TEMP/merged-branches" ]]; then
+            echo 'No branches to delete.'
+            exit 0
+          fi
+          while IFS= read -r branch; do
+            [[ -n "$branch" ]] || continue
+            echo "Deleting $branch"
+            git push origin --delete "$branch" || echo "::warning::Could not delete $branch"
+          done < "$RUNNER_TEMP/merged-branches"
+
+      - name: Remove credentials
+        if: always()
+        run: rm -f "$HOME/.clasprc.json" .clasp.json appsscript.json

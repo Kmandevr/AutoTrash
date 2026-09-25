@@ -150,7 +150,14 @@ tests/RunAll.gs
   already executed, in the Apps Script editor or the Node harness
   alike, regardless of file order either runtime happens to pick.
 
-  Current total: 177 tests, as of the 2026-09-25 coverage batch that added
+  Current total: 180 tests, as of the 2026-09-25 UI flight recorder
+  (?diag=1 boot/lifecycle/tap diagnostics for the live "nothing responds"
+  failure): +3 tests/Code.test.gs — the diag flag is only appended when
+  ?diag=1 is present, reportUiDiagnostics() mails the owner only, pretty-
+  prints and caps its report at 60 KB, and returns false (never throws) on
+  a mail failure.
+
+  Prior total: 177 tests, as of the 2026-09-25 coverage batch that added
   12 tests and changed no behavior (written by three read-only scheduled
   sessions, consolidated into one Project-knowledge patch, landed here):
     - +3 tests/RunState.test.gs: feature-reference.txt §2e guarantees —

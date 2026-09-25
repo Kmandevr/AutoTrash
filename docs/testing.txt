@@ -150,7 +150,14 @@ tests/RunAll.gs
   already executed, in the Apps Script editor or the Node harness
   alike, regardless of file order either runtime happens to pick.
 
-  Current total: 161 tests, as of a second 2026-09-25 pass on top of the
+  Current total: 165 tests, as of the 2026-09-25 §9 thread-level starred
+  guard (Engine.gs findMatches()): 4 new tests in tests/Engine.test.gs, all
+  shown to FAIL on the pre-fix code and PASS after. Also verified end to end
+  on the sim harness's realistic mailbox (per-message stars): an Inbox
+  Purge on the old code trashed 2 threads containing a starred message
+  (THREAD-1438, THREAD-1527); with the guard, 0.
+
+  Prior total: 161 tests, as of a second 2026-09-25 pass on top of the
   Issues #96/#97/#98 bug-fix pass (see feature-reference.txt's "Regression
   tests worth knowing about by name" for what each new test guards). That
   first pass landed 159 (see the prior entry below for its own breakdown);

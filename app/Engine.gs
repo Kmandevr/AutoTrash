@@ -174,7 +174,25 @@ function findMatches(rule, opts) {
   if (emit && all.length > 0 && fresh.length < all.length)
     emit('INFO', `Skipped ${fmtNum(all.length - fresh.length)} already-processed this run.`);
 
-  let contexts = fresh.map(function (t) {
+  // §9 SAFETY GUARD — thread-level starred protection. Every buildQuery()
+  // already carries -is:starred, but Gmail evaluates that per MESSAGE while
+  // AutoTrash's trash/archive actions always apply to the whole THREAD. A
+  // thread with one old, unstarred message and a separate starred message
+  // still satisfies the query on its unstarred message, so without this
+  // guard moveThreadsToTrash()/moveThreadsToArchive() would take the starred
+  // message right along with it — a direct violation of §9's "Starred
+  // emails... No exceptions." This check is unconditional (independent of
+  // opts.filter, which is opt-in per caller) and runs for every findMatches()
+  // caller, live or dry-run, so a dry-run projection never promises a count
+  // that the live run would actually protect. See feature-reference.txt §9.
+  const unstarred = fresh.filter(function (t) {
+    return !(typeof t.hasStarredMessages === 'function' && t.hasStarredMessages());
+  });
+  const starredSkipped = fresh.length - unstarred.length;
+  if (emit && starredSkipped > 0)
+    emit('INFO', `Skipped ${fmtNum(starredSkipped)} thread(s) containing a starred message (§9 guard).`);
+
+  let contexts = unstarred.map(function (t) {
     return makeMessageContext(t, rule, { ruleLabel: label, query: query, dryRun: opts.dryRun });
   });
   let filtered = 0;
@@ -186,8 +204,8 @@ function findMatches(rule, opts) {
 
   return {
     rule: rule, ruleLabel: label, query: query,
-    found: all.length, skipped: all.length - fresh.length, filtered: filtered,
-    contexts: contexts
+    found: all.length, skipped: all.length - fresh.length, starredSkipped: starredSkipped,
+    filtered: filtered, contexts: contexts
   };
 }
 

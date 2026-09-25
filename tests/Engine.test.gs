@@ -112,6 +112,70 @@ function test_engine_findMatches_skipsSeenAndAppliesFilter() {
   } finally { spy.restore(); }
 }
 
+// ── §9 thread-level starred guard ──────────────────────────────────────────
+// Gmail's -is:starred query term matches per MESSAGE, but trash/archive act
+// on the whole THREAD. A thread carrying one old unstarred message and a
+// separate starred message still satisfies the query (on its unstarred
+// message) and, before this guard, moveThreadsToTrash()/ToArchive() would
+// have taken the starred message right along with it. These tests fail
+// against pre-guard findMatches(), which mapped every post-seen-dedup thread
+// straight into contexts with no starred check at all.
+
+function test_engine_findMatches_skipsThreadsWithAnyStarredMessage() {
+  const clean = makeFakeThread('safe1');
+  const starred = makeFakeThread('starred1');
+  starred.hasStarredMessages = function () { return true; };
+  const spy = installGmailSpy([clean, starred]);
+  try {
+    const log = [];
+    const m = findMatches(ENGINE_TEST_RULE, { emit: (lvl, msg) => log.push(lvl + ' ' + msg) });
+    assertEqual(m.contexts.map(c => c.threadId), ['safe1'],
+      'a thread containing any starred message must never reach contexts, regardless of which message matched the query');
+    assertEqual(m.starredSkipped, 1);
+    assert(log.indexOf('INFO Skipped 1 thread(s) containing a starred message (§9 guard).') > -1,
+      'must log why the thread was skipped: ' + log.join(' | '));
+  } finally { spy.restore(); }
+}
+
+function test_engine_runRule_starredThreadGuard_appliesToDryRunCountsToo() {
+  const starred = makeFakeThread('dry-starred');
+  starred.hasStarredMessages = function () { return true; };
+  const spy = installGmailSpy([starred]);
+  try {
+    const m = runRule(ENGINE_TEST_RULE, { dryRun: true });
+    assertEqual(m.matched, 0,
+      'a dry-run projection must not count a thread that the §9 guard would actually protect on a live run');
+    assertEqual(m.execution, null);
+    assert(!starred.__trashed, 'dry run must never mutate Gmail regardless of the guard');
+  } finally { spy.restore(); }
+}
+
+function test_engine_runRule_starredThreadGuard_protectsLiveTrashToo() {
+  const starred = makeFakeThread('live-starred');
+  starred.hasStarredMessages = function () { return true; };
+  const clean = makeFakeThread('live-clean');
+  const spy = installGmailSpy([starred, clean]);
+  try {
+    const m = runRule(ENGINE_TEST_RULE, {});
+    assertEqual(m.matched, 1);
+    assert(clean.__trashed, 'the unstarred thread must still be trashed normally');
+    assert(!starred.__trashed, 'a thread containing a starred message must never be trashed, live or not');
+  } finally { spy.restore(); }
+}
+
+function test_engine_starredThreadGuard_threadsWithoutHasStarredMessagesMethodAreNotSkipped() {
+  // Defensive: a fixture thread that doesn't implement hasStarredMessages()
+  // at all (every existing makeFakeThread() in the suite, and any future
+  // custom action's own fixtures) must not be misread as "starred".
+  const t = makeFakeThread('no-such-method');
+  const spy = installGmailSpy([t]);
+  try {
+    const m = findMatches(ENGINE_TEST_RULE, {});
+    assertEqual(m.contexts.map(c => c.threadId), ['no-such-method']);
+    assertEqual(m.starredSkipped, 0);
+  } finally { spy.restore(); }
+}
+
 // ── 3. A different action can consume the same match/context ──────────────
 
 function test_engine_sameContexts_consumedByTwoDifferentActions() {
@@ -321,6 +385,10 @@ const ENGINE_TESTS = [
   test_engine_findMatches_neverMutatesGmailOrSeen,
   test_engine_findMatches_contextCarriesRuleAndQuery,
   test_engine_findMatches_skipsSeenAndAppliesFilter,
+  test_engine_findMatches_skipsThreadsWithAnyStarredMessage,
+  test_engine_runRule_starredThreadGuard_appliesToDryRunCountsToo,
+  test_engine_runRule_starredThreadGuard_protectsLiveTrashToo,
+  test_engine_starredThreadGuard_threadsWithoutHasStarredMessagesMethodAreNotSkipped,
   test_engine_sameContexts_consumedByTwoDifferentActions,
   test_engine_dryRun_neverInvokesAnyAction_butCountsAndRegistersSeen,
   test_engine_dryRun_liveLogHasNoActionOrBatchLines,

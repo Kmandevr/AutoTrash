@@ -145,13 +145,27 @@ jobs:
           live="$RUNNER_TEMP/live"
           mkdir -p "$live"
           printf '{"scriptId":"%s"}' "$SCRIPT_ID" > "$live/.clasp.json"
-          (cd "$live" && clasp pull)
+          # Surface clasp's own error as an annotation (visible on the run
+          # summary without opening the log).
+          if ! out=$(cd "$live" && clasp show-authorized-user 2>&1); then
+            echo "::error title=clasp login check failed::$(echo "$out" | tr '\n' ' ' | cut -c1-900)"; exit 1
+          fi
+          echo "$out"
+          if ! out=$(cd "$live" && clasp pull 2>&1); then
+            echo "::error title=clasp pull failed::$(echo "$out" | tr '\n' ' ' | cut -c1-900)"; exit 1
+          fi
+          echo "$out"
           test -f "$live/appsscript.json" || { echo '::error::clasp pull returned no appsscript.json.'; exit 1; }
           cp "$live/appsscript.json" ./appsscript.json
 
       - name: Push code to Apps Script
         if: steps.gate.outputs.deploy == 'true'
-        run: clasp push --force
+        shell: bash
+        run: |
+          if ! out=$(clasp push --force 2>&1); then
+            echo "::error title=clasp push failed::$(echo "$out" | tr '\n' ' ' | cut -c1-900)"; exit 1
+          fi
+          echo "$out"
 
       - name: Publish a new version of the web app deployment
         if: steps.gate.outputs.deploy == 'true'
@@ -164,8 +178,11 @@ jobs:
             echo 'DEPLOYMENT_ID not set — skipped. The /dev link has the new code; the /exec link still serves its old version.'
             exit 0
           fi
-          clasp deploy --deploymentId "$DEPLOYMENT_ID" \
-            --description "Auto deploy $(git rev-parse --short HEAD) $(date -u +%F)"
+          if ! out=$(clasp deploy --deploymentId "$DEPLOYMENT_ID" \
+              --description "Auto deploy $(git rev-parse --short HEAD) $(date -u +%F)" 2>&1); then
+            echo "::error title=clasp deploy failed::$(echo "$out" | tr '\n' ' ' | cut -c1-900)"; exit 1
+          fi
+          echo "$out"
 
       - name: Delete successfully merged branches
         shell: bash

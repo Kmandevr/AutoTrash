@@ -33,13 +33,14 @@ use the following capabilities of your Google Account, solely to run the
 cleanup rules you configure:
 
 - **Read and search your Gmail messages and threads**, using the Gmail
-  search queries built from the rules you set up (for example, a label,
-  sender, age, or category rule), so AutoTrash can find the messages a
+  search queries built from the rules you set up (for example, a label
+  or Gmail-category rule with an age threshold), so AutoTrash can find the messages a
   rule applies to.
 - **Move matching messages to Archive or Trash**, and no other mailbox
   action. AutoTrash never permanently deletes a message itself; Gmail's
-  own Trash retention (normally 30 days) still applies, and Trash and
-  Spam are never data AutoTrash searches to begin with.
+  own Trash retention (normally 30 days) still applies. AutoTrash never
+  searches Trash, and only searches Spam if you turn on its Spam
+  category rule.
 - **Send one email from your own account back to yourself** — the
   optional run summary or daily digest report, sent only to the
   address of the account running AutoTrash, never to the Developer or to
@@ -56,8 +57,9 @@ Calendar, or any Google product other than Gmail and the Apps Script
 services listed above.
 
 Built-in safety limits, described further in the repository's
-`docs/feature-reference.txt`, exclude starred messages, Trash, Spam,
-Drafts, and Sent mail from every rule.
+`docs/feature-reference.txt`, exclude starred messages, Trash, Drafts, and
+Sent mail from every rule, and Spam from every rule except the optional
+Spam category rule.
 
 ## What AutoTrash does not do
 
@@ -77,7 +79,9 @@ Drafts, and Sent mail from every rule.
 
 All configuration AutoTrash stores (your rules, settings, and run
 statistics) is stored using Google Apps Script's `PropertiesService`,
-scoped to your own Google Account, on Google's infrastructure — the same
+and the progress and log of a run in progress are kept temporarily (at
+most 6 hours) in Apps Script's `CacheService` — both scoped to your own
+Google Account, on Google's infrastructure — the same
 place Google stores the rest of your Apps Script projects. The Developer
 has no access to this storage and no copy of it.
 

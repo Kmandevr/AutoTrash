@@ -1,14 +1,14 @@
 AutoTrash Community License
-Version 2.0 — Effective 24 September 2026
+Version 2.1 — Effective 24 September 2026
 
 Copyright (c) 2026 Kmandevr. All rights reserved.
 
 -------------------------------------------------------------------------
-IN PLAIN ENGLISH (a friendly summary — the numbered sections below are
-the actual license terms)
+IN PLAIN ENGLISH (a friendly summary only — it is not part of the
+license. The numbered sections below are the actual license terms.)
 
   Go ahead and:
-    - use AutoTrash for free, on your own accounts, for any reason;
+    - use AutoTrash for free on your own mailboxes, for any reason;
     - change it, fix it, and improve it;
     - share it, including your improved version, publicly or privately,
       as long as it stays free;
@@ -21,8 +21,8 @@ the actual license terms)
     - include this license when you share it, and say what you changed.
 
   Your license won't be taken away on a whim. It can only end if you
-  misuse AutoTrash by breaking these terms, and even then you usually
-  get 30 days to put things right.
+  break these terms, and the first time, you get 30 days after being
+  told to put things right.
 
   AutoTrash deletes email. It comes with no warranty, so test it with
   dry-run first and keep backups of anything important.
@@ -31,281 +31,351 @@ the actual license terms)
 
 1. ACCEPTANCE
 
-   By downloading, copying, installing, using, modifying, or sharing the
-   Software, you agree to these terms. Section 7 (Linking and Listing)
-   applies to everyone and does not require you to accept these terms.
+   1.1 By downloading, copying, installing, running, modifying, or
+       distributing the Software, You accept these terms. If You do not
+       accept them, You have no license to do any of those things.
+
+   1.2 If You accept these terms on behalf of an organization, You
+       confirm that You have authority to bind that organization, and
+       "You" then means that organization.
+
+   1.3 Section 8 (Linking and Listing) applies to everyone and does not
+       require acceptance of these terms.
 
 
 2. DEFINITIONS
 
-   "Licensor" means Kmandevr, the author and copyright holder of the
-   Software, and anyone the Licensor later transfers the copyright to.
+   In these terms, the following words have these meanings. "Your" has
+   the matching meaning of "You". "Including" means "including without
+   limitation".
 
-   "Official Repository" means https://github.com/Kmandevr/AutoTrash, or
-   any other location the Licensor names there as the official home of
-   the Software.
+   2.1 "Licensor" means Kmandevr, the author and copyright holder of the
+       Software, and any successor to whom the Licensor transfers the
+       copyright in the Software.
 
-   "Software" means AutoTrash, including its source code, scripts, web
-   pages, tests, and documentation, as released by the Licensor, and
-   any copy of any part of it.
+   2.2 "Official Repository" means https://github.com/Kmandevr/AutoTrash,
+       or any other location that the Licensor designates in that
+       repository as the official home of the Software.
 
-   "You" means the person or organization that accepts these terms.
+   2.3 "Software" means AutoTrash, including its source code, scripts,
+       web pages, tests, and documentation, as released by the Licensor
+       with these terms, and any copy of all or part of it.
 
-   "Modified Version" means any copy of the Software that has been
-   changed, and any work that includes or is based on any part of the
-   Software.
+   2.4 "You" means the individual or organization that accepts these
+       terms.
 
-   "Selling or Commercial Use" means doing any of the following, or
-   helping someone else do it, whether or not a profit is made:
-     (a) selling, renting, or licensing the Software or a Modified
-         Version, or charging any fee to download, access, or receive a
-         copy of it;
-     (b) offering the Software or a Modified Version, or what it does,
-         as a paid service, including a hosted or managed service;
-     (c) including the Software or a Modified Version in any product,
-         service, bundle, course, or package that is sold or offered for
-         payment;
-     (d) charging anyone to install, set up, configure, run, or support
-         the Software or a Modified Version for them;
-     (e) putting the Software or a Modified Version behind a paywall,
-         subscription, or "pay to unlock" feature, or requiring any
-         payment or donation to get or use it; or
-     (f) using the Software or a Modified Version to train or build an
-         artificial-intelligence model, dataset, or tool that is sold or
-         offered for payment.
+   2.5 "Modified Version" means any copy of the Software that has been
+       changed, and any work that includes all or part of the Software
+       or is a derivative work of it under United States copyright law.
 
-   Using the Software to manage mailboxes that belong to You is not
-   Selling or Commercial Use, even if You are a business, school,
-   charity, or other organization.
+   2.6 "Your Mailboxes" means email accounts that You own, or that You
+       are authorized by their owner to control. For an organization,
+       it includes email accounts the organization provides to its own
+       staff, members, or students.
 
-   "In writing" means a message that clearly comes from the Licensor,
-   such as an email, a signed document, or a message from the
-   Licensor's GitHub account.
+   2.7 "Free of Charge" means that no fee, payment, donation,
+       subscription, upgrade, or other compensation of any kind is
+       required, requested as a condition, or accepted in exchange for
+       the thing in question, whether directly or as part of a bundle
+       or package.
 
+   2.8 "Commercial Use" means any of the following, whether or not a
+       profit is made:
+       (a) selling, renting, leasing, or licensing the Software or a
+           Modified Version, or distributing any copy of either that is
+           not Free of Charge;
+       (b) providing the Software or a Modified Version, or its
+           functionality, to others as a service (including a hosted,
+           managed, or "software as a service" offering) that is not
+           Free of Charge;
+       (c) including the Software or a Modified Version in any product,
+           service, bundle, course, or package that is not Free of
+           Charge;
+       (d) installing, setting up, configuring, running, maintaining, or
+           supporting the Software or a Modified Version for another
+           person or organization in exchange for any compensation,
+           including as part of a broader paid service;
+       (e) restricting any copy or feature of the Software or a Modified
+           Version behind a paywall, subscription, license key, or any
+           other requirement of payment or donation; or
+       (f) using the Software or a Modified Version to train, fine-tune,
+           or build any artificial-intelligence model, dataset, or tool
+           that is sold or provided other than Free of Charge.
 
-3. WHAT YOU MAY DO
+   2.9 The following are not Commercial Use:
+       (a) running the Software on Your Mailboxes, even if You are a
+           business, school, charity, or other organization; and
+       (b) work that an organization's own employees do for that
+           organization, on that organization's Mailboxes, as part of
+           their normal employment.
 
-   The Licensor grants You a free, worldwide, non-exclusive,
-   non-transferable license, PROVIDED THAT You follow Sections 4, 5, and
-   6, to:
+   2.10 "Notice" means a written message from the Licensor, sent to any
+        email address, GitHub account, repository, or listing that You
+        use or control in connection with the Software. A Notice is
+        received on the day it is sent.
 
-   a. Use. Use, copy, install, and run the Software to manage mailboxes
-      that belong to You, or that You manage on someone's behalf free of
-      charge (for example, for a family member or friend).
-
-   b. Modify. Change, fix, improve, and build on the Software, and use
-      Your Modified Version in the same ways.
-
-   c. Share. Share copies of the Software or of Your Modified Version
-      with anyone, publicly or privately, free of charge, including by
-      publishing it on GitHub or any other website.
-
-   This license lasts for as long as the Licensor holds the copyright,
-   unless it ends under Section 9.
-
-
-4. WHEN YOU SHARE IT
-
-   If You share the Software or a Modified Version, You must:
-
-   a. include a copy of this license, unchanged, or a link to it in the
-      Official Repository;
-
-   b. keep all copyright notices and credit to the Licensor, including
-      the line "Based on AutoTrash by Kmandevr" (or the original
-      copyright notice) and a link to the Official Repository;
-
-   c. share it only under these same terms, and not under any other
-      license;
-
-   d. if it is a Modified Version, clearly say that it has been changed,
-      give a short description of what You changed, and not present it
-      as the Licensor's official release; and
-
-   e. share it free of charge.
+   2.11 "In writing" and "written" mean a message that verifiably comes
+        from the Licensor, such as an email, a signed document, or a
+        message from the Licensor's GitHub account. A permission or
+        license that cannot be shown to come from the Licensor in writing
+        does not exist.
 
 
-5. THE ONE BIG RULE: NO SELLING
+3. LICENSE GRANT
 
-   You must not engage in Selling or Commercial Use of the Software or of
-   any Modified Version unless You have a paid license or permission in
-   writing from the Licensor. See Section 11.
+   3.1 The Licensor grants You a worldwide, royalty-free, non-exclusive,
+       non-transferable license, PROVIDED THAT You comply with Sections
+       4, 5, and 6, to:
+       (a) Use: copy, install, and run the Software on Your Mailboxes,
+           and on the mailboxes of other people or organizations with
+           their permission, if You do so Free of Charge;
+       (b) Modify: create Modified Versions and use them in the same
+           ways as the Software under Section 3.1(a); and
+       (c) Distribute: distribute copies of the Software or of Your
+           Modified Versions to anyone, publicly or privately, Free of
+           Charge, in accordance with Section 4.
 
+   3.2 This license lasts for the full term of copyright in the
+       Software. It is irrevocable, except that it ends as set out in
+       Section 10.
 
-6. CREDIT
-
-   a. You must not claim, suggest, or imply that You are the original
-      author, creator, or owner of the Software.
-
-   b. You are welcome to take credit for Your own changes and
-      improvements, as long as it is clear that the Software itself was
-      created by the Licensor.
-
-   c. You must not use the Licensor's name, or present a Modified
-      Version as the official AutoTrash, in a way that suggests the
-      Licensor made, endorses, or supports You or Your Modified Version.
-      You may say that Your version is "based on AutoTrash".
-
-
-7. LINKING AND LISTING (FOR EVERYONE)
-
-   Anyone may, without accepting these terms and whether or not their
-   website or publication is commercial:
-
-   a. link to the Official Repository or to any free copy shared under
-      these terms;
-
-   b. list the Software in any directory, catalog, search result, or
-      "awesome list";
-
-   c. mention, describe, review, recommend, or write about the Software,
-      using the name "AutoTrash" to identify it; and
-
-   d. show screenshots and quote short parts of its documentation,
-
-   as long as they do not charge anyone for access to the Software
-   itself, and do not claim to be its author or suggest the Licensor
-   endorses them.
+   3.3 Each condition in Sections 4, 5, and 6 is a condition of this
+       license and limits its scope. Any use of the Software that is
+       outside the scope of this license is not licensed and infringes
+       the Licensor's copyright.
 
 
-8. CONTRIBUTIONS
+4. CONDITIONS FOR DISTRIBUTION
 
-   If You submit code, text, or other material to the Official
-   Repository (for example, in a pull request), You grant the Licensor a
-   perpetual, irrevocable, worldwide, royalty-free license to use, copy,
-   modify, publish, sublicense, and relicense that material under these
-   terms or any other terms, including in paid licenses. You keep
-   ownership of Your contribution, You will be credited for it, and You
-   confirm that You have the right to submit it. This lets the Licensor
-   keep the Software under one license and offer paid licenses without
-   needing permission from every contributor.
+   Whenever You distribute the Software or a Modified Version, You must:
 
+   4.1 include the complete text of these terms, unchanged, with every
+       copy;
 
-9. WHEN YOUR LICENSE CAN END
+   4.2 keep intact every copyright notice and every credit to the
+       Licensor that appears in the Software;
 
-   a. Not on a whim. The Licensor will not end Your license for no
-      reason. Your license can only end as described in this Section.
+   4.3 include, in the README or an equally visible place, the words
+       "Based on AutoTrash by Kmandevr" and a link to the Official
+       Repository;
 
-   b. Misuse ends it. If You break these terms (for example, by selling
-      the Software, removing credit, or claiming it as Your own), Your
-      license ends.
+   4.4 distribute it only under this version of these terms, or, at Your
+       option, a later version published by the Licensor, and not under
+       any other license or additional terms;
 
-   c. 30 days to fix it. The first time the Licensor tells You in
-      writing that You have broken these terms, Your license continues
-      if, within 30 days of that notice, You fully stop the violation
-      and take reasonable steps to fix it (for example, taking down a
-      paid listing or restoring credit). If You do not, Your license
-      ends at the end of those 30 days.
+   4.5 for a Modified Version, clearly state that it has been modified,
+       and include a short description of the changes You made; and
 
-   d. No second chances for repeats or bad faith. If You break these
-      terms again after being notified, or if You knowingly sell the
-      Software or knowingly claim it as Your own work, the Licensor may
-      end Your license immediately by telling You in writing.
+   4.6 distribute it Free of Charge.
 
-   e. If Your license ends, You must stop using, modifying, and sharing
-      the Software and any Modified Version, and delete Your copies,
-      unless the Licensor restores Your license in writing. Anyone who
-      got a copy from You, and follows these terms, keeps their own
-      license.
+   Each person who receives a copy from You receives a license directly
+   from the Licensor under these terms. You cannot grant anyone more
+   rights than these terms allow.
 
 
-10. FUTURE VERSIONS OF THIS LICENSE
+5. NO COMMERCIAL USE
 
-    a. The Licensor may release future versions of the Software, or
-       updates to it, under new or changed license terms.
-
-    b. Any copy You already have stays under the terms it came with.
-       A change to these terms never takes away rights You already have
-       for a copy You already received, and never makes anything You did
-       before the change a violation.
-
-    c. New terms apply only to versions of the Software released with
-       those new terms. You may choose to follow a newer version of
-       these terms for an older copy if You prefer.
+   You must not engage in, or help anyone else engage in, Commercial Use
+   of the Software or of any Modified Version, unless You hold a paid
+   license or written permission from the Licensor that covers that
+   use. See Section 12.
 
 
-11. PAID LICENSES
+6. CREDIT AND NAME
 
-    If You want to sell the Software, offer it as a paid service, include
-    it in a paid product, or use it in any other way that counts as
-    Selling or Commercial Use, contact the Licensor through the Official
-    Repository. Paid licenses are offered on terms the Licensor sets.
-    No paid license or permission exists unless it is in writing from
-    the Licensor.
+   6.1 You must not claim, state, or imply that You are the author,
+       creator, or owner of the Software, or of any part of it that You
+       did not write.
+
+   6.2 You may take credit for the changes You made in a Modified
+       Version, as long as You make it clear that the Software itself
+       was created by the Licensor.
+
+   6.3 You must not use the Licensor's name, or the name "AutoTrash", in
+       a way that states or implies that the Licensor made, endorses,
+       sponsors, or supports You or any Modified Version.
+
+   6.4 If You distribute a Modified Version publicly, You must not name
+       it only "AutoTrash". You may give it a different name, or a name
+       that describes the relationship, such as "[Your Name] (based on
+       AutoTrash)".
 
 
-12. EARLIER VERSIONS
+7. CONTRIBUTIONS
+
+   7.1 If You submit any code, text, or other material to the Official
+       Repository (for example, in a pull request or issue), You grant
+       the Licensor a perpetual, irrevocable, worldwide, royalty-free,
+       non-exclusive license to use, copy, modify, distribute, sublicense,
+       and relicense that material, under these terms or any other terms,
+       including in paid licenses.
+
+   7.2 You keep ownership of Your contribution, and You confirm that You
+       have the right to grant the license in Section 7.1.
+
+
+8. LINKING AND LISTING
+
+   Anyone, whether or not they have accepted these terms and whether or
+   not their website or publication is commercial, may:
+   (a) link to the Official Repository, or to any copy distributed in
+       compliance with these terms;
+   (b) list the Software in any directory, catalog, search result, or
+       curated list;
+   (c) mention, describe, review, recommend, or write about the
+       Software, using the name "AutoTrash" to identify it; and
+   (d) show screenshots of the Software and quote short excerpts of its
+       documentation,
+   provided that they do not require payment for access to the Software
+   or any copy of it, do not claim to be its author, and do not state or
+   imply that the Licensor endorses them.
+
+
+9. FUTURE VERSIONS
+
+   9.1 The Licensor may release future versions of the Software, or
+       future versions of these terms, on different terms.
+
+   9.2 A copy of the Software that You have already received remains
+       licensed under the terms it was released with. A change to these
+       terms does not take away any right You already have for that
+       copy, and does not make anything You did before the change a
+       violation.
+
+   9.3 New terms apply only to versions of the Software released by the
+       Licensor with those new terms, except where You choose to apply a
+       later version of these terms under Section 4.4.
+
+
+10. TERMINATION
+
+    10.1 The Licensor cannot end Your license except as set out in this
+         Section 10.
+
+    10.2 If You violate any of these terms, Your license ends
+         automatically, except as provided in Section 10.3.
+
+    10.3 Cure period. The first time You receive a Notice that You have
+         violated these terms, Your license continues if, within 30 days
+         after receiving that Notice, You (a) stop every violation, and
+         (b) take all reasonable steps to correct its effects, including
+         removing any listing, offer, or copy that violates these terms
+         and restoring any removed credit. If You do not do both within
+         those 30 days, Your license ends at the end of the 30th day.
+
+    10.4 The cure period in Section 10.3 does not apply, and Your license
+         ends immediately upon Notice, if:
+         (a) You violate any of these terms after You have already
+             received a Notice under Section 10.3; or
+         (b) You knowingly engage in Commercial Use, or knowingly claim
+             to be the author or owner of the Software.
+
+    10.5 When Your license ends, You must stop using, modifying, and
+         distributing the Software and all Modified Versions, and delete
+         all copies in Your possession or control, unless the Licensor
+         restores Your license in writing.
+
+    10.6 The end of Your license does not affect the license of anyone
+         who received a copy from You and complies with these terms.
+
+
+11. EARLIER VERSIONS
 
     Some earlier versions of the Software were released under the MIT
     License. The MIT License does not apply to this version of the
-    Software or to any later version; only these terms do.
+    Software or to any later version.
+
+
+12. PAID LICENSES
+
+    Any Commercial Use requires a separate paid license or written
+    permission from the Licensor, on terms the Licensor sets. Requests
+    can be made through the Official Repository.
 
 
 13. RESERVATION OF RIGHTS
 
-    The Licensor keeps all rights in the Software that these terms do
-    not expressly give You. These terms do not limit the Licensor's
-    right to license the Software to others on different terms.
+    The Licensor reserves all rights in the Software that these terms do
+    not expressly grant. No license is granted by implication, estoppel,
+    conduct, or otherwise. These terms do not limit the Licensor's right
+    to license the Software to others on any other terms.
 
 
 14. NO WAIVER
 
-    If the Licensor does not enforce part of these terms, or delays
-    doing so, the Licensor has not given up the right to enforce it
-    later. Permission given to one person does not apply to anyone
-    else unless it says so in writing.
+    A failure or delay by the Licensor in enforcing any of these terms is
+    not a waiver of that term or of any other term. A waiver is valid
+    only if it is in writing, and applies only to the person and the
+    situation it names.
 
 
-15. YOUR RIGHTS UNDER LAW
+15. RIGHTS UNDER LAW
 
-    These terms do not limit any right You have under law that cannot
-    be limited by a license, such as fair use.
+    These terms do not limit any right You have under applicable law that
+    cannot be limited by a license, such as fair use.
 
 
 16. NO WARRANTY
 
     THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OR CONDITION OF
-    ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE
-    IMPLIED WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR
-    PURPOSE, AND NON-INFRINGEMENT. THE SOFTWARE ARCHIVES AND DELETES
-    EMAIL. YOU ARE RESPONSIBLE FOR HOW YOU CONFIGURE AND USE IT, AND FOR
-    KEEPING BACKUPS OF ANY DATA YOU WANT TO KEEP.
+    ANY KIND, EXPRESS OR IMPLIED, INCLUDING THE IMPLIED WARRANTIES OF
+    MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, TITLE, AND
+    NON-INFRINGEMENT. THE SOFTWARE ARCHIVES AND DELETES EMAIL. YOU ARE
+    SOLELY RESPONSIBLE FOR HOW YOU CONFIGURE AND USE IT, AND FOR KEEPING
+    BACKUPS OF ANY DATA YOU WANT TO KEEP.
 
 
 17. LIMITATION OF LIABILITY
 
-    TO THE FULLEST EXTENT PERMITTED BY LAW, THE LICENSOR WILL NOT BE
-    LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER LIABILITY, INCLUDING ANY LOSS
-    OR DELETION OF EMAIL OR OTHER DATA, WHETHER IN CONTRACT, TORT, OR
-    OTHERWISE, ARISING FROM, OUT OF, OR IN CONNECTION WITH THE SOFTWARE
-    OR ITS USE.
+    TO THE FULLEST EXTENT PERMITTED BY LAW, IN NO EVENT WILL THE LICENSOR
+    BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER LIABILITY, INCLUDING
+    DIRECT, INDIRECT, INCIDENTAL, SPECIAL, OR CONSEQUENTIAL DAMAGES, OR
+    ANY LOSS OR DELETION OF EMAIL OR OTHER DATA, WHETHER IN CONTRACT,
+    TORT, OR OTHERWISE, ARISING FROM, OUT OF, OR IN CONNECTION WITH THE
+    SOFTWARE OR ITS USE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH
+    DAMAGES.
 
 
-18. GOVERNING LAW
+18. GOVERNING LAW AND VENUE
 
-    These terms are governed by the laws of the State of Utah, United
-    States of America, and by applicable United States federal law,
-    including copyright law, without regard to conflict-of-law rules.
-    Any dispute about these terms or the Software will be heard in the
-    state or federal courts located in the State of Utah.
+    18.1 These terms are governed by the laws of the State of Utah,
+         United States of America, and by applicable United States
+         federal law, including copyright law, without regard to
+         conflict-of-law rules.
+
+    18.2 Any dispute arising from these terms or the Software will be
+         heard exclusively in the state or federal courts located in the
+         State of Utah, and You consent to the personal jurisdiction of
+         those courts.
+
+    18.3 Despite Section 18.2, the Licensor may seek an injunction to
+         stop infringement of its copyright in any court of competent
+         jurisdiction.
 
 
 19. TRANSFER
 
-    The Licensor may transfer the copyright in the Software to someone
-    else, and these terms will continue to apply. You may not transfer
-    Your license, but anyone can get their own license by accepting
-    these terms.
+    The Licensor may transfer the copyright in the Software, and its
+    rights under these terms, to anyone, and these terms will continue
+    to apply. You may not transfer Your license; anyone else may obtain
+    their own license by accepting these terms.
 
 
-20. SURVIVAL, SEVERABILITY, AND ENTIRE LICENSE
+20. GENERAL
 
-    a. Sections 6, 8, 16, 17, and 18 continue to apply if Your license
-       ends.
+    20.1 Survival. Sections 6, 7, 10.5, 16, 17, and 18 continue to apply
+         after Your license ends.
 
-    b. If any part of these terms cannot be enforced, it will be enforced
-       as far as possible and the rest of these terms stay in effect.
+    20.2 Severability. If any part of these terms is held unenforceable,
+         it will be enforced to the maximum extent permitted, and the
+         rest of these terms will remain in full effect.
 
-    c. These terms, together with any paid license or written permission
-       from the Licensor, are the entire license for the Software. The
-       plain-English summary and headings are for convenience only.
+    20.3 Entire license. These terms, together with any paid license or
+         written permission from the Licensor, are the entire license
+         for the Software. Where a paid license or written permission
+         conflicts with these terms, the paid license or written
+         permission controls.
+
+    20.4 Interpretation. The plain-English summary and the headings are
+         for convenience only and do not affect the meaning of these
+         terms.

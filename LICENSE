@@ -4,7 +4,7 @@ Version 2.1 — Effective 24 September 2026
 Copyright (c) 2026 Kmandevr. All rights reserved.
 
 -------------------------------------------------------------------------
-SUMMARY (not part of the license; Sections 1 to 20 govern)
+SUMMARY (not part of the license; Sections 1 to 19 govern)
 
   Permitted, free of charge:
     - Use of the Software on Your Mailboxes.
@@ -180,7 +180,7 @@ SUMMARY (not part of the license; Sections 1 to 20 govern)
    You must not engage in, or help anyone else engage in, Commercial Use
    of the Software or of any Modified Version, unless You hold a paid
    license or written permission from the Licensor that covers that
-   use. See Section 12.
+   use. See Section 11.
 
 
 6. CREDIT AND NAME
@@ -281,21 +281,14 @@ SUMMARY (not part of the license; Sections 1 to 20 govern)
          who received a copy from You and complies with these terms.
 
 
-11. EARLIER VERSIONS
-
-    Some earlier versions of the Software were released under the MIT
-    License. The MIT License does not apply to this version of the
-    Software or to any later version.
-
-
-12. PAID LICENSES
+11. PAID LICENSES
 
     Any Commercial Use requires a separate paid license or written
     permission from the Licensor, on terms the Licensor sets. Requests
     can be made through the Official Repository.
 
 
-13. RESERVATION OF RIGHTS
+12. RESERVATION OF RIGHTS
 
     The Licensor reserves all rights in the Software that these terms do
     not expressly grant. No license is granted by implication, estoppel,
@@ -303,7 +296,7 @@ SUMMARY (not part of the license; Sections 1 to 20 govern)
     to license the Software to others on any other terms.
 
 
-14. NO WAIVER
+13. NO WAIVER
 
     A failure or delay by the Licensor in enforcing any of these terms is
     not a waiver of that term or of any other term. A waiver is valid
@@ -311,13 +304,13 @@ SUMMARY (not part of the license; Sections 1 to 20 govern)
     situation it names.
 
 
-15. RIGHTS UNDER LAW
+14. RIGHTS UNDER LAW
 
     These terms do not limit any right You have under applicable law that
     cannot be limited by a license, such as fair use.
 
 
-16. NO WARRANTY
+15. NO WARRANTY
 
     THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OR CONDITION OF
     ANY KIND, EXPRESS OR IMPLIED, INCLUDING THE IMPLIED WARRANTIES OF
@@ -327,7 +320,7 @@ SUMMARY (not part of the license; Sections 1 to 20 govern)
     BACKUPS OF ANY DATA YOU WANT TO KEEP.
 
 
-17. LIMITATION OF LIABILITY
+16. LIMITATION OF LIABILITY
 
     TO THE FULLEST EXTENT PERMITTED BY LAW, IN NO EVENT WILL THE LICENSOR
     BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER LIABILITY, INCLUDING
@@ -338,24 +331,24 @@ SUMMARY (not part of the license; Sections 1 to 20 govern)
     DAMAGES.
 
 
-18. GOVERNING LAW AND VENUE
+17. GOVERNING LAW AND VENUE
 
-    18.1 These terms are governed by the laws of the State of Utah,
+    17.1 These terms are governed by the laws of the State of Utah,
          United States of America, and by applicable United States
          federal law, including copyright law, without regard to
          conflict-of-law rules.
 
-    18.2 Any dispute arising from these terms or the Software will be
+    17.2 Any dispute arising from these terms or the Software will be
          heard exclusively in the state or federal courts located in the
          State of Utah, and You consent to the personal jurisdiction of
          those courts.
 
-    18.3 Despite Section 18.2, the Licensor may seek an injunction to
+    17.3 Despite Section 17.2, the Licensor may seek an injunction to
          stop infringement of its copyright in any court of competent
          jurisdiction.
 
 
-19. TRANSFER
+18. TRANSFER
 
     The Licensor may transfer the copyright in the Software, and its
     rights under these terms, to anyone, and these terms will continue
@@ -363,21 +356,21 @@ SUMMARY (not part of the license; Sections 1 to 20 govern)
     their own license by accepting these terms.
 
 
-20. GENERAL
+19. GENERAL
 
-    20.1 Survival. Sections 6, 7, 10.5, 16, 17, and 18 continue to apply
+    19.1 Survival. Sections 6, 7, 10.5, 15, 16, and 17 continue to apply
          after Your license ends.
 
-    20.2 Severability. If any part of these terms is held unenforceable,
+    19.2 Severability. If any part of these terms is held unenforceable,
          it will be enforced to the maximum extent permitted, and the
          rest of these terms will remain in full effect.
 
-    20.3 Entire license. These terms, together with any paid license or
+    19.3 Entire license. These terms, together with any paid license or
          written permission from the Licensor, are the entire license
          for the Software. Where a paid license or written permission
          conflicts with these terms, the paid license or written
          permission controls.
 
-    20.4 Interpretation. The plain-English summary and the headings are
+    19.4 Interpretation. The summary and the headings are
          for convenience only and do not affect the meaning of these
          terms.

@@ -45,6 +45,104 @@
           show('Main script never finished loading, so no button will work.\n' + navigator.userAgent);
       }, 4000);
     });
+
+    /* FLIGHT RECORDER (2026-09-25) — only when the web app is opened with
+       ?diag=1 (doGet() appends window.__AT_DIAG). Records, from the very
+       start: page lifecycle, uncaught errors, blocked scripts (CSP), how
+       long the page's JS thread was frozen, and for every tap WHERE the
+       finger landed vs WHAT the browser says is at that point vs WHAT
+       received it. Then emails the owner a report via
+       google.script.run.reportUiDiagnostics (a "boot" report ~8 s after
+       load and a "final" one after ~40 s or when the page is hidden).
+       Records only this page's own state — no mail content. */
+    var T0 = Date.now();
+    var D = { phase: '', v: 1, startedAt: new Date().toISOString(), lifecycle: {}, errors: errs, csp: [],
+              taps: [], lag: { max: 0, freezes: [] }, rpc: [] };
+    var desc = function (n) {
+      if (!n) return 'nothing';
+      if (n === document) return 'document';
+      var s = (n.tagName || '?').toLowerCase();
+      if (n.id) s += '#' + n.id;
+      if (typeof n.className === 'string' && n.className) s += '.' + n.className.split(/\s+/).slice(0, 2).join('.');
+      var t = (n.innerText || n.value || '').replace(/\s+/g, ' ').trim().slice(0, 24);
+      return t ? s + ' "' + t + '"' : s;
+    };
+    D.lifecycle.readyStateAtBoot = document.readyState;
+    document.addEventListener('DOMContentLoaded', function () { D.lifecycle.domContentLoadedMs = Date.now() - T0; });
+    window.addEventListener('load', function () { D.lifecycle.loadMs = Date.now() - T0; });
+    window.addEventListener('securitypolicyviolation', function (e) {
+      if (D.csp.length < 10) D.csp.push((e.violatedDirective || '') + ' blocked ' + (e.blockedURI || 'inline') + ' @' + (e.sourceFile || '') + ':' + (e.lineNumber || ''));
+    });
+    ['touchstart', 'pointerdown', 'click', 'change'].forEach(function (type) {
+      document.addEventListener(type, function (e) {
+        if (D.taps.length >= 80) return;
+        var p = (e.touches && e.touches[0]) || e;
+        var x = p.clientX, y = p.clientY, has = typeof x === 'number';
+        D.taps.push({ ms: Date.now() - T0, type: type, x: has ? Math.round(x) : null, y: has ? Math.round(y) : null,
+          target: desc(e.target), atPoint: has ? desc(document.elementFromPoint(x, y)) : null,
+          scrollY: Math.round(window.scrollY || 0), prevented: !!e.defaultPrevented });
+      }, true);
+    });
+    var lastTick = Date.now();
+    setInterval(function () {
+      var now = Date.now(), lag = now - lastTick - 250; lastTick = now;
+      if (lag > D.lag.max) D.lag.max = lag;
+      if (lag > 1000 && D.lag.freezes.length < 20) D.lag.freezes.push({ atMs: now - T0, frozenMs: lag });
+    }, 250);
+    var snapshot = function () {
+      var vv = window.visualViewport, grid = [];
+      for (var gy = 1; gy <= 5; gy++) for (var gx = 1; gx <= 3; gx++) {
+        var px = Math.round(innerWidth * gx / 4), py = Math.round(innerHeight * gy / 6);
+        grid.push(px + ',' + py + ' → ' + desc(document.elementFromPoint(px, py)));
+      }
+      var st = document.getElementById('state'), term = document.getElementById('term'), box = document.getElementById('bootdiag');
+      var runKeys = null;
+      try { runKeys = (window.google && google.script && google.script.run) ? Object.keys(google.script.run).length : 'no google.script.run'; } catch (e2) { runKeys = 'error ' + e2.message; }
+      return {
+        userAgent: navigator.userAgent, url: location.href.split('?')[0].slice(0, 120), inFrame: window.parent !== window,
+        referrerOrigin: (document.referrer || '').split('/').slice(0, 3).join('/'),
+        viewport: { innerWidth: innerWidth, innerHeight: innerHeight, dpr: window.devicePixelRatio,
+          visual: vv ? { w: Math.round(vv.width), h: Math.round(vv.height), scale: vv.scale, offsetTop: Math.round(vv.offsetTop) } : null,
+          screen: screen.width + 'x' + screen.height, scrollY: Math.round(window.scrollY || 0),
+          docHeight: document.documentElement.scrollHeight },
+        readyState: document.readyState, hasFocus: document.hasFocus(), hidden: document.hidden,
+        mainScriptFinished: !!window.__autotrashReady, onloadRanAtMs: window.__atOnloadMs == null ? null : window.__atOnloadMs - T0,
+        configLoad: window.__atCfg || 'not finished', googleScriptRunMethods: runKeys,
+        state: st ? st.innerText : '(no #state)', feedStart: term ? term.innerText.replace(/\s+/g, ' ').slice(0, 300) : '',
+        errorBox: box ? box.innerText.slice(0, 500) : null, dialogsOpen: document.querySelectorAll('.dlg-back').length,
+        bodyPointerEvents: getComputedStyle(document.body).pointerEvents,
+        runningAnimations: document.getAnimations ? document.getAnimations().filter(function (a) { return a.playState === 'running'; }).length : null,
+        whatIsOnTopAtScreenPoints: grid
+      };
+    };
+    var pill = null;
+    var status = function (txt) {
+      if (!pill) {
+        pill = document.createElement('div');
+        pill.setAttribute('style', 'position:fixed;left:8px;bottom:8px;z-index:2147483646;pointer-events:none;background:#062;color:#cfe;' +
+          'border:1px solid #0f8;border-radius:10px;font:11px monospace;padding:3px 8px;opacity:.9');
+        (document.body || document.documentElement).appendChild(pill);
+      }
+      pill.textContent = 'diag: ' + txt;
+    };
+    var sent = {};
+    var send = function (phase) {
+      if (sent[phase]) return; sent[phase] = true;
+      D.phase = phase; D.sentAtMs = Date.now() - T0; D.page = snapshot();
+      try {
+        google.script.run
+          .withSuccessHandler(function () { status(phase + ' report sent ✓' + (phase === 'boot' ? ' — keep tapping' : ' — done, thank you')); })
+          .withFailureHandler(function (e) { status(phase + ' report FAILED: ' + e.message); })
+          .reportUiDiagnostics(JSON.stringify(D));
+      } catch (e3) { status('cannot send: ' + e3.message); }
+    };
+    window.addEventListener('load', function () {
+      if (!window.__AT_DIAG) return;
+      status('recording — tap buttons, panels and a dropdown for ~30 s');
+      setTimeout(function () { send('boot'); }, 8000);
+      setTimeout(function () { send('final'); }, 40000);
+      document.addEventListener('visibilitychange', function () { if (document.hidden) send('final'); });
+    });
   })();
   </script>
   <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Exo+2:wght@300;600;800&display=swap" rel="stylesheet">
@@ -734,6 +832,7 @@ const MAX_RPC_RETRIES = 3;
 
 // ── INIT ───────────────────────────────────────────────────────
 window.onload = () => {
+  window.__atOnloadMs = Date.now(); // flight recorder (?diag=1): startup ran
   renderCats([]);
   google.script.run
     .withSuccessHandler(d => {
@@ -752,6 +851,7 @@ window.onload = () => {
       // for why (this is what a Save Config click used to be able to silently
       // wipe when the load never got this far).
       configLoaded = true;
+      window.__atCfg = 'ok';
       lastKnownGoodCounts = currentRuleCounts();
       tl('INFO', 'Initialized · ' + rules.length + ' label rule(s) · ' +
         Object.values(catState).filter(r=>r.enabled).length + ' category rule(s) active.');
@@ -759,6 +859,7 @@ window.onload = () => {
     })
     .withFailureHandler(e => {
       tl('ERROR', 'Load failed: ' + e.message);
+      window.__atCfg = 'failed: ' + e.message;
       banner('err', '⚠ Could not load your saved config — Save Config is disabled until this succeeds, so a save can\'t overwrite it with nothing. Reload the page to retry.');
       pollStatus();
     })

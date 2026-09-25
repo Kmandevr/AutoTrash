@@ -52,11 +52,36 @@ const BG_BUDGET_MS = 55000;  // 55 s budget per background execution
 // the dashboard as a ~980px desktop page shrunk to fit, the @media
 // (max-width:640px) mobile layout never applied, and the run controls at
 // the bottom were tiny and easy to miss. (2026-09-24)
-function doGet() {
-  return HtmlService.createHtmlOutputFromFile(resolveIndexFile())
+function doGet(e) {
+  const out = HtmlService.createHtmlOutputFromFile(resolveIndexFile())
     .setTitle('AutoTrash v26')
     .addMetaTag('viewport', 'width=device-width, initial-scale=1, viewport-fit=cover')
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+  // UI flight recorder (2026-09-25): opening the web app URL with ?diag=1
+  // switches on index.html's boot-time recorder, which emails the owner a
+  // report of what the page saw on that device (see reportUiDiagnostics()).
+  // Off unless asked for; nothing else about the page changes.
+  if (e && e.parameter && e.parameter.diag) out.append('<script>window.__AT_DIAG = true;</script>');
+  return out;
+}
+
+// Receives the ?diag=1 recorder's report from index.html and emails it to
+// the account owner only (same address every AutoTrash email goes to).
+// Exists to diagnose a live "page renders but nothing responds" failure on
+// a real phone that no emulator reproduced. Capped at 60 KB; never throws.
+function reportUiDiagnostics(report) {
+  const text = String(report == null ? '' : report).slice(0, 60000);
+  let body = text;
+  try { body = JSON.stringify(JSON.parse(text), null, 2); } catch (err) { /* send raw */ }
+  let phase = '';
+  try { phase = String(JSON.parse(text).phase || ''); } catch (err) {}
+  try {
+    GmailApp.sendEmail(ownerEmail(), 'AutoTrash UI diagnostics' + (phase ? ' (' + phase + ')' : ''), body);
+    return true;
+  } catch (err) {
+    console.error('reportUiDiagnostics failed:', (err && err.message) ? err.message : String(err));
+    return false;
+  }
 }
 
 // Apps Script names a pushed file after its path relative to clasp's

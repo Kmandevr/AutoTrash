@@ -664,7 +664,13 @@ reviewing the backend (app/*.gs) or index.html.
   Connection loss : A driving tab whose burst RPC fails re-syncs from the
                   server's saved payload (claimRun with its own id) and
                   retries up to 3 times before stopping; the run then shows
-                  as paused and can be resumed on any device.
+                  as PAUSED with the RPC-failure error still visible in the
+                  terminal, and can be resumed here (Resume Here) or on any
+                  other device. (Fixed 2026-09-25, Issue #100: the tab that
+                  abandoned the run recognises its own driverId ===
+                  DRIVER_ID and skips the generic "watching another
+                  device" reset — before the fix, the run showed as OTHER
+                  DEVICE and the terminal was wiped, erasing the error.)
   Mobile / cross-browser : (2026-09-24) The viewport is set in doGet() via
                   HtmlOutput.addMetaTag() — HtmlService ignores a viewport
                   <meta> inside index.html, which is why phones rendered the

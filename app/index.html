@@ -1849,12 +1849,33 @@ function applyStatus(st) {
 }
 
 function renderWatched(r, st) {
+  // Issue #100: this tab's OWN run, abandoned via leaveDriver() after
+  // burst() exhausted its RPC retries. The run is still "active"
+  // server-side (claimRun() kept refreshing updatedAt during those
+  // retries), so without this check it would look exactly like a run
+  // "driven from another device" — resetting the dashboard below would
+  // erase the RPC-failure lines burst() just logged, and it would be
+  // mislabelled OTHER DEVICE until the run went stale ~90s later.
+  // DRIVER_ID is generated fresh once per page load, so a match here can
+  // only mean "this same tab", never a different device — treat it as
+  // immediately resumable (like an already-stale run) rather than a
+  // takeover from elsewhere.
+  const ownAbandoned = r.driverId === DRIVER_ID;
+  if (ownAbandoned && !r.stale) r.stale = true;
+
   if (role !== 'viewer' || watch.id !== r.id) {
     // Start watching this run: reset the dashboard to show it.
     role = 'viewer';
-    watch = { id: r.id, seq: -1, run: r };
+    // For our own abandoned run, st.log is the FULL retained tail (the
+    // server's whole log for it), all of which this tab already showed
+    // live while it was driving — mark it as already-seen so the
+    // appendRemoteLog() call below doesn't re-print it.
+    const seenSeq = ownAbandoned && (st.log || []).length ? st.log[st.log.length - 1].seq : -1;
+    watch = { id: r.id, seq: seenSeq, run: r };
     running = false; aborted = false;
-    document.getElementById('term').innerHTML = '';
+    // Don't wipe the terminal for our own abandoned run — it still holds
+    // the "RPC failure: ..." line(s) burst() logged right before giving up.
+    if (!ownAbandoned) document.getElementById('term').innerHTML = '';
     ['sv0','sv1','sv2'].forEach(id => ss(id, '0'));
     setRunningUI(true);
     document.getElementById('btndry').disabled = true;
@@ -1863,9 +1884,11 @@ function renderWatched(r, st) {
     startTime = (r.startedAt || Date.now()) - clockSkew;
     clearInterval(timerH); startTimer();
     tl('SEP');
-    tl('INFO', r.source === 'background'
-      ? 'Watching a BACKGROUND run started by the trigger — you can abort it from here.'
-      : 'Watching a run started on another device/tab — you can abort it or take it over from here.');
+    tl('INFO', ownAbandoned
+      ? 'Paused after a connection error on this device — Resume Here or Abort.'
+      : r.source === 'background'
+        ? 'Watching a BACKGROUND run started by the trigger — you can abort it from here.'
+        : 'Watching a run started on another device/tab — you can abort it or take it over from here.');
     tl('SEP');
   }
   watch.run = r;
@@ -1893,7 +1916,7 @@ function renderWatched(r, st) {
   setSbar(r.source === 'background'
     ? (pendingAbort ? 'Abort sent — stopping after the current rule…' : 'Background run in progress.')
     : r.stale
-      ? 'This run\'s device stopped responding — resume it here or abort it.'
+      ? (ownAbandoned ? 'Paused after a connection error — resume it here or abort it.' : 'This run\'s device stopped responding — resume it here or abort it.')
       : (pendingAbort ? 'Abort sent — stopping after the current burst…' : 'Run in progress on another device.'));
 }
 

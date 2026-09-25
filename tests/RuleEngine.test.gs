@@ -37,8 +37,23 @@ function test_buildQuery_inboxPurge_scopedToInbox_noRedundantTrashClause() {
 }
 function test_buildQuery_globalPurge_allMailScope_excludesTrashAndSpam() {
   const q = buildQuery({ isGlobalPurge: true, days: 365 });
-  assertEqual(q, 'older_than:365d -is:starred -in:trash -in:spam');
+  assertEqual(q, 'older_than:365d -is:starred -in:trash -in:spam -in:sent -in:drafts');
   assert(!q.includes('in:inbox'), 'global purge must reach archived mail — no in:inbox scope');
+}
+// FIX 53: Global Purge has no in:inbox scope (by design, to reach archived
+// mail), so unlike every other rule type it was not automatically protected
+// from also matching the user's own Sent mail and Drafts — both are part of
+// Gmail's "All Mail" scope that a bare older_than query without in:inbox
+// searches. This directly contradicted this project's own stated safety
+// guarantee (README/description + feature-reference.txt §9: "excludes ...
+// drafts, and sent mail from processing"). A Global Purge could otherwise
+// silently trash the user's own year-old Sent mail alongside old received
+// mail, with no disclosure anywhere in the UI's Global Purge copy or its
+// DESTRUCTIVE-ACTION confirmation dialog.
+function test_buildQuery_globalPurge_excludesSentAndDrafts() {
+  const q = buildQuery({ isGlobalPurge: true, days: 30 });
+  assert(q.includes('-in:sent'), 'global purge must never reach the user\'s own Sent mail: ' + q);
+  assert(q.includes('-in:drafts'), 'global purge must never reach Drafts: ' + q);
 }
 function test_buildQuery_allRuleTypes_spareStarredMail() {
   const rules = [
@@ -139,6 +154,7 @@ const RULEENGINE_TESTS = [
   test_buildQuery_spamCategory_usesInSpamNotCategoryTab,
   test_buildQuery_inboxPurge_scopedToInbox_noRedundantTrashClause,
   test_buildQuery_globalPurge_allMailScope_excludesTrashAndSpam,
+  test_buildQuery_globalPurge_excludesSentAndDrafts,
   test_buildQuery_allRuleTypes_spareStarredMail,
   test_buildQuery_labelWithEmbeddedQuote_doesNotBreakOutOfQuotedTerm,
   test_buildQuery_labelWithoutQuotes_unaffectedByFix,

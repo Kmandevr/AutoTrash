@@ -293,11 +293,35 @@ function abortRun(stats, elapsedMs, dryRun, runId) {
   const finish = () => {
     const s = readRunState();
     const mine = !!s && s.id === runId;
-    if (mine && s.status !== 'running') return getProps().getProperty('LAST_RUN_TIME');
+    // FIX 52 (found in review, no issue number yet — filing alongside this
+    // fix): previously only bailed when `mine` (same run) had already moved
+    // off 'running' — a double-abort of the SAME run, e.g. two dashboards
+    // both noticing staleness. It did NOT bail when `!mine`: RUN_STATE
+    // pointing at a DIFFERENT run entirely (this runId's run already ended
+    // AND a brand-new run has since started and overwritten RUN_STATE) —
+    // that case fell through to abortRunCore() below using this stale
+    // runId's own cached detail/stats, re-sending an "aborted" email and
+    // re-running accumulateDailyStats() for a run that (per this file's own
+    // comment above) already finalized through its own normal path. Net
+    // effect: a late stale-abort call (requestAbort()'s staleness branch,
+    // queued behind a slow lock acquisition — see withRunLock's up-to-60s
+    // wait above) could double-count an already-finished run's stats into
+    // DAILY_STATS/the digest, and fire a second, spurious abort email for a
+    // run nobody would recognize as still active. endRun()'s own `s.id !==
+    // runId` guard already stops it from touching the NEW run's RUN_STATE —
+    // this only closes the stats/email side, which had no such guard. Any
+    // finalize this call would have performed for the old run either
+    // already happened (normal completion) or is not this call's job to
+    // redo — bail exactly like the already-finalized case does.
+    if (!mine || s.status !== 'running') return getProps().getProperty('LAST_RUN_TIME');
+    // `mine` is guaranteed true past the guard above now (FIX 52), so this
+    // always reads the server's own record for the run being aborted, never
+    // the caller-supplied elapsedMs/dryRun — those two params only still
+    // matter for the runId-less abortRunCore(stats, elapsedMs, dryRun) path.
     const detail  = cacheGetJson(RUN_DETAIL_PREFIX + runId);
     const best    = fullerStats(stats, detail && detail.stats);
-    const elapsed = mine ? Date.now() - (s.startedAt || Date.now()) : elapsedMs;
-    const dry     = mine ? !!s.dryRun : !!dryRun;
+    const elapsed = Date.now() - (s.startedAt || Date.now());
+    const dry     = !!s.dryRun;
     const ts = abortRunCore(best, elapsed, dry);
     endRun(runId, 'aborted', `⚠ Aborted after ${((elapsed || 0) / 1000).toFixed(1)}s · ${fmtNum(best.totalMoved || 0)} ${dry ? 'scanned (dry run)' : 'actioned'}`, best);
     return ts;

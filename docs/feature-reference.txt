@@ -765,7 +765,19 @@ reviewing the backend (app/*.gs) or index.html.
   - Emails matched by rule A that have already been actioned by rule A
     or any earlier rule in the same run (seenIds dedup).
   - The user's drafts, sent mail, chats — none of these appear in the
-    label/category/inbox searches used by AutoTrash.
+    label/category/inbox searches used by AutoTrash. FIXED (2026-09-25,
+    found in review, no issue number filed): this was true for every rule
+    type EXCEPT Global Purge, which deliberately has no in:inbox scope (so
+    it can also reach archived mail) and, as a side effect nothing here
+    excluded, was searching Gmail's "All Mail" scope — which includes the
+    user's own Sent mail (and Drafts). A Global Purge could silently trash
+    year-old Sent mail right alongside old received mail, undisclosed in
+    either the Global Purge UI copy or its DESTRUCTIVE-ACTION confirmation
+    dialog. buildQuery()'s isGlobalPurge branch now also excludes
+    -in:sent -in:drafts, closing the gap without narrowing what Global
+    Purge is meant to reach (received mail, inbox or archived). See
+    test_buildQuery_globalPurge_excludesSentAndDrafts in
+    tests/RuleEngine.test.gs.
 
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -1062,6 +1074,29 @@ reviewing the backend (app/*.gs) or index.html.
       abort-request flag (RUN_ABORT) is set independently by requestAbort(),
       so a run whose finalize is missed this way still stops at its very
       next checkpoint.
+    test_abortRun_withRunId_staleForSupersededRun_doesNotDoubleAccumulate
+      — guards FIX 52 (2026-09-25, found in this pass, no issue number
+      filed): abortRun(..., runId)'s finish() only bailed when the SAME run
+      (by id) had already moved off 'running' — guarding a double-abort of
+      one run. It did not bail when RUN_STATE had moved on to a DIFFERENT
+      run entirely (this runId's run already finished normally AND a new
+      run has since started and overwritten RUN_STATE) — a late stale-abort
+      call for the OLD runId (requestAbort()'s staleness branch, queued
+      behind withRunLock's up-to-60s wait) fell through anyway, re-sending
+      an abort email and re-accumulating that already-finished run's stats
+      into DAILY_STATS a second time. Fixed by bailing whenever the run
+      isn't both the SAME run and still 'running', not just when it's the
+      same run no longer running.
+    test_buildQuery_globalPurge_excludesSentAndDrafts
+      — guards FIX 53 (2026-09-25, found in this pass, no issue number
+      filed): Global Purge's query has no in:inbox scope (by design, so it
+      can also reach archived mail), so unlike every other rule type here
+      it was not protected from also matching Gmail's "All Mail" scope's
+      Sent mail and Drafts — directly contradicting this project's own
+      stated safety guarantee (README/description + this file's own §9:
+      "excludes ... drafts, and sent mail from processing"). Fixed by
+      adding -in:sent -in:drafts to the isGlobalPurge branch of buildQuery()
+      (app/RuleEngine.gs); see §9 below for the updated safety-rule entry.
       The last one was confirmed to FAIL (raw unescaped markup present in
       the generated email HTML) against a reverted copy of buildEmailHtml()
       with the escHtml() call removed, before being accepted into the suite.

@@ -16,7 +16,24 @@ function buildQuery(rule) {
 
   if (rule.isGlobalPurge) {
     // FIX 7: Use All Mail scope (no inbox restriction) to reach archived mail.
-    return `older_than:${rule.days}d ${star} -in:trash -in:spam`;
+    // FIX 53 (found in review, no issue number yet): "All Mail" scope also
+    // covers the user's own Sent messages (and Drafts) — neither carries the
+    // Inbox label, so neither was protected by FIX 1's in:inbox scoping the
+    // way every OTHER rule type here is. This project's own description and
+    // feature-reference.txt §9 both explicitly promise "excludes ... drafts,
+    // and sent mail from processing" / "none of these appear in the
+    // label/category/inbox searches used by AutoTrash" — true for every
+    // rule type EXCEPT this one, which deliberately drops the in:inbox
+    // scope specifically to also reach archived mail, and with it
+    // inadvertently reached Sent/Drafts too. A Global Purge at, say, 365
+    // days would trash the user's own year-old Sent mail right alongside
+    // old received mail — something neither the UI's copy ("all inbox
+    // including archived") nor its DESTRUCTIVE-ACTION confirmation dialog
+    // ever discloses, and squarely the kind of silent, undisclosed data loss
+    // this project's own safety rules (§9) exist to rule out. Excluding both
+    // restores the documented guarantee without narrowing what Global Purge
+    // is meant to reach: mail the user received, inbox or archived.
+    return `older_than:${rule.days}d ${star} -in:trash -in:spam -in:sent -in:drafts`;
   }
   if (rule.isInboxPurge) {
     // FIX 13 (BUG-C4): Removed redundant -in:trash — in:inbox already excludes trash.

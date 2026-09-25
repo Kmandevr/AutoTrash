@@ -227,6 +227,48 @@ function test_abortRun_withRunId_lockContention_doesNotRunUnlocked() {
   });
 }
 
+// FIX 52: abortRun(..., runId)'s `finish()` only bailed when the SAME run
+// (`mine`) had already moved off 'running' — guarding a double-abort of one
+// run (two dashboards both noticing staleness at once). It did not bail when
+// RUN_STATE had moved on to a DIFFERENT run entirely: this runId's own run
+// already finished through its normal path, and a brand-new run has since
+// started and overwritten RUN_STATE. A late stale-abort call for the OLD
+// runId (requestAbort()'s staleness branch, queued behind withRunLock's
+// up-to-60s wait) fell through anyway, using its own cached detail/stats to
+// re-send an abort email and re-run accumulateDailyStats() for a run that
+// was not this call's job to finalize a second time — silently double-
+// counting that run's numbers into DAILY_STATS/the digest. Reproduced here
+// by finishing run A normally, starting run B in its place, then firing a
+// stale abortRun() for run A's id.
+function test_abortRun_withRunId_staleForSupersededRun_doesNotDoubleAccumulate() {
+  const spy = installGmailSpy([]); // no matches — the rule ejects on the first burst
+  try {
+    withRunProps(props => {
+      props.deleteProperty('DAILY_STATS');
+      const payloadA = startTestLiveRun([{ label: 'A', days: 30, isTrash: true }]);
+      const res = processLiveBurst(payloadA);
+      assertEqual(res.done, true, 'run A should finish in one burst (1 rule, 0 matches, ejects immediately)');
+      const dAfterA = JSON.parse(props.getProperty('DAILY_STATS'));
+      assertEqual(dAfterA.runs, 1, 'run A must have accumulated exactly once');
+      const emailsAfterA = spy.calls.emails.length;
+
+      const startB = startLiveRun({ driverId: 'tabB', left: 1, queue: ['B'] });
+      assert(startB.ok, 'run B should be able to start now that run A finished');
+
+      // Stale abort call for the OLD run A id, arriving late (e.g. from
+      // requestAbort()'s staleness path queued behind a slow lock).
+      abortRun({ totalMoved: 999, totalTrashed: 999, totalArchived: 0, labels: {}, errors: [] }, 1000, false, payloadA.runId);
+
+      const dAfter = JSON.parse(props.getProperty('DAILY_STATS'));
+      assertEqual(dAfter.runs, 1, 'a stale abort for a SUPERSEDED run must not double-accumulate into DAILY_STATS');
+      assertEqual(spy.calls.emails.length, emailsAfterA, 'a stale abort for a superseded run must not send a second abort email');
+      const st = getRunStatus(-1, null);
+      assertEqual(st.run.id, startB.runId, 'run B must remain the tracked run');
+      assertEqual(st.run.status, 'running', 'run B must be untouched by the stale abort for run A');
+    });
+  } finally { spy.restore(); }
+}
+
 function test_requestAbort_staleLiveRun_isFinalizedImmediately() {
   withRunProps(props => {
     const payload = startTestLiveRun([{ label: 'A', days: 30, isTrash: true }]);
@@ -354,6 +396,7 @@ const RUNSTATE_TESTS = [
   test_abortRun_withRunId_marksAbortedAndIsIdempotent,
   test_abortRun_withRunId_usesFullerServerStats,
   test_abortRun_withRunId_lockContention_doesNotRunUnlocked,
+  test_abortRun_withRunId_staleForSupersededRun_doesNotDoubleAccumulate,
   test_requestAbort_staleLiveRun_isFinalizedImmediately,
   test_requestAbort_wrongRunId_isRejected,
   test_backgroundRun_registersRunVisibleToDashboards,
@@ -363,3 +406,4 @@ const RUNSTATE_TESTS = [
   test_getRunStatus_noRun_returnsNullRun,
   test_getRunStatus_corruptState_readsAsNoRun
 ];
+

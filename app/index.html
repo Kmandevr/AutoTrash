@@ -1698,14 +1698,29 @@ function animStat(id, n) {
 }
 
 // ── PROGRESS BARS ─────────────────────────────────────────────
+// Issue #81: bar DOM ids used to be cid(lbl) — every char outside
+// [a-zA-Z0-9_-] replaced with '_'. Two different labels that agree after
+// that stripping (e.g. "Old/Receipts" and "Old Receipts" both become
+// "Old_Receipts") produced the SAME id, so their <div id="lr-..."> rows
+// collided: getElementById() only ever finds the first one, and the
+// second rule's progress silently overwrote the first's bar instead of
+// getting its own. barIds fixes this by keying each bar off the rule's
+// position in the queue renderBars() was just given — always unique
+// within one run — and remembering which id belongs to which label so
+// updateBars() (called repeatedly afterward with server stats keyed by
+// label text) can look the right element back up.
+let barIds = new Map();
+
 function renderBars(queue) {
   const prog = document.getElementById('prog');
   const bars = document.getElementById('pbars');
   if (!queue.length) { prog.style.display = 'none'; return; }
   prog.style.display = 'block';
-  bars.innerHTML = queue.map(r => {
+  barIds = new Map();
+  bars.innerHTML = queue.map((r, i) => {
     const lbl = r.label || (r.category ? r.category.toUpperCase() : '?');
-    const id  = cid(lbl);
+    const id  = 'b' + i;
+    barIds.set(lbl, id);
     return `<div class="lp" id="lr-${id}">
       <div class="lp-hd"><span class="lp-nm" id="ln-${id}">${esc(lbl)}</span><span class="lp-ct" id="lc-${id}">waiting…</span></div>
       <div class="lp-trk"><div class="lp-bar" id="lb-${id}"></div></div>
@@ -1716,7 +1731,11 @@ function renderBars(queue) {
 function updateBars(stats) {
   // FIX: update label-based rule bars
   Object.entries(stats.labels || {}).forEach(([lbl, v]) => {
-    const id  = cid(lbl);
+    // barIds.get(lbl) is the normal path (see #81 note above); cid(lbl)
+    // is only a fallback in case a label somehow isn't in the map, which
+    // shouldn't happen since every stats.labels key comes from a rule
+    // that was in the queue renderBars() just rendered.
+    const id  = barIds.get(lbl) || cid(lbl);
     const ct  = document.getElementById('lc-' + id);
     const bar = document.getElementById('lb-' + id);
     if (ct)  ct.textContent = fmt(v.moved||0) + ' actioned';
@@ -1743,7 +1762,7 @@ function updateBars(stats) {
   };
   Object.entries(purgeMap).forEach(([lbl, p]) => {
     if (!p.moved && !p.done) return;
-    const id  = cid(lbl);
+    const id  = barIds.get(lbl) || cid(lbl);
     const ct  = document.getElementById('lc-' + id);
     const bar = document.getElementById('lb-' + id);
     const nm  = document.getElementById('ln-' + id);

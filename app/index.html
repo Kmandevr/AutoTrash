@@ -16,19 +16,50 @@
      renders nothing when everything is healthy. */
   (function () {
     var errs = [];
+    // Shown only when something actually went wrong. Plain-language summary
+    // up top; raw error text + browser string tucked into "Technical
+    // details" (still one tap away for a screenshot or bug report).
+    var notReady = false;
     function show(msg) {
+      if (/never finished loading/.test(msg)) notReady = true;
       errs.push(msg); if (errs.length > 8) errs.shift();
       var b = document.getElementById('bootdiag');
       if (!b) {
         b = document.createElement('div');
         b.id = 'bootdiag';
-        b.setAttribute('style', 'position:fixed;left:8px;right:8px;top:8px;z-index:2147483647;' +
-          'background:#2a0508;color:#ffd6da;border:1px solid #ff4455;border-radius:4px;' +
-          'font:12px/1.45 monospace;padding:9px 11px;white-space:pre-wrap;word-break:break-word;' +
-          'max-height:50vh;overflow:auto');
+        b.setAttribute('role', 'alert');
+        b.setAttribute('style', 'position:fixed;left:12px;right:12px;top:12px;z-index:2147483647;max-width:560px;margin:0 auto;' +
+          'background:#16181d;color:#e8eaed;border:1px solid #3a3f4b;border-left:4px solid #e5484d;border-radius:8px;' +
+          'box-shadow:0 8px 28px rgba(0,0,0,.45);font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;' +
+          'padding:14px 16px;max-height:70vh;overflow:auto');
+        b.innerHTML =
+          '<div style="font-weight:600;font-size:15px;margin-bottom:4px" id="bootdiag-t"></div>' +
+          '<div style="color:#b8bcc4" id="bootdiag-m"></div>' +
+          '<div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">' +
+            '<button type="button" id="bootdiag-reload" style="min-height:40px;padding:0 16px;border-radius:6px;border:0;background:#e5484d;color:#fff;font:inherit;font-weight:600;cursor:pointer">Reload</button>' +
+            '<button type="button" id="bootdiag-copy" style="min-height:40px;padding:0 16px;border-radius:6px;border:1px solid #3a3f4b;background:transparent;color:#e8eaed;font:inherit;cursor:pointer">Copy details</button>' +
+            '<button type="button" id="bootdiag-x" aria-label="Dismiss" style="min-height:40px;padding:0 14px;margin-left:auto;border-radius:6px;border:0;background:transparent;color:#8a8f98;font:inherit;cursor:pointer">Dismiss</button>' +
+          '</div>' +
+          '<details style="margin-top:10px"><summary style="cursor:pointer;color:#8a8f98;font-size:13px">Technical details</summary>' +
+          '<pre id="bootdiag-d" style="margin:8px 0 0;padding:8px 10px;background:#0d0e11;border-radius:6px;color:#c9ccd2;' +
+          'font:12px/1.45 ui-monospace,Menlo,Consolas,monospace;white-space:pre-wrap;word-break:break-word"></pre></details>';
         (document.body || document.documentElement).appendChild(b);
+        document.getElementById('bootdiag-reload').onclick = function () { location.reload(); };
+        document.getElementById('bootdiag-x').onclick = function () { b.style.display = 'none'; };
+        document.getElementById('bootdiag-copy').onclick = function () {
+          var t = document.getElementById('bootdiag-d').textContent, btn = this;
+          var done = function () { btn.textContent = 'Copied'; setTimeout(function () { btn.textContent = 'Copy details'; }, 1500); };
+          try { navigator.clipboard.writeText(t).then(done, function () {}); } catch (e) {}
+        };
       }
-      b.textContent = '⚠ AutoTrash UI error — screenshot this:\n' + errs.join('\n');
+      b.style.display = '';
+      document.getElementById('bootdiag-t').textContent = notReady
+        ? 'AutoTrash didn\u2019t finish loading'
+        : 'Something went wrong';
+      document.getElementById('bootdiag-m').textContent = notReady
+        ? 'The dashboard couldn\u2019t start, so its controls won\u2019t respond. Reload the page to try again. If this keeps happening, copy the details below and include them in a bug report.'
+        : 'AutoTrash hit an unexpected error. If something isn\u2019t working, reload the page. If it keeps happening, copy the details below and include them in a bug report.';
+      document.getElementById('bootdiag-d').textContent = errs.join('\n') + '\n\n' + navigator.userAgent;
     }
     window.__autotrashShowError = show;
     window.addEventListener('error', function (e) {
@@ -42,7 +73,7 @@
     window.addEventListener('load', function () {
       setTimeout(function () {
         if (!window.__autotrashReady)
-          show('Main script never finished loading, so no button will work.\n' + navigator.userAgent);
+          show('Main script never finished loading.');
       }, 4000);
     });
 
@@ -2213,17 +2244,27 @@ function renderSummary(o) {
   const d = document.createElement('div');
   d.className = 'sum' + (dry ? ' dry' : '') + (errs ? ' err' : '');
   d.setAttribute('role', 'status');
+  // Built with plain string concatenation on purpose (2026-09-25): the
+  // template-literal version of this block (nested backticks, quoted and
+  // non-ASCII strings inside interpolations) arrived mangled on the live Apps Script
+  // page, so the whole main script failed to parse ("Unexpected token
+  // 'class'") and every button reported "not defined". Keep it plain.
+  const TICK = '\u2713', DASH = '\u2013';
   d.innerHTML =
-    `<div class="sum-hd">AUTOTRASH // <b>${dry ? 'DRY RUN' : 'RUN'}${shortId ? ' #' + esc(shortId) : ''}</b></div>` +
-    rows.map((r, i) => {
+    '<div class="sum-hd">AUTOTRASH // <b>' + (dry ? 'DRY RUN' : 'RUN') + (shortId ? ' #' + esc(shortId) : '') + '</b></div>' +
+    rows.map(function (r, i) {
       const isNum = typeof r[1] === 'number';
       const na = r[0] === 'Gmail searches' && !r[1];
-      return `<div class="sum-ln" style="animation-delay:${80 + i * 45}ms"><span class="ck${na ? ' na' : ''}">${na ? '–' : '✓'}</span>` +
-             `<span class="k">${esc(r[0])}</span><span class="v"${isNum ? ` data-to="${r[1]}"` : ''}>${isNum ? '0' : esc(r[1])}</span></div>`;
+      return '<div class="sum-ln" style="animation-delay:' + (80 + i * 45) + 'ms">' +
+             '<span class="ck' + (na ? ' na' : '') + '">' + (na ? DASH : TICK) + '</span>' +
+             '<span class="k">' + esc(r[0]) + '</span>' +
+             '<span class="v"' + (isNum ? ' data-to="' + r[1] + '"' : '') + '>' + (isNum ? '0' : esc(r[1])) + '</span></div>';
     }).join('') +
-    `<div class="sum-rule"></div>` +
-    `<div class="sum-big"><span data-to="${s.totalMoved || 0}">0</span> ${dry ? 'threads matched · nothing moved' : 'threads handled'}</div>` +
-    `<div class="sum-meta"><b class="${errs ? 'bad' : ''}">${errs}</b> error${errs === 1 ? '' : 's'} · <b>${esc(o.secs)}s</b></div>`;
+    '<div class="sum-rule"></div>' +
+    '<div class="sum-big"><span data-to="' + (s.totalMoved || 0) + '">0</span> ' +
+      (dry ? 'threads matched \u00b7 nothing moved' : 'threads handled') + '</div>' +
+    '<div class="sum-meta"><b class="' + (errs ? 'bad' : '') + '">' + errs + '</b> error' + (errs === 1 ? '' : 's') +
+      ' \u00b7 <b>' + esc(o.secs) + 's</b></div>';
   const term = document.getElementById('term');
   term.appendChild(d);
   term.scrollTop = term.scrollHeight;

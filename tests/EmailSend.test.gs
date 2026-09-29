@@ -204,6 +204,75 @@ function test_sendErrorEmail_dryRun_statBoxesShowProjectedCountsNotZero() {
   } finally { spy.restore(); }
 }
 
+// ── maybeSendRunEmail (SUMMARY_FREQ gate for a normal run completion) ──────
+// maybeSendRunEmail() itself had zero direct tests — every existing test
+// above calls sendRunEmail() straight, skipping the frequency/error gate
+// that decides whether a normal completion (finalizeAndEmail(), or
+// backgroundRun()'s own end-of-cycle call — see docs/feature-reference.txt
+// §6) sends anything at all. §6 documents this precisely: an error-free run
+// sends immediately only when SUMMARY_FREQ is literally EACH_RUN (every
+// other frequency defers to the next scheduled digest); a run WITH errors
+// sends an immediate "(with errors)" email regardless of frequency, EXCEPT
+// NEVER, which suppresses everything, errors included. Added 2026-09-29.
+function test_maybeSendRunEmail_eachRun_noErrors_sendsPlainCompletionEmail() {
+  const spy = installGmailSpy([]);
+  try {
+    withSavedProps(['SUMMARY_FREQ'], props => {
+      props.setProperty('SUMMARY_FREQ', 'EACH_RUN');
+      maybeSendRunEmail({ totalMoved: 4, totalTrashed: 4, totalArchived: 0, errors: [] }, 1200, 'Live Run Complete', false);
+    });
+    assertEqual(spy.calls.emails.length, 1, 'EACH_RUN with no errors must send one completion email');
+    assert(spy.calls.emails[0].body.indexOf('Live Run Complete') > -1 && spy.calls.emails[0].body.indexOf('with errors') === -1,
+      'an error-free EACH_RUN email must not carry the "(with errors)" suffix: ' + spy.calls.emails[0].body);
+  } finally { spy.restore(); }
+}
+function test_maybeSendRunEmail_eachRun_withErrors_appendsWithErrorsSuffix() {
+  const spy = installGmailSpy([]);
+  try {
+    withSavedProps(['SUMMARY_FREQ'], props => {
+      props.setProperty('SUMMARY_FREQ', 'EACH_RUN');
+      maybeSendRunEmail({ totalMoved: 4, totalTrashed: 4, totalArchived: 0, errors: [{ label: 'X', error: 'boom' }] }, 1200, 'Live Run Complete', false);
+    });
+    assertEqual(spy.calls.emails.length, 1);
+    assert(spy.calls.emails[0].body.indexOf('Live Run Complete (with errors)') > -1,
+      'a run with errors must append " (with errors)" to the status line: ' + spy.calls.emails[0].body);
+  } finally { spy.restore(); }
+}
+function test_maybeSendRunEmail_digestFrequency_noErrors_sendsNothingImmediately() {
+  const spy = installGmailSpy([]);
+  try {
+    withSavedProps(['SUMMARY_FREQ'], props => {
+      props.setProperty('SUMMARY_FREQ', 'DAILY');
+      maybeSendRunEmail({ totalMoved: 4, totalTrashed: 4, totalArchived: 0, errors: [] }, 1200, 'Live Run Complete', false);
+    });
+    assertEqual(spy.calls.emails.length, 0,
+      'an error-free run under a digest frequency (DAILY) must defer to the next digest, not email immediately');
+  } finally { spy.restore(); }
+}
+function test_maybeSendRunEmail_digestFrequency_withErrors_stillSendsImmediateErrorEmail() {
+  const spy = installGmailSpy([]);
+  try {
+    withSavedProps(['SUMMARY_FREQ'], props => {
+      props.setProperty('SUMMARY_FREQ', 'WEEKLY');
+      maybeSendRunEmail({ totalMoved: 4, totalTrashed: 4, totalArchived: 0, errors: [{ label: 'X', error: 'boom' }] }, 1200, 'Live Run Complete', false);
+    });
+    assertEqual(spy.calls.emails.length, 1,
+      'errors must bypass a digest frequency (WEEKLY) and send an immediate alert per docs/feature-reference.txt §6');
+    assert(spy.calls.emails[0].body.indexOf('with errors') > -1, 'the bypass email must still be tagged "(with errors)"');
+  } finally { spy.restore(); }
+}
+function test_maybeSendRunEmail_never_withErrors_sendsNothingAtAll() {
+  const spy = installGmailSpy([]);
+  try {
+    withSavedProps(['SUMMARY_FREQ'], props => {
+      props.setProperty('SUMMARY_FREQ', 'NEVER');
+      maybeSendRunEmail({ totalMoved: 4, totalTrashed: 4, totalArchived: 0, errors: [{ label: 'X', error: 'boom' }] }, 1200, 'Live Run Complete', false);
+    });
+    assertEqual(spy.calls.emails.length, 0,
+      'NEVER must suppress every email, including error alerts — it is the one frequency errors do not bypass');
+  } finally { spy.restore(); }
+}
+
 const EMAILSEND_TESTS = [
   test_sendReportEmail_rendersHtmlAndPlainBodiesAndMails,
   test_subject_dryRun_saysWouldBeActioned_notActioned,
@@ -220,5 +289,11 @@ const EMAILSEND_TESTS = [
 
   test_sendErrorEmail_liveSource_footerTellsUserToReRun,
   test_sendErrorEmail_backgroundSource_footerSaysWillRetryAutomatically,
-  test_sendErrorEmail_dryRun_statBoxesShowProjectedCountsNotZero
+  test_sendErrorEmail_dryRun_statBoxesShowProjectedCountsNotZero,
+
+  test_maybeSendRunEmail_eachRun_noErrors_sendsPlainCompletionEmail,
+  test_maybeSendRunEmail_eachRun_withErrors_appendsWithErrorsSuffix,
+  test_maybeSendRunEmail_digestFrequency_noErrors_sendsNothingImmediately,
+  test_maybeSendRunEmail_digestFrequency_withErrors_stillSendsImmediateErrorEmail,
+  test_maybeSendRunEmail_never_withErrors_sendsNothingAtAll
 ];

@@ -150,7 +150,16 @@ tests/RunAll.gs
   already executed, in the Apps Script editor or the Node harness
   alike, regardless of file order either runtime happens to pick.
 
-  Current total: 183 tests, as of a 2026-09-25 batch that added
+  Current total: 188 tests, as of a 2026-09-29 batch that added
+  tests/Utils.test.gs coverage for safeMail() — its own FIX 48 (BUG-C25)
+  comment calls it "the last line of defense for every email this
+  project sends," but until now nothing exercised its try/catch
+  directly. 2 tests cover the happy path (htmlBody passed through,
+  plain body falling back to subj when omitted); 3 cover the catch
+  block swallowing a real Error, a thrown `null`, and a thrown bare
+  string without crashing safeMail itself. Changed no app/ behavior.
+
+  Prior total: 183 tests, as of a 2026-09-25 batch that added
   installCacheSpy() (TestFramework.gs) plus 3 tests/RunState.test.gs
   proving runCache()'s try/catch around CacheService.getUserCache()
   actually degrades to null/false (cacheGetJson/cachePutJson) and lets

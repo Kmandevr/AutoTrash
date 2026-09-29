@@ -21,6 +21,13 @@
  *   RUN_DETAIL_<id>  (UserCache) — log tail, full stats, rule list for the
  *                 progress bars. Too big for a property; losing it to cache
  *                 eviction only blanks a viewer's log, never the run itself.
+ *                 A WRITE that doesn't fit (e.g. stats.labels grown large
+ *                 over a long run/many rules) is a different case from
+ *                 eviction — see saveRunDetail() below, which slims the
+ *                 blob down instead of silently dropping the whole update
+ *                 (found 2026-09-29: a dropped write could leave every
+ *                 viewer's tiles frozen at a stale, sometimes all-zero,
+ *                 snapshot indefinitely).
  *   RUN_PAYLOAD_<id> (UserCache) — the live run's full burst payload after
  *                 each burst, so another device can resume a run whose
  *                 driving tab went away (see claimRun()).
@@ -40,6 +47,7 @@ const RUN_PAYLOAD_PREFIX = 'RUN_PAYLOAD_';
 const RUN_CACHE_TTL_S   = 21600;   // 6 h — CacheService's maximum
 const RUN_CACHE_MAX     = 95000;   // stay under CacheService's 100 KB/value cap
 const RUN_LOG_MAX       = 150;     // log lines kept for viewers
+const RUN_LOG_SLIM      = 30;      // log lines kept when the full detail blob didn't fit (see saveRunDetail)
 // A run whose heartbeat is older than this is treated as gone (the driving
 // tab closed / phone locked, or a background execution was killed by Apps
 // Script's own time limit before it could mark itself finished). A single
@@ -130,7 +138,7 @@ function beginRun(opts) {
   const detail = { log: [], stats: opts.stats || null, queue: opts.queue || [] };
   appendRunLog(s, detail, opts.log || []);
   writeRunState(s);
-  cachePutJson(RUN_DETAIL_PREFIX + s.id, detail);
+  saveRunDetail(RUN_DETAIL_PREFIX + s.id, detail);
   return s;
 }
 
@@ -157,7 +165,7 @@ function recordRunProgress(runId, upd) {
   if (upd.left !== undefined)    s.left = upd.left;
   s.updatedAt = Date.now();
   writeRunState(s);
-  cachePutJson(RUN_DETAIL_PREFIX + runId, detail);
+  saveRunDetail(RUN_DETAIL_PREFIX + runId, detail);
   if (upd.payload) saveRunPayload(runId, upd.payload);
   return s;
 }
@@ -175,7 +183,7 @@ function endRun(runId, status, msg, stats) {
   s.updatedAt = s.endedAt;
   s.left    = status === 'done' ? 0 : s.left;
   writeRunState(s);
-  cachePutJson(RUN_DETAIL_PREFIX + runId, detail);
+  saveRunDetail(RUN_DETAIL_PREFIX + runId, detail);
   if (getProps().getProperty(RUN_ABORT_KEY) === runId) getProps().deleteProperty(RUN_ABORT_KEY);
   const c = runCache();
   if (c) { try { c.remove(RUN_PAYLOAD_PREFIX + runId); } catch (e) {} }
@@ -190,6 +198,37 @@ function saveRunPayload(runId, payload) {
   if (cachePutJson(RUN_PAYLOAD_PREFIX + runId, payload)) return true;
   const slim = Object.assign({}, payload, { seenIds: [], seenIdsDropped: true });
   return cachePutJson(RUN_PAYLOAD_PREFIX + runId, slim);
+}
+
+// Saves the run's detail blob (log/stats/queue), degrading gracefully when
+// it doesn't fit in one cache value — the same shape of fix saveRunPayload()
+// already has for seenIds, applied to RUN_DETAIL_<id>'s own growth path:
+// stats.labels gets one entry per distinct label/purge a run has touched, so
+// a long-running or many-rule session can grow it past RUN_CACHE_MAX the
+// same way a long run's seenIds can. Before this, beginRun()/recordRunProgress()/
+// endRun() called cachePutJson() directly and ignored its return value, so an
+// oversized write silently dropped the ENTIRE update — log lines, stats and
+// queue all failed to land, leaving the cache holding whatever it had before
+// (often beginRun()'s original all-zero skeleton) with no indication to any
+// viewer that a real update was lost. Found 2026-09-29 — see
+// claude/autotrash-findings/action-tiles-reset-after-reload-20260929.md.
+//
+// The slimmed version drops the (usually largest, and least essential to a
+// live viewer) per-label breakdown and trims the log further, but keeps every
+// top-line total (totalMoved/totalTrashed/totalArchived/dryTrashed/
+// dryArchived/globalPurge*/inboxPurge*/errors) — exactly what the UI's own
+// tiles (sv0/sv1/sv2) read — so a reload during an oversized run still shows
+// the run's real, current progress instead of a stale or zeroed snapshot.
+function saveRunDetail(key, detail) {
+  if (cachePutJson(key, detail)) return true;
+  const slimStats = detail.stats
+    ? Object.assign({}, detail.stats, { labels: {}, labelsDropped: true })
+    : detail.stats;
+  const slim = Object.assign({}, detail, {
+    stats: slimStats,
+    log: (detail.log || []).slice(-RUN_LOG_SLIM)
+  });
+  return cachePutJson(key, slim);
 }
 
 // Public shape handed to the browser.
@@ -299,7 +338,7 @@ function claimRun(runId, driverId) {
       : 'Run resumed on another device.') +
       (payload.seenIdsDropped ? ' (dedup list was too large to carry over — starting it fresh)' : '') }]);
     writeRunState(s);
-    cachePutJson(RUN_DETAIL_PREFIX + runId, detail);
+    saveRunDetail(RUN_DETAIL_PREFIX + runId, detail);
     payload.runId = runId;
     payload.driverId = driverId;
     return { ok: true, payload: payload, run: runView(s), queue: detail.queue || [] };

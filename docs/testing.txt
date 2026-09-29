@@ -150,7 +150,26 @@ tests/RunAll.gs
   already executed, in the Apps Script editor or the Node harness
   alike, regardless of file order either runtime happens to pick.
 
-  Current total: 195 tests, as of a 2026-09-29 batch that added
+  Current total: 197 tests, as of a 2026-09-29 fix to the RUN_DETAIL_<id>
+  cache-overflow bug: beginRun()/recordRunProgress()/endRun()/claimRun()
+  called cachePutJson() on the run's detail blob directly and ignored its
+  return value, so once stats.labels grew large enough to push the blob
+  past RUN_CACHE_MAX, the ENTIRE update silently failed to save — a
+  reloading viewer's tiles could get stuck on a stale, sometimes
+  all-zero, snapshot indefinitely (the "action tiles reset to 0 after
+  reload" harness finding from 2026-09-25, root-caused and fixed
+  2026-09-29 — see claude/autotrash-findings/action-tiles-reset-after-
+  reload-20260929.md). New saveRunDetail() helper (app/RunState.gs)
+  degrades gracefully instead — drops the per-label breakdown, trims the
+  log further, keeps every top-line total the UI tiles actually read —
+  the same shape saveRunPayload() already has for an oversized seenIds
+  list. +2 tests/RunState.test.gs: a direct unit test of saveRunDetail(),
+  and an end-to-end test proving a reloading viewer sees the run's real
+  current totals instead of the stale skeleton. Both proven to fail
+  against pre-fix code and pass after the fix. See docs/feature-
+  reference.txt §2e.
+
+  Prior total: 195 tests, as of a 2026-09-29 batch that added
   tests/EmailSend.test.gs coverage for maybeSendRunEmail() — the
   SUMMARY_FREQ/error gate documented in §6 that decides whether a normal
   run completion (finalizeAndEmail(), or backgroundRun()'s end-of-cycle

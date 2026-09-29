@@ -250,7 +250,16 @@ reviewing the backend (app/*.gs) or index.html.
     RUN_ABORT (UserProperties) — id of the run an abort was requested for.
       Separate key so an abort can't be lost to a concurrent RUN_STATE write.
     RUN_DETAIL_<id> (UserCache, 6h) — last 150 log lines, full stats, rule
-      list for progress bars.
+      list for progress bars. If the blob would exceed the 100 KB cache cap
+      (e.g. stats.labels grown large over a long run touching many distinct
+      labels/purges), it is saved slimmed instead: stats.labels is dropped
+      (labelsDropped: true) and the log is trimmed to the last 30 lines, but
+      every top-line stat (totalMoved/totalTrashed/totalArchived/dryTrashed/
+      dryArchived/globalPurge*/inboxPurge*/errors) is kept — exactly what a
+      reloading viewer's tiles read — so a viewer sees the run's real current
+      progress rather than a stale or all-zero snapshot. (FIX: 2026-09-29 —
+      before this, an oversized write silently dropped the WHOLE update; see
+      claude/autotrash-findings/action-tiles-reset-after-reload-20260929.md.)
     RUN_PAYLOAD_<id> (UserCache, 6h) — the live run's latest burst payload,
       for resuming. If it would exceed the 100 KB cache cap, it is saved
       without seenIds (a resume then starts a fresh dedup set — see §2d;

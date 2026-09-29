@@ -281,9 +281,22 @@ function claimRun(runId, driverId) {
     const payload = cacheGetJson(RUN_PAYLOAD_PREFIX + runId);
     if (!payload) return { ok: false, reason: 'Run state expired — abort it and start a new run.' };
     const detail = cacheGetJson(RUN_DETAIL_PREFIX + runId) || { log: [], stats: null, queue: [] };
+    // Issue filed by the 2026-09-26 code reviewer (REVIEW: claimRun()'s "Run
+    // resumed on another device" log line still fires on a same-device
+    // self-resume): #100's fix taught the CLIENT (renderWatched() in
+    // index.html) to tell a same-device reconnect apart from a genuine
+    // cross-device take-over, but claimRun() itself — the one place that
+    // writes to the persisted run log every viewer reads — kept logging
+    // "another device" unconditionally. doResume() calls claimRun() for
+    // both cases (a real hand-off AND a tab resuming its own abandoned run
+    // after a connection drop), and s.driverId still holds the PREVIOUS
+    // driver here, so compare it before overwriting to log the right thing.
+    const sameDevice = s.driverId === driverId;
     s.driverId = driverId;
     s.updatedAt = Date.now();
-    appendRunLog(s, detail, [{ level: 'INFO', msg: 'Run resumed on another device.' +
+    appendRunLog(s, detail, [{ level: 'INFO', msg: (sameDevice
+      ? 'Run resumed on this device after a connection error.'
+      : 'Run resumed on another device.') +
       (payload.seenIdsDropped ? ' (dedup list was too large to carry over — starting it fresh)' : '') }]);
     writeRunState(s);
     cachePutJson(RUN_DETAIL_PREFIX + runId, detail);

@@ -132,6 +132,45 @@ function test_claimRun_returnsLatestServerPayload() {
   } finally { spy.restore(); }
 }
 
+// REVIEW (2026-09-26): claimRun() unconditionally logged "Run resumed on
+// another device." even when doResume() was called by the SAME tab
+// resuming its own abandoned run after a connection error — the server-side
+// twin of the bug #100 already fixed client-side (renderWatched() comparing
+// driverId). Anyone reading the run log (a second watching tab, or this
+// same tab once it reloads and becomes a plain viewer again) would see
+// "another device" for a run only one device ever drove.
+function test_claimRun_sameDeviceResume_logsAsThisDeviceNotAnotherDevice() {
+  const spy = installGmailSpy([makeFakeThread('r1')]);
+  try {
+    withRunProps(() => {
+      const payload = startTestLiveRun([{ label: 'A', days: 30, isTrash: true }]);
+      processLiveBurst(payload);          // 'tabA' is the driver so far
+      const claim = claimRun(payload.runId, 'tabA');   // same tab, e.g. "Resume Here"
+      assert(claim.ok, 'a tab must be able to resume its own abandoned run');
+      const log = getRunStatus(-1, null).log.map(e => e.msg);
+      assert(log.some(m => m === 'Run resumed on this device after a connection error.'),
+        'a same-device resume must not be logged as another device: ' + JSON.stringify(log));
+      assert(!log.some(m => m.indexOf('Run resumed on another device.') === 0),
+        'a same-device resume must not contain the cross-device wording: ' + JSON.stringify(log));
+    });
+  } finally { spy.restore(); }
+}
+
+function test_claimRun_crossDeviceResume_stillLogsAnotherDevice() {
+  const spy = installGmailSpy([makeFakeThread('r2')]);
+  try {
+    withRunProps(() => {
+      const payload = startTestLiveRun([{ label: 'A', days: 30, isTrash: true }]);
+      processLiveBurst(payload);          // 'tabA' is the driver so far
+      const claim = claimRun(payload.runId, 'phoneB');   // a genuinely different device
+      assert(claim.ok, 'another device must still be able to take over a live run');
+      const log = getRunStatus(-1, null).log.map(e => e.msg);
+      assert(log.some(m => m.indexOf('Run resumed on another device.') === 0),
+        'a real cross-device take-over must keep saying so: ' + JSON.stringify(log));
+    });
+  } finally { spy.restore(); }
+}
+
 function test_claimRun_refusesBackgroundRuns() {
   withRunProps(() => {
     beginRun({ source: 'background', left: 1, queue: ['A'] });
@@ -497,6 +536,8 @@ const RUNSTATE_TESTS = [
   test_processLiveBurst_registered_abortRequestStopsBeforeTouchingGmail,
   test_processLiveBurst_registered_supersededAfterTakeOver,
   test_claimRun_returnsLatestServerPayload,
+  test_claimRun_sameDeviceResume_logsAsThisDeviceNotAnotherDevice,
+  test_claimRun_crossDeviceResume_stillLogsAnotherDevice,
   test_claimRun_refusesBackgroundRuns,
   test_processLiveBurst_registered_finalizesServerSideWhenDone,
   test_processLiveBurst_withoutRunId_unchangedAndUnregistered,

@@ -132,6 +132,45 @@ function test_claimRun_returnsLatestServerPayload() {
   } finally { spy.restore(); }
 }
 
+// REVIEW (2026-09-26): claimRun() unconditionally logged "Run resumed on
+// another device." even when doResume() was called by the SAME tab
+// resuming its own abandoned run after a connection error — the server-side
+// twin of the bug #100 already fixed client-side (renderWatched() comparing
+// driverId). Anyone reading the run log (a second watching tab, or this
+// same tab once it reloads and becomes a plain viewer again) would see
+// "another device" for a run only one device ever drove.
+function test_claimRun_sameDeviceResume_logsAsThisDeviceNotAnotherDevice() {
+  const spy = installGmailSpy([makeFakeThread('r1')]);
+  try {
+    withRunProps(() => {
+      const payload = startTestLiveRun([{ label: 'A', days: 30, isTrash: true }]);
+      processLiveBurst(payload);          // 'tabA' is the driver so far
+      const claim = claimRun(payload.runId, 'tabA');   // same tab, e.g. "Resume Here"
+      assert(claim.ok, 'a tab must be able to resume its own abandoned run');
+      const log = getRunStatus(-1, null).log.map(e => e.msg);
+      assert(log.some(m => m === 'Run resumed on this device after a connection error.'),
+        'a same-device resume must not be logged as another device: ' + JSON.stringify(log));
+      assert(!log.some(m => m.indexOf('Run resumed on another device.') === 0),
+        'a same-device resume must not contain the cross-device wording: ' + JSON.stringify(log));
+    });
+  } finally { spy.restore(); }
+}
+
+function test_claimRun_crossDeviceResume_stillLogsAnotherDevice() {
+  const spy = installGmailSpy([makeFakeThread('r2')]);
+  try {
+    withRunProps(() => {
+      const payload = startTestLiveRun([{ label: 'A', days: 30, isTrash: true }]);
+      processLiveBurst(payload);          // 'tabA' is the driver so far
+      const claim = claimRun(payload.runId, 'phoneB');   // a genuinely different device
+      assert(claim.ok, 'another device must still be able to take over a live run');
+      const log = getRunStatus(-1, null).log.map(e => e.msg);
+      assert(log.some(m => m.indexOf('Run resumed on another device.') === 0),
+        'a real cross-device take-over must keep saying so: ' + JSON.stringify(log));
+    });
+  } finally { spy.restore(); }
+}
+
 function test_claimRun_refusesBackgroundRuns() {
   withRunProps(() => {
     beginRun({ source: 'background', left: 1, queue: ['A'] });
@@ -414,6 +453,67 @@ function test_abortRun_withRunId_cachedDetailEvicted_fallsBackToCallerStats() {
   });
 }
 
+// ── saveRunDetail resilience (RUN_DETAIL_<id> cache-size edge cases) ───────
+// Found 2026-09-29 (claude/autotrash-findings/action-tiles-reset-after-
+// reload-20260929.md): beginRun()/recordRunProgress()/endRun() used to call
+// cachePutJson() directly on the detail blob and ignore its return value, so
+// once stats.labels grew large enough to push the blob past RUN_CACHE_MAX,
+// the ENTIRE update (log + stats + queue) silently failed to save — a
+// reloading viewer's getRunStatus() kept returning whatever detail was
+// cached before (often beginRun()'s original all-zero stats skeleton), with
+// nothing telling anyone an update was lost. saveRunDetail() closes this the
+// same way saveRunPayload() already handles an oversized seenIds list: drop
+// what's droppable (here, the per-label breakdown) and keep what a viewer
+// actually needs (the top-line totals the on-screen tiles read).
+
+function bigLabelsStats() {
+  const s = freshStats();
+  for (let i = 0; i < 3000; i++) s.labels['label-' + i] = { moved: i, trashed: i, archived: 0, finished: false };
+  s.totalMoved = 4242; s.totalTrashed = 4242; s.totalArchived = 0;
+  return s;
+}
+
+function test_saveRunDetail_oversizedStats_dropsLabelsButKeepsTopLineTotals() {
+  const detail = { log: [{ seq: 1, ts: Date.now(), level: 'INFO', msg: 'hi' }], stats: bigLabelsStats(), queue: ['A'] };
+  // Sanity check on the fixture itself — if this doesn't actually exceed
+  // RUN_CACHE_MAX, the rest of the test proves nothing.
+  assert(JSON.stringify(detail).length > RUN_CACHE_MAX, 'test fixture must actually exceed the cache cap');
+
+  const ok = saveRunDetail('test-detail-key', detail);
+  assert(ok, 'saveRunDetail must still succeed by slimming rather than failing outright');
+
+  const saved = cacheGetJson('test-detail-key');
+  assert(saved, 'a slimmed detail blob must still be cached so a viewer sees something current');
+  assertEqual(saved.stats.labels, {}, 'labels must be dropped when the full blob will not fit in one cache value');
+  assertEqual(saved.stats.labelsDropped, true, 'the slim flag lets a future reader know per-label detail was sacrificed');
+  assertEqual(saved.stats.totalMoved, 4242, 'top-line totals — what the UI tiles actually read — must survive the slim-down');
+  assertEqual(saved.stats.totalTrashed, 4242, 'top-line totals — what the UI tiles actually read — must survive the slim-down');
+}
+
+// The actual user-visible bug: a run whose stats grew too large to cache in
+// full must NOT leave a reloading dashboard stuck on a stale/zeroed snapshot.
+function test_recordRunProgress_oversizedStats_viewerStillSeesCurrentTotals() {
+  withRunProps(() => {
+    const payload = startTestLiveRun([{ label: 'A', days: 30, isTrash: true }]);
+    // beginRun() cached the initial all-zero stats skeleton. Now a burst
+    // reports real progress, but with a stats.labels blob big enough that
+    // the old code would have silently failed to persist ANY of this.
+    const big = bigLabelsStats();
+    recordRunProgress(payload.runId, {
+      log: [{ level: 'INFO', msg: 'burst 1' }],
+      stats: big, rule: 'A', left: 0
+    });
+
+    const st = getRunStatus(-1, null);
+    assertEqual(st.stats.totalMoved, 4242,
+      'a reloading viewer must see the run\'s real current total, not the stale all-zero skeleton beginRun() cached first');
+    assertEqual(st.stats.totalTrashed, 4242,
+      'a reloading viewer must see the run\'s real current total, not the stale all-zero skeleton beginRun() cached first');
+    assert(st.log.some(e => e.msg === 'burst 1'),
+      'the log update must survive too, not just the stats — the old bug dropped the whole detail blob, not stats alone');
+  });
+}
+
 // ── CacheService unavailable (defensive fallback) ─────────────────────────
 // runCache() intentionally swallows a throwing CacheService.getUserCache()
 // so a cache-service outage degrades run tracking (an emptier log for
@@ -497,6 +597,8 @@ const RUNSTATE_TESTS = [
   test_processLiveBurst_registered_abortRequestStopsBeforeTouchingGmail,
   test_processLiveBurst_registered_supersededAfterTakeOver,
   test_claimRun_returnsLatestServerPayload,
+  test_claimRun_sameDeviceResume_logsAsThisDeviceNotAnotherDevice,
+  test_claimRun_crossDeviceResume_stillLogsAnotherDevice,
   test_claimRun_refusesBackgroundRuns,
   test_processLiveBurst_registered_finalizesServerSideWhenDone,
   test_processLiveBurst_withoutRunId_unchangedAndUnregistered,
@@ -508,6 +610,8 @@ const RUNSTATE_TESTS = [
   test_requestAbort_wrongRunId_isRejected,
   test_saveRunPayload_oversizedPayload_dropsSeenIdsButStaysResumable,
   test_claimRun_oversizedPayload_warnsDedupResetInLog,
+  test_saveRunDetail_oversizedStats_dropsLabelsButKeepsTopLineTotals,
+  test_recordRunProgress_oversizedStats_viewerStillSeesCurrentTotals,
   test_abortRun_withRunId_cachedDetailEvicted_fallsBackToCallerStats,
   test_cacheGetJson_returnsNullWhenCacheServiceThrows,
   test_cachePutJson_returnsFalseWhenCacheServiceThrows,

@@ -150,7 +150,55 @@ tests/RunAll.gs
   already executed, in the Apps Script editor or the Node harness
   alike, regardless of file order either runtime happens to pick.
 
-  Current total: 183 tests, as of a 2026-09-25 batch that added
+  Current total: 197 tests, as of a 2026-09-29 fix to the RUN_DETAIL_<id>
+  cache-overflow bug: beginRun()/recordRunProgress()/endRun()/claimRun()
+  called cachePutJson() on the run's detail blob directly and ignored its
+  return value, so once stats.labels grew large enough to push the blob
+  past RUN_CACHE_MAX, the ENTIRE update silently failed to save — a
+  reloading viewer's tiles could get stuck on a stale, sometimes
+  all-zero, snapshot indefinitely (the "action tiles reset to 0 after
+  reload" harness finding from 2026-09-25, root-caused and fixed
+  2026-09-29 — see claude/autotrash-findings/action-tiles-reset-after-
+  reload-20260929.md). New saveRunDetail() helper (app/RunState.gs)
+  degrades gracefully instead — drops the per-label breakdown, trims the
+  log further, keeps every top-line total the UI tiles actually read —
+  the same shape saveRunPayload() already has for an oversized seenIds
+  list. +2 tests/RunState.test.gs: a direct unit test of saveRunDetail(),
+  and an end-to-end test proving a reloading viewer sees the run's real
+  current totals instead of the stale skeleton. Both proven to fail
+  against pre-fix code and pass after the fix. See docs/feature-
+  reference.txt §2e.
+
+  Prior total: 195 tests, as of a 2026-09-29 batch that added
+  tests/EmailSend.test.gs coverage for maybeSendRunEmail() — the
+  SUMMARY_FREQ/error gate documented in §6 that decides whether a normal
+  run completion (finalizeAndEmail(), or backgroundRun()'s end-of-cycle
+  call) emails immediately at all, but until now had zero direct tests
+  (every existing test called sendRunEmail() straight, bypassing the
+  gate). 5 new tests: EACH_RUN with no errors sends a plain completion
+  email; EACH_RUN with errors appends " (with errors)"; a digest
+  frequency (DAILY) with no errors sends nothing immediately (defers to
+  the next digest); a digest frequency (WEEKLY) WITH errors still sends
+  an immediate bypass alert per §6; NEVER suppresses everything,
+  including errors. Changed no app/ behavior.
+
+  Prior total: 190 tests, as of a 2026-09-29 batch that added
+  tests/Utils.test.gs coverage for safeMail() — its own FIX 48 (BUG-C25)
+  comment calls it "the last line of defense for every email this
+  project sends," but until now nothing exercised its try/catch
+  directly. 2 tests cover the happy path (htmlBody passed through,
+  plain body falling back to subj when omitted); 3 cover the catch
+  block swallowing a real Error, a thrown `null`, and a thrown bare
+  string without crashing safeMail itself. Changed no app/ behavior.
+
+  Prior total: 185 tests, as of a 2026-09-29 fix to claimRun()'s
+  "Run resumed on another device" log line, which fired even for a tab
+  resuming its own abandoned run (the server-side twin of #100 — see
+  feature-reference.txt's claimRun() entry). +2 tests/RunState.test.gs
+  regression tests (same-device vs. cross-device resume wording).
+  Changed app/RunState.gs (log text only — no data-safety impact).
+
+  Prior total: 183 tests, as of a 2026-09-25 batch that added
   installCacheSpy() (TestFramework.gs) plus 3 tests/RunState.test.gs
   proving runCache()'s try/catch around CacheService.getUserCache()
   actually degrades to null/false (cacheGetJson/cachePutJson) and lets

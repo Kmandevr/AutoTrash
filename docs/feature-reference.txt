@@ -250,7 +250,16 @@ reviewing the backend (app/*.gs) or index.html.
     RUN_ABORT (UserProperties) — id of the run an abort was requested for.
       Separate key so an abort can't be lost to a concurrent RUN_STATE write.
     RUN_DETAIL_<id> (UserCache, 6h) — last 150 log lines, full stats, rule
-      list for progress bars.
+      list for progress bars. If the blob would exceed the 100 KB cache cap
+      (e.g. stats.labels grown large over a long run touching many distinct
+      labels/purges), it is saved slimmed instead: stats.labels is dropped
+      (labelsDropped: true) and the log is trimmed to the last 30 lines, but
+      every top-line stat (totalMoved/totalTrashed/totalArchived/dryTrashed/
+      dryArchived/globalPurge*/inboxPurge*/errors) is kept — exactly what a
+      reloading viewer's tiles read — so a viewer sees the run's real current
+      progress rather than a stale or all-zero snapshot. (FIX: 2026-09-29 —
+      before this, an oversized write silently dropped the WHOLE update; see
+      claude/autotrash-findings/action-tiles-reset-after-reload-20260929.md.)
     RUN_PAYLOAD_<id> (UserCache, 6h) — the live run's latest burst payload,
       for resuming. If it would exceed the 100 KB cache cap, it is saved
       without seenIds (a resume then starts a fresh dedup set — see §2d;
@@ -274,7 +283,15 @@ reviewing the backend (app/*.gs) or index.html.
       request finalizes it itself.
     claimRun(runId, driverId) — take over / resume a live run: waits for any
       in-flight burst (script lock), returns the latest saved payload, and
-      the old driver's next burst is answered superseded:true.
+      the old driver's next burst is answered superseded:true. Logs "Run
+      resumed on this device after a connection error." when driverId
+      matches the run's previous driver (a tab's own "Resume Here" after a
+      connection drop — see #100), and "Run resumed on another device."
+      only for a genuine hand-off to a different driverId (FIX: 2026-09-29,
+      the server-side twin of #100 — renderWatched() already made this same
+      distinction client-side, but the persisted run log every viewer reads
+      didn't; found by the 2026-09-26 code reviewer, filed as a REVIEW
+      issue that couldn't be pushed to GitHub — see AUTOTRASH_CLAUDE_NOTES).
     pauseBackgroundTrigger() — sets TRIGGER_MODE to OFF and re-syncs
       triggers (same path as Save Config), for "Abort + Pause Trigger".
 

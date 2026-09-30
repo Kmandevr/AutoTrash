@@ -688,6 +688,19 @@ reviewing the backend (app/*.gs) or index.html.
                   run). The run's ending banner shows on every watching
                   dashboard. The header's LAST RUN also refreshes from the
                   poll (S-N3).
+                  Boot / reload (2026-09-30 fix): the page no longer paints
+                  READY with Engage enabled the instant it loads — it boots
+                  into a neutral CHECKING… state with Engage disabled until
+                  this tab's FIRST getRunStatus() resolves (success OR
+                  failure — a network hiccup releases it too, rather than
+                  leaving Engage stuck disabled). Before this fix, a reload
+                  while a run was active elsewhere (a background trigger, or
+                  another device driving) would flash READY/Engage-enabled
+                  for one poll before switching to WATCHING — never a data
+                  risk, since startLiveRun()'s server-side mutex would have
+                  refused a second run anyway, but a confusing false "go
+                  ahead" on every reload. See exitCheckingState() in
+                  index.html.
   Connection loss : A driving tab whose burst RPC fails re-syncs from the
                   server's saved payload (claimRun with its own id) and
                   retries up to 3 times before stopping; the run then shows
@@ -759,9 +772,11 @@ reviewing the backend (app/*.gs) or index.html.
                     --dur-slow 320ms, --ease-standard/enter/exit; JS mirror
                     MOTION + motionOK()). prefers-reduced-motion zeroes them
                     and resolves every animation to its end state.
-                  - Status pill (setState) in the header: READY / STARTING /
-                    RUNNING / DRY RUN / WATCHING / PAUSED / ABORTING /
-                    COMPLETE / DRY COMPLETE / ABORTED / HALTED.
+                  - Status pill (setState) in the header: CHECKING… (boot
+                    only, before the first getRunStatus() resolves — see
+                    "Watching" above) / READY / STARTING / RUNNING / DRY RUN
+                    / WATCHING / PAUSED / ABORTING / COMPLETE / DRY COMPLETE
+                    / ABORTED / HALTED.
                   - Run pipeline under the terminal bar: RULES → SEARCH →
                     EVALUATE → EXECUTE → DONE. A stage lights only when the
                     server log reports it (SEARCH; RESULT/DRYRUN/clean-eject

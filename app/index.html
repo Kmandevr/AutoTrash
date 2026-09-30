@@ -1504,8 +1504,45 @@ function burst(payload) {
     .processLiveBurst(payload);
 }
 
+// Applies one processLiveBurst() response's stats to lastStats/runStats and
+// the on-screen tiles. Split out of handleRes() so the AT-BRK-004 fix below
+// can call it from the post-abort path too, instead of duplicating it.
+function applyBurstStats(res) {
+  if (!res || !res.payload?.stats) return;
+  const s = res.payload.stats;
+  // BUG-H13: keep a full-fidelity reference to the latest server stats
+  // object (labels/purge sub-counts/errors included) so an abort mid-run
+  // can report the same detail a normal completion does. See doAbort().
+  lastStats = s;
+  runStats.totalMoved    = s.totalMoved    || 0;
+  // Use dryTrashed/dryArchived during dry runs so counters show projected counts.
+  runStats.totalTrashed  = isDry ? (s.dryTrashed  || 0) : (s.totalTrashed  || 0);
+  runStats.totalArchived = isDry ? (s.dryArchived || 0) : (s.totalArchived || 0);
+  // BUG-H9 FIX: Also mirror raw dry fields into runStats so abortRun()
+  // server-side can read stats.dryTrashed directly (it doesn't re-read totalTrashed).
+  if (isDry) {
+    runStats.dryTrashed  = s.dryTrashed  || 0;
+    runStats.dryArchived = s.dryArchived || 0;
+  }
+  animStat('sv0', runStats.totalMoved);
+  animStat('sv1', runStats.totalTrashed);
+  animStat('sv2', runStats.totalArchived);
+  updateBars(s);
+}
+
 function handleRes(res) {
-  if (aborted) return;
+  // AT-BRK-004 FIX: a burst's processLiveBurst() RPC can still be in flight
+  // when Abort is tapped, so its response lands here AFTER `aborted` is
+  // already true. That burst's Gmail actions already happened server-side
+  // (the abort email and DAILY_STATS both reflect them correctly — see
+  // fullerStats() in Runner.gs) — the old code just never told the
+  // dashboard: `if (aborted) return;` bailed out before the stats block
+  // below ever ran, so the tiles stayed frozen at whatever they showed
+  // before the race (0/0/0 if this was the very first burst) even though
+  // real mail had moved. Apply this burst's real stats to the tiles first,
+  // then bail out — still refusing to start another burst or act on
+  // busy/superseded/abortRequested signals, since the run is already over.
+  if (aborted) { applyBurstStats(res); return; }
   rpcRetries = 0;
 
   // Registered-run control signals (see processLiveBurst() in Runner.gs).
@@ -1539,27 +1576,7 @@ function handleRes(res) {
     term.scrollTop = term.scrollHeight; // ONE scroll after all lines
   }
 
-  if (res.payload?.stats) {
-    const s = res.payload.stats;
-    // BUG-H13: keep a full-fidelity reference to the latest server stats
-    // object (labels/purge sub-counts/errors included) so an abort mid-run
-    // can report the same detail a normal completion does. See doAbort().
-    lastStats = s;
-    runStats.totalMoved    = s.totalMoved    || 0;
-    // Use dryTrashed/dryArchived during dry runs so counters show projected counts.
-    runStats.totalTrashed  = isDry ? (s.dryTrashed  || 0) : (s.totalTrashed  || 0);
-    runStats.totalArchived = isDry ? (s.dryArchived || 0) : (s.totalArchived || 0);
-    // BUG-H9 FIX: Also mirror raw dry fields into runStats so abortRun()
-    // server-side can read stats.dryTrashed directly (it doesn't re-read totalTrashed).
-    if (isDry) {
-      runStats.dryTrashed  = s.dryTrashed  || 0;
-      runStats.dryArchived = s.dryArchived || 0;
-    }
-    animStat('sv0', runStats.totalMoved);
-    animStat('sv1', runStats.totalTrashed);
-    animStat('sv2', runStats.totalArchived);
-    updateBars(s);
-  }
+  applyBurstStats(res);
 
   // FIX: update rule label display after round-robin rotation.
   // S-U3: the Rules Left counter comes from the same queue read — unlike the

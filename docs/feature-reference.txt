@@ -367,6 +367,16 @@ reviewing the backend (app/*.gs) or index.html.
     "lastStats" below).
   - The currently-in-flight burst may still complete server-side
     (Google can't cancel mid-execution), but no further bursts fire.
+  - AT-BRK-004 FIX (2026-09-30): that in-flight burst's response, once it
+    arrives, still updates the dashboard tiles (Actioned/Trashed/Archived)
+    and lastStats even though `aborted` is already true — only starting
+    ANOTHER burst stays gated on the abort flag. Previously handleRes()
+    discarded the response outright on `if (aborted) return;`, so the
+    tiles stayed frozen at whatever they showed before the abort (0/0/0 on
+    the very first burst) while the abort email and server-side RUN_DETAIL
+    both correctly reported the real count — the tool had genuinely moved
+    mail the screen said it hadn't touched. See app/index.html's
+    handleRes()/applyBurstStats().
   - Since 2026-09-24, abortRun() takes the run's id as a 4th argument. With
     it, the abort waits for an in-flight burst to finish (script lock),
     uses the server's own recorded stats if they are more complete than the

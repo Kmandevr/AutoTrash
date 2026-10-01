@@ -211,6 +211,28 @@ function findMatches(rule, opts) {
   };
 }
 
+// Issue #2: tag a thrown value with how much of the action already succeeded.
+// Returns the value to re-throw. Nothing succeeded yet (count 0) → the original
+// value is returned untouched, so behavior is byte-for-byte what it was before.
+// A thrown primitive (a bare string, null) or a frozen error can't carry a
+// property, so it is wrapped in an Error with the same text; the runners' own
+// error normalisation (BUG-C24/C25) then reads the same message it always did.
+function attachPartialCounts(e, actionName, count) {
+  if (!(count > 0)) return e;
+  const partial = { action: actionName, count: count };
+  if (e !== null && (typeof e === 'object' || typeof e === 'function')) {
+    // A frozen/sealed error ignores the assignment silently in non-strict
+    // code (Apps Script's default) instead of throwing, so check it stuck.
+    try { e.partialCounts = partial; if (e.partialCounts === partial) return e; } catch (x) { /* fall through */ }
+  }
+  // Same text the runners' own normalisation (BUG-C24/C25) would have used:
+  // e.message when there is one, else String(e). Keep the original stack.
+  const w = new Error((e && e.message) ? e.message : String(e));
+  try { if (e && e.stack) w.stack = e.stack; } catch (x) { /* best effort */ }
+  w.partialCounts = partial;
+  return w;
+}
+
 // ─── ACTION EXECUTION (the guarded mutation point) ───────────────────────────
 // run: { dryRun, seen, emit } — all optional.
 //
@@ -221,7 +243,9 @@ function findMatches(rule, opts) {
 //   2. Dry run never calls the action at all — it only counts.
 //   3. bulk() actions are chunked to GMAIL_CHUNK (Gmail's hard batch limit).
 //   4. Errors propagate unchanged to the runner, whose existing catch blocks
-//      own error emails and stats.errors (BUG-C15/C24/C25 handling).
+//      own error emails and stats.errors (BUG-C15/C24/C25 handling). When
+//      earlier chunks already succeeded the error also carries
+//      err.partialCounts = { action, count } (Issue #2, attachPartialCounts).
 // Returns { action, count, dryRun, batchMs, results }.
 function executeAction(action, contexts, run) {
   run = run || {};
@@ -238,16 +262,26 @@ function executeAction(action, contexts, run) {
 
   if (run.dryRun) { out.count = list.length; return out; }
 
+  // Issue #2 (BUG-C22, owner-approved option b): chunks that already
+  // succeeded are REAL Gmail changes. If a later chunk throws, the error still
+  // propagates unchanged (see guarantee 4), but it now carries
+  // err.partialCounts = { action, count } for the work that DID happen, so the
+  // runner can still credit it to stats instead of losing it.
+  const withPartial = function (e) { return attachPartialCounts(e, def.name, out.count); };
   if (typeof def.bulk === 'function') {
     for (const chunk of chunkArray(list, GMAIL_CHUNK)) {
       const t = Date.now();
-      def.bulk(chunk.map(function (c) { return c.thread; }), chunk);
+      try {
+        def.bulk(chunk.map(function (c) { return c.thread; }), chunk);
+      } catch (e) { throw withPartial(e); }
       out.batchMs += Date.now() - t;
       out.count   += chunk.length;
     }
   } else {
     const t = Date.now();
-    list.forEach(function (c) { out.results.push(def.each(c)); out.count++; });
+    try {
+      list.forEach(function (c) { out.results.push(def.each(c)); out.count++; });
+    } catch (e) { throw withPartial(e); }
     out.batchMs = Date.now() - t;
   }
 

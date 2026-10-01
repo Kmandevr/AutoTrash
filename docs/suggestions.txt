@@ -41,7 +41,7 @@ STILL OPEN (need a decision before any code is written):
         single rule whose true backlog exceeds the 500-thread
         GmailApp.search cap; needs a decision on surfacing vs. closing the
         truncation, not a suggestions-file build-or-don't call
-  S-N14 see BUG-C22 in GitHub Issues — executeActions() loses
+  S-N14 [IMPLEMENTED 2026-10-01, Issue #2] see BUG-C22 in GitHub Issues — executeActions() loses
         already-succeeded chunk counts when a later chunk throws, so real
         Gmail actions can go unreported in stats/DAILY_STATS/the error
         email; needs a decision on how invasive a fix to accept
@@ -386,8 +386,9 @@ S-N13 Dry run undercounts any single rule whose true backlog exceeds the
   (more invasive: page through search results within a single dry-run
   pass) before any code changes — see BUG-C21 for the full options list.
 
-S-N14 executeActions() loses already-succeeded chunk counts when a later
-  chunk throws — tracked as BUG-C22
+S-N14 [IMPLEMENTED 2026-10-01 — option b "attach partial counts to the
+  re-thrown error", Issue #2] executeActions() loses already-succeeded chunk
+  counts when a later chunk throws — tracked as BUG-C22
   Found: 2026-09-02, ninth automated review pass this session (scheduled
   "look for bugs, fix bugs, write tests, test the code, run a final pass"
   task), while re-reading executeActions() and its two call sites for what

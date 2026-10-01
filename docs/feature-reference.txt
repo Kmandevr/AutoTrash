@@ -181,23 +181,32 @@ reviewing the backend (app/*.gs) or index.html.
   note above (S-N10) does not apply to this path, only to the live/manual
   burst path in §2a.
 
-  CAUTION (BUG-C22, open — see GitHub Issues, flagged 2026-09-02,
-  ninth pass): step 5's "execute" sub-step (both here and in the live path,
-  §2a) calls executeActions(), which chunks its input into GMAIL_CHUNK
-  (100)-sized batches and only credits its running trashed/archived
-  counters to its own local variables — not yet to the caller's stats
-  object — as each chunk's GmailApp call returns. If a LATER chunk throws
-  after one or more EARLIER chunks already succeeded (a transient Gmail
-  API error or quota limit partway through a large batch), those earlier
-  chunks' actions genuinely happened in the mailbox, but executeActions()
-  throws before ever returning its {trashed, archived, batchMs} object —
-  so the caller (processLiveBurst() or backgroundRun()) never learns the
-  partial count, and it never reaches stats.totalTrashed/totalMoved,
-  creditStat(), DAILY_STATS, or the resulting error email's own "Moved:"
-  line. No wrong Gmail action results — see §7's note on this bug for the
-  full impact — but this is a genuine gap in this section's own guarantee
-  that "each iteration: search → dedup seenIds → execute → rotate" fully
-  and accurately reports what "execute" did.
+  PARTIAL-CHUNK COUNTS (BUG-C22, Issue #2 — FIXED 2026-10-01, owner-
+  approved option b; flagged 2026-09-02, ninth pass): step 5's "execute"
+  sub-step (both here and in the live path, §2a) runs executeAction(),
+  which chunks its input into GMAIL_CHUNK (100)-sized batches. If a LATER
+  chunk throws after one or more EARLIER chunks already succeeded (a
+  transient Gmail API error or quota limit partway through a large batch),
+  those earlier chunks' actions genuinely happened in the mailbox, but the
+  call throws before returning its count — which used to leave them out of
+  stats.totalTrashed/totalMoved, creditStat(), DAILY_STATS and the error
+  email's own "Moved:" line. Now executeAction() tags the error it
+  re-throws with err.partialCounts = { action, count } (count of threads
+  whose chunks succeeded; omitted when nothing succeeded, in which case the
+  original error comes back untouched). The error itself still propagates
+  unchanged. Both callers' catch blocks call creditPartialCounts() (Stats.
+  gs) BEFORE recording the error / sending the error email, which credits
+  the threads to totalMoved/totalTrashed/totalArchived and the rule's row
+  (or the purge counters), adds an INFO line "N thread(s) were already
+  moved before the error and are counted.", and so makes the error email's
+  "Moved:" and the digest totals match the mailbox. A thrown primitive (a
+  bare string, null) or a frozen Error cannot carry a property, so when
+  there is partial work it is wrapped in a new Error with the same
+  message. Custom (non-trash/archive) actions' partial work is not a
+  cleanup stat and is not credited. The per-chunk crediting callback (the
+  more invasive alternative) was not built. KNOWN LIMIT: a chunk that threw
+  AFTER Gmail applied it (an ambiguous failure) is not counted, since the
+  API gave no confirmation.
 
   CAUTION (BUG-C23, open — see GitHub Issues, flagged 2026-09-02,
   tenth pass): step 6's "accumulateDailyStats" call happens while
@@ -551,12 +560,11 @@ reviewing the backend (app/*.gs) or index.html.
       backgroundRun()) pass their own already-correct rule name into
       sendErrorEmail() explicitly now, rather than letting it re-derive one
       without that fallback — see GitHub Issues BUG-E16. CAUTION
-      (BUG-C22, open, flagged 2026-09-02): this "Rule:" line's own "Moved:"
-      figure is sourced from stats.totalMoved, which — per §2b/§7's note —
-      can itself under-report by however many threads a partially-succeeded
-      chunk batch actually moved before a later chunk threw. The rule name
-      is guaranteed correct (BUG-E16); the moved count next to it is not
-      always guaranteed complete.
+      (BUG-C22, fixed 2026-10-01 — see §2b): this "Rule:" line's own
+      "Moved:" figure is sourced from stats.totalMoved, which now includes
+      the threads a partially-succeeded chunk batch moved before a later
+      chunk threw (creditPartialCounts() runs before the email is built).
+      The rule name is guaranteed correct (BUG-E16).
     - As of 2026-09-01 (BUG-C24, eleventh pass), sendErrorEmail() no longer
       assumes the thrown value is a real Error object with a `.message`
       property — it normalizes whatever was actually thrown (`errMsg =
@@ -642,15 +650,13 @@ reviewing the backend (app/*.gs) or index.html.
     - isGlobalPurge → globalPurgeMoved / globalPurgeTrashed
     - isInboxPurge  → inboxPurgeMoved  / inboxPurgeTrashed
     - everything else → stats.labels[lbl]
-    CAUTION (BUG-C22, open — see GitHub Issues, flagged 2026-09-02,
-    ninth pass): creditStat() itself is correct — the gap is upstream. Both
-    callers only invoke creditStat() with whatever executeActions() managed
-    to RETURN, and executeActions() returns nothing at all (it throws
-    instead) if any chunk after the first one fails — so a rule whose first
-    chunk succeeded and second chunk failed gets creditStat() called zero
-    times for that burst/cycle, even though the first chunk's action really
-    happened. See §2b and §6 for the same caution from the executeActions()
-    and email-reporting angles respectively.
+    BUG-C22 (fixed 2026-10-01, Issue #2): creditStat() itself was always
+    correct — the gap was upstream. executeAction() throws instead of
+    returning when a later chunk fails, so a rule whose first chunk
+    succeeded and second chunk failed used to get creditStat() called zero
+    times for that burst/cycle. creditPartialCounts() (Stats.gs) now calls
+    creditStat() for the chunks that did succeed, from both callers' catch
+    blocks. See §2b.
 
   NOTE (2026-09-01, fifth pass): stats.labels is a plain object keyed by
   string label text, with nothing enforcing uniqueness across custom label
@@ -1317,11 +1323,9 @@ reviewing the backend (app/*.gs) or index.html.
   "no-op that Spam would suffer from" the way a live account would. Once
   BUG-C19 is verified and a fix direction is chosen, the spy itself may
   need to grow INBOX/SPAM label tracking before a meaningful regression
-  test can be written for it. Also not covered: the executeActions() partial-chunk-failure accounting gap
-  described in §2b/§6/§7/BUG-C22 (reproduced in a throwaway script — see
-  the bug plan entry — but deliberately not committed as a permanent test
-  until a fix direction is chosen, per the same "don't encode an accepted
-  bug as correct behaviour" reasoning as BUG-C13/BUG-C14); abortRun()'s
+  test can be written for it. (The executeActions() partial-chunk-failure
+  accounting gap, BUG-C22, is fixed since 2026-10-01 and covered by
+  tests in Engine, Stats and Runner suites — see §2b.) Also not covered: abortRun()'s
   SUMMARY_FREQ gating gap described in §4/§6/BUG-E17 (same reasoning —
   reproduced, not yet committed); the DAILY_STATS concurrency race between
   accumulateDailyStats() and sendDailyDigest() described in

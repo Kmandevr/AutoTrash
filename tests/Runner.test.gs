@@ -706,6 +706,89 @@ function test_runSummaryMsg_dryRunCapped_doesNotAffectLiveSummary() {
   assert(runSummaryMsg(stats, false, 5000).indexOf('+') < 0, 'a live summary never shows a floor');
 }
 
+// ── Issue #2 (BUG-C22) end to end: a later chunk throws mid-batch ───────────
+// 250 threads = chunks of 100 + 100 + 50. The Gmail spy trashes/archives a
+// chunk for real, then the Nth call throws. Pre-fix, the chunks that already
+// went through were invisible to every count; now they are credited.
+function failOnChunk(method, n) {
+  const orig = GmailApp[method]; let calls = 0;
+  GmailApp[method] = function (ts) { calls++; if (calls === n) throw new Error('Simulated Gmail failure on chunk ' + n); return orig.call(GmailApp, ts); };
+}
+function bigBatch(n) { const t = []; for (let i = 0; i < n; i++) t.push(makeFakeThread('pb' + i)); return t; }
+function test_processLiveBurst_laterChunkThrows_creditsChunksThatSucceeded() {
+  const threads = bigBatch(250);
+  const spy = installGmailSpy(threads);
+  failOnChunk('moveThreadsToTrash', 2);
+  try {
+    const payload = { dryRun: false, activeQueue: [{ label: 'BIG', days: 30, isTrash: true }], seenIds: [], stats: freshStats() };
+    const res = processLiveBurst(payload);
+    assertEqual(threads.filter(t => t.__trashed).length, 100, 'sanity: chunk 1 really was trashed in Gmail');
+    assert(res.error === true);
+    const st = res.payload.stats;
+    assertEqual(st.totalMoved, 100, 'the 100 really-trashed threads must be counted');
+    assertEqual(st.totalTrashed, 100);
+    assertEqual(st.labels['BIG'].moved, 100, 'and credited to the rule that did the work');
+    assertEqual(st.errors.length, 1);
+    assert(res.log.some(function (e) { return e.msg.indexOf('100 thread(s) were already moved before the error') === 0; }), 'the log says partial work was counted');
+    assert(spy.calls.emails[0].body.indexOf('Moved   : 100') > -1, 'the error email must report the real 100, not 0: ' + spy.calls.emails[0].body.slice(0, 200));
+    assertEqual(res.payload.seenIds.length, 250, 'all 250 stay marked seen so a later rule cannot re-action them');
+  } finally { spy.restore(); }
+}
+function test_processLiveBurst_archiveRuleLaterChunkThrows_creditsArchivedChunks() {
+  const threads = bigBatch(250);
+  const spy = installGmailSpy(threads);
+  failOnChunk('moveThreadsToArchive', 3);
+  try {
+    const payload = { dryRun: false, activeQueue: [{ label: 'OLD', days: 30, isTrash: false }], seenIds: [], stats: freshStats() };
+    const res = processLiveBurst(payload);
+    assertEqual(res.payload.stats.totalArchived, 200, 'two archived chunks before the third threw');
+    assertEqual(res.payload.stats.totalTrashed, 0);
+    assertEqual(res.payload.stats.labels['OLD'].archived, 200);
+  } finally { spy.restore(); }
+}
+function test_processLiveBurst_purgeRuleLaterChunkThrows_creditsPurgeCounters() {
+  const threads = bigBatch(250);
+  const spy = installGmailSpy(threads);
+  failOnChunk('moveThreadsToTrash', 2);
+  try {
+    const payload = { dryRun: false, activeQueue: [{ isGlobalPurge: true, isTrash: true, days: 365, label: 'GLOBAL PURGE' }], seenIds: [], stats: freshStats() };
+    const res = processLiveBurst(payload);
+    assertEqual(res.payload.stats.globalPurgeMoved, 100);
+    assert(!res.payload.stats.labels['GLOBAL PURGE'], 'no ghost labels row for a purge rule');
+  } finally { spy.restore(); }
+}
+function test_processLiveBurst_firstChunkThrows_creditsNothingAndAddsNoPartialLine() {
+  const spy = installGmailSpy(bigBatch(250));
+  failOnChunk('moveThreadsToTrash', 1);
+  try {
+    const payload = { dryRun: false, activeQueue: [{ label: 'BIG', days: 30, isTrash: true }], seenIds: [], stats: freshStats() };
+    const res = processLiveBurst(payload);
+    assertEqual(res.payload.stats.totalMoved, 0);
+    assert(!res.log.some(function (e) { return e.msg.indexOf('already moved') > -1; }), 'no partial line when nothing was moved');
+  } finally { spy.restore(); }
+}
+function test_backgroundRun_laterChunkThrows_creditsChunksThatSucceeded() {
+  withSavedProps(['AUTOTRASH_RULES', 'CATEGORY_RULES', 'GLOBAL_PURGE_DAYS', 'INBOX_PURGE_DAYS', 'DAILY_STATS'], props => {
+    props.setProperty('AUTOTRASH_RULES', JSON.stringify([{ label: 'BIG', days: 30, isTrash: true }]));
+    props.setProperty('CATEGORY_RULES', '[]');
+    props.setProperty('GLOBAL_PURGE_DAYS', 'OFF');
+    props.setProperty('INBOX_PURGE_DAYS', 'OFF');
+    props.deleteProperty('DAILY_STATS');
+    const threads = bigBatch(250);
+    const gmailSpy = installGmailSpy(threads);
+    failOnChunk('moveThreadsToTrash', 2);
+    const lockSpy = installLockSpy();
+    try {
+      backgroundRun();
+      assertEqual(threads.filter(t => t.__trashed).length, 100, 'sanity: chunk 1 really was trashed in Gmail');
+      const d = JSON.parse(props.getProperty('DAILY_STATS'));
+      assertEqual(d.totalTrashed, 100, 'the digest totals (DAILY_STATS) must include the 100 that really were trashed');
+      assertEqual(d.totalMoved, 100);
+      assertEqual(d.labels['BIG'].moved, 100);
+    } finally { lockSpy.restore(); gmailSpy.restore(); }
+  });
+}
+
 const RUNNER_TESTS = [
   test_abortRun_liveRun_accumulatesDailyStats,
   test_abortRun_dryRun_doesNotAccumulateDailyStats,
@@ -758,6 +841,11 @@ const RUNNER_TESTS = [
   test_processLiveBurst_dryRun_threadWithRecentReply_isNotCounted,
   test_processLiveBurst_inboxPurge_threadWithRecentReply_isNotTrashed,
   test_backgroundRun_threadWithRecentReply_isNotTrashed,
+  test_processLiveBurst_laterChunkThrows_creditsChunksThatSucceeded,
+  test_processLiveBurst_archiveRuleLaterChunkThrows_creditsArchivedChunks,
+  test_processLiveBurst_purgeRuleLaterChunkThrows_creditsPurgeCounters,
+  test_processLiveBurst_firstChunkThrows_creditsNothingAndAddsNoPartialLine,
+  test_backgroundRun_laterChunkThrows_creditsChunksThatSucceeded,
   test_processLiveBurst_dryRun_ruleAtSearchCap_isLabelledFiveHundredPlus,
   test_processLiveBurst_dryRun_ruleJustUnderSearchCap_hasNoPlus,
   test_processLiveBurst_dryRun_archiveRuleAtSearchCap_flagsArchiveSide,

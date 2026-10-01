@@ -307,6 +307,67 @@ tests/harness/run-node-tests.js  (Node-only — never pushed to Apps
                                    Script; see §5)
   The `npm test` entry point. See §4 for how it actually works.
 
+tests/harness/check-index-html.js  (Node-only — never pushed to Apps
+                                     Script; see §5; added 2026-09-30,
+                                     regex-literal scanner fix 2026-10-01)
+  A boot-safety guard on app/index.html's inline <script> content, called
+  by run-node-tests.js right after runAllTests() and folded into the same
+  `npm test` exit code, but reported as its own summary line ("AutoTrash
+  index.html guard: N/N passed") rather than added to the runAllTests()-
+  suite count above (see the current running total at the top of §2). It
+  is NOT a tests/*.test.gs suite because it needs Node's real `fs` (to
+  read index.html off disk) and `vm` (to compile extracted script text)
+  directly — capabilities the sandboxed Apps-Script-mock vm context every
+  *.test.gs suite runs in does not expose, and which the real Apps Script
+  editor has no equivalent of either (there is no local index.html file
+  to read there).
+
+  Why it exists: neither this test suite nor
+  .github/workflows/syntax-check.yml looked at index.html's inline
+  scripts at all before this file existed — syntax-check.yml's
+  syntax-check job only runs `node --check` on app/*.gs and tests/*.gs,
+  and run-node-tests.js's APP_FILES list only loads app/*.gs into its vm
+  context. That gap is exactly how the live Apps Script deployment broke
+  on 2026-09-25 ("Uncaught SyntaxError: Unexpected token 'class'", fixed
+  in 6d6dc5d/c6a288c): a template literal nested inside another template
+  literal's `${...}` interpolation in renderSummary(), which parsed fine
+  in Node and Chromium (so nothing local caught it) but broke on the
+  served copy.
+
+  Two checks per inline <script> block found (scripts with a `src`
+  attribute, if any are ever added, are skipped — nothing local to read
+  for those):
+    1. `vm.Script` compiles the block's text (syntax only) — catches any
+       real parse error, not just this one known pattern.
+    2. A static scanner walks template-literal spans tracking `${...}`
+       depth and flags any backtick found while already nested inside
+       such an interpolation — the shape that broke live even though it
+       is syntactically valid JS.
+
+  Proof: running checkIndexHtmlSource() against `git show
+  b06f449:app/index.html` (the commit right before the fix) reports 4/5
+  passed, 1 failed, flagging the exact `data-to="${r[1]}"` nested
+  backtick at its correct line/col. The same check against the current
+  file passes 5/5.
+
+  2026-10-01 fix (code review `claude/autotrash-review/
+  review-20261001.md`, Project knowledge): the scanner originally had no
+  concept of regex literals, so any backtick inside a regex (e.g. `/`/`)
+  was read as a template-literal boundary. A stray backtick in a regex
+  ANYWHERE earlier in a <script> block could desync the nesting tracker
+  for everything after it and make the guard silently miss a REAL nested
+  `${ \`...\` }` bug later in the same block (reported a clean pass on an
+  adversarial script built to contain exactly that). Fixed by tracking
+  the standard "previous significant token" heuristic to tell `/`
+  division from the start of a regex literal, then skipping to the
+  regex's own closing `/` (honoring `[...]` character classes and escaped
+  slashes) without touching the template-nesting stack at all. See
+  tests/harness/check-index-html.selftest.js for the regression coverage
+  (the adversarial case plus checks that the fix doesn't make the scanner
+  over-eager on ordinary division). `app/index.html` currently has no
+  regex literal containing a backtick, so the bug was dormant in
+  practice, but the guard's whole purpose is catching a repeat of a real
+  outage, and it was failing silently rather than erroring.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 3. ADDING A TEST
@@ -465,6 +526,24 @@ has two jobs:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 7. HISTORY
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+2026-10-01: tests/harness/check-index-html.js's nested-template-literal
+  scanner fixed to recognize regex literals — a backtick inside a regex
+  was previously read as a template-literal boundary, which could desync
+  the nesting tracker and mask a real bug later in the same <script>
+  block. See §2 for the full writeup and tests/harness/
+  check-index-html.selftest.js for the regression tests.
+
+2026-09-30: tests/harness/check-index-html.js added — a Node-only
+  boot-safety guard on app/index.html's inline <script> content, run by
+  `npm test` alongside (not inside) the runAllTests() suite. Closes the
+  gap that let the 2026-09-25 live boot failure (6d6dc5d) go undetected
+  by both CI and the local suite: nothing previously parsed or
+  statically checked index.html's scripts at all. See §2 for what it
+  checks and the regression proof against the pre-fix revision
+  (b06f449). No app/ or tests/*.gs behavior changed; runAllTests()'s own
+  test count (see §2's running total) is unaffected — this guard is
+  reported as its own separate "index.html guard: N/N" summary line.
 
 2026-09-24 (later still): app/Config.gs and app/Stats.gs split out of
   Code.gs/RuleEngine.gs/Runner.gs (parseStoredRules/readConfig/writeConfig/

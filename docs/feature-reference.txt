@@ -833,6 +833,42 @@ reviewing the backend (app/*.gs) or index.html.
     test_buildQuery_globalPurge_excludesSentAndDrafts in
     tests/RuleEngine.test.gs.
 
+  Known limits (current behavior, decisions pending — 2026-09-30). These
+  are honest descriptions of what AutoTrash does TODAY, not gaps this
+  section is asking someone to fix; each is a filed Issue waiting on an
+  owner decision between multiple reasonable directions (see the PM plan
+  and AUTOTRASH_CLAUDE_NOTES.md's decision-pending list in Project
+  knowledge). Nothing below changes until one is picked.
+    - Issue #103: Gmail-"important" mail is NOT protected by Inbox Purge
+      or Global Purge. Neither rule type adds -is:important (or any
+      equivalent) to its query, so a message Gmail itself has flagged as
+      important can still be trashed by an aggressive purge rule with no
+      separate warning beyond the existing DESTRUCTIVE-ACTION confirm.
+      Only the starred guard above and the exclusions already listed in
+      this section apply; "important" is a distinct Gmail signal from
+      "starred" and today gets no special handling anywhere in the
+      engine.
+    - Issue #104: a thread is judged by its OLDEST matching message, not
+      its most recent activity. findMatches()'s age-based rules
+      (older_than: N days) match a thread the moment any message in it
+      is old enough — including a thread that also contains a brand-new
+      reply. A conversation someone replied to yesterday can still be
+      trashed today if one of its early messages is old enough to match,
+      because Gmail's own getLastMessageDate() on the thread is never
+      consulted by the current query/match logic.
+    - Issue #105: a rule can finish early under starred-guard cap
+      starvation. The starred-thread guard (this section, above) drops a
+      guarded thread from `seen` so it is never marked handled — correct
+      for not silently losing it, but if a single rule's top 500 search
+      results (Gmail's per-search page/cap size) are ALL starred-guarded,
+      `matched` reads 0 for that burst and the rule is treated as
+      finished, silently leaving any of its older, non-guarded matches
+      beyond that first 500 untouched. Safe in the sense that it
+      under-acts rather than over-acts, but incomplete: a rule with a
+      very large starred-heavy backlog may never reach its true matches.
+      See claude/autotrash-findings/starred-guard-cap-starvation-20260925.md
+      (Project knowledge) for the full mechanism and reproduction.
+
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 10. CONFIG STORAGE (UserProperties keys)

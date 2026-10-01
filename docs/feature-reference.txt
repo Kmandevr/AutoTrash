@@ -260,6 +260,14 @@ reviewing the backend (app/*.gs) or index.html.
       progress rather than a stale or all-zero snapshot. (FIX: 2026-09-29 —
       before this, an oversized write silently dropped the WHOLE update; see
       claude/autotrash-findings/action-tiles-reset-after-reload-20260929.md.)
+      If even the slimmed blob is still too big (a huge rule queue, or
+      very long log lines) or the cache is unavailable, nothing is cached
+      and the PREVIOUS snapshot stays; since 2026-10-01 (Issue #110,
+      owner-approved option b) saveRunDetail() logs one console.error line
+      ("saveRunDetail: could not cache RUN_DETAIL_<id> even after slimming
+      ...") to the execution log instead of failing silently. It still
+      returns false and no caller treats that as fatal, so a run never
+      breaks over it. No further degradation step was added (option a).
     RUN_PAYLOAD_<id> (UserCache, 6h) — the live run's latest burst payload,
       for resuming. If it would exceed the 100 KB cache cap, it is saved
       without seenIds (a resume then starts a fresh dedup set — see §2d;

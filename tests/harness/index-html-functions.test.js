@@ -36,8 +36,8 @@
 const assert = require('assert');
 const { loadIndexHtmlFunctions } = require('./extract-index-html-functions');
 
-const FN_NAMES = ['fmt', 'esc', 'cid', 'relTime', 'ruleName', 'describeRun'];
-const { fmt, esc, cid, relTime, ruleName, describeRun } = loadIndexHtmlFunctions(FN_NAMES);
+const FN_NAMES = ['fmt', 'esc', 'cid', 'relTime', 'ruleName', 'describeRun', 'findLabelCollision', 'labelCollisionText'];
+const { fmt, esc, cid, relTime, ruleName, describeRun, findLabelCollision, labelCollisionText } = loadIndexHtmlFunctions(FN_NAMES);
 
 let pass = 0, fail = 0;
 const failures = [];
@@ -122,6 +122,47 @@ test('describeRun() background trigger run', () => {
 test('describeRun() appends " · DRY RUN" when dryRun is set', () => {
   assert.strictEqual(describeRun({ source: 'manual', dryRun: true }), 'manual run · DRY RUN');
   assert.strictEqual(describeRun({ source: 'background', dryRun: true }), 'background trigger run · DRY RUN');
+});
+
+// ── findLabelCollision() / labelCollisionText() — Issue #84 ─────────────
+// stats.labels is keyed by plain label text, so two rules with the same text
+// silently merge their reported counts. The save-time warning needs this
+// check to be case-insensitive (Gmail label search is) and to know the
+// built-in names (category rules report as UPPERCASE names, purges as
+// GLOBAL PURGE / INBOX PURGE).
+// Objects from the vm context have a different Object.prototype, so compare as JSON.
+const J = x => JSON.stringify(x);
+const RESERVED = ['PROMOTIONS', 'SOCIAL', 'UPDATES', 'FORUMS', 'SPAM', 'GLOBAL PURGE', 'INBOX PURGE'];
+test('findLabelCollision: a unique label has no collision', () => {
+  assert.strictEqual(findLabelCollision('Receipts', ['Newsletters', 'Work'], RESERVED), null);
+});
+test('findLabelCollision: same text as another rule is a "rule" collision', () => {
+  assert.strictEqual(J(findLabelCollision('Newsletters', ['Work', 'Newsletters'], RESERVED)), J({ kind: 'rule', other: 'Newsletters' }));
+});
+test('findLabelCollision: ignores case and surrounding spaces, returns the OTHER rule\'s own text', () => {
+  assert.strictEqual(J(findLabelCollision('  news ', ['NEWS'], RESERVED)), J({ kind: 'rule', other: 'NEWS' }));
+});
+test('findLabelCollision: a category display name collides case-insensitively', () => {
+  assert.strictEqual(J(findLabelCollision('Promotions', [], RESERVED)), J({ kind: 'reserved', other: 'PROMOTIONS' }));
+});
+test('findLabelCollision: the purge rule names are reserved too', () => {
+  assert.strictEqual(J(findLabelCollision('global purge', [], RESERVED)), J({ kind: 'reserved', other: 'GLOBAL PURGE' }));
+  assert.strictEqual(J(findLabelCollision('Inbox Purge', [], RESERVED)), J({ kind: 'reserved', other: 'INBOX PURGE' }));
+});
+test('findLabelCollision: another rule wins over a reserved name when both match', () => {
+  assert.strictEqual(findLabelCollision('Spam', ['SPAM'], RESERVED).kind, 'rule');
+});
+test('findLabelCollision: empty/blank/null label and missing lists never collide or throw', () => {
+  assert.strictEqual(findLabelCollision('', ['x'], RESERVED), null);
+  assert.strictEqual(findLabelCollision('   ', ['   '], RESERVED), null);
+  assert.strictEqual(findLabelCollision(null, [null], RESERVED), null);
+  assert.strictEqual(findLabelCollision('Work', undefined, undefined), null);
+});
+test('labelCollisionText: names the colliding rule and says the counts are combined', () => {
+  const a = labelCollisionText('News', { kind: 'rule', other: 'news' });
+  const b = labelCollisionText('Spam', { kind: 'reserved', other: 'SPAM' });
+  assert.ok(a.includes('"News"') && a.includes('another label rule ("news")') && a.includes('reported together'), a);
+  assert.ok(b.includes('"Spam"') && b.includes('built-in rule name "SPAM"') && b.includes('reported together'), b);
 });
 
 console.log(`index.html function tests: ${pass}/${pass + fail} passed (${fail} failed)`);

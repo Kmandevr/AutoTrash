@@ -1,6 +1,6 @@
 ████████████████████████████████████████████████████████████████
 AUTOTRASH — SUGGESTIONS & POTENTIAL FEATURES
-Last updated: 2026-09-30 (marked S-N6 [IMPLEMENTED] — fixed on main by
+Last updated: 2026-10-01 (S-N11 implemented as a warning, #84; earlier: marked S-N6 [IMPLEMENTED] — fixed on main by
 9de38ed/#81 on 2026-09-26 but never reflected here until now)
 
 ⚠ IMPORTANT — READ BEFORE ACTING ON ANYTHING IN THIS FILE ⚠
@@ -31,7 +31,8 @@ STILL OPEN (need a decision before any code is written):
         decision, not a suggestions-file build-or-don't call
   S-N10 (Issue #83) seenIds array grows unbounded across a long-running live burst
         session — a scalability question, see below
-  S-N11 (Issue #84) stats.labels is keyed by plain label text with no uniqueness
+  S-N11 (Issue #84) [IMPLEMENTED 2026-10-01, warn-only] stats.labels is keyed by
+        plain label text with no uniqueness
         enforcement — two rules that produce the same key silently merge
         their reported counts, see below
   S-N12 (Issue #85) digest emails (DAILY/ALT_DAYS/WEEKLY/BIWEEKLY) never report
@@ -257,8 +258,14 @@ S-N10 seenIds grows unbounded across a long-running live burst session
   Flagging per this file's own header instruction to log new observations
   rather than fix silently — no code touched.
 
-S-N11 stats.labels is keyed by plain label text — two rules with matching
-  keys silently merge their reported counts
+S-N11 [IMPLEMENTED 2026-10-01 — option b, Issue #84] stats.labels is keyed by
+  plain label text — two rules with matching keys silently merge their
+  reported counts
+  RESOLUTION (2026-10-01, owner-approved option b): addRule() and
+  saveConfig() now warn (never block) when a label matches another label
+  rule or a built-in rule name, case-insensitively. The key merge itself is
+  unchanged (option c was not chosen). See feature-reference.txt §1a.
+  Original write-up follows.
   Found: 2026-09-01, fifth automated review pass this session (scheduled
   bug-sweep task), while re-examining creditStat()/ensureStat() and §7 of
   feature-reference.txt alongside the BUG-C20 fix (which addressed

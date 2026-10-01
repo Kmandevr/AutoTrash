@@ -173,6 +173,45 @@ function test_buildQueue_offMeansOff() {
   assertEqual(q.length, 1);
 }
 
+// ── newestMessageAgeFilter (Issue #104, owner-approved option a) ───────────
+// older_than:Nd is evaluated per MESSAGE but trash/archive act on the whole
+// THREAD, so a thread with one old message and a brand-new reply used to be
+// trashed. The filter keeps a thread only if its NEWEST message is also at
+// least rule.days old. Fixture threads carry getLastMessageDate() through
+// makeRichFakeThread()'s `date`.
+const NEWEST_AGE_NOW = Date.UTC(2026, 9, 1, 12, 0, 0);
+function newestAgeCtx(daysAgo) {
+  const t = makeRichFakeThread('x', { date: new Date(NEWEST_AGE_NOW - daysAgo * 86400000) });
+  return { thread: t, threadId: 'x' };
+}
+function test_newestMessageAgeFilter_threadWithRecentReply_isRejected() {
+  const keep = newestMessageAgeFilter({ days: 365 }, NEWEST_AGE_NOW);
+  assertEqual(keep(newestAgeCtx(2.2)), false, 'newest message 2.2d old is NOT older than 365d');
+}
+function test_newestMessageAgeFilter_threadWhoseNewestMessageIsOldEnough_isKept() {
+  const keep = newestMessageAgeFilter({ days: 365 }, NEWEST_AGE_NOW);
+  assertEqual(keep(newestAgeCtx(400)), true);
+}
+function test_newestMessageAgeFilter_boundary_exactCutoffKept_oneMsNewerRejected() {
+  const rule = { days: 30 };
+  const keep = newestMessageAgeFilter(rule, NEWEST_AGE_NOW);
+  const exact = { thread: makeRichFakeThread('b1', { date: new Date(NEWEST_AGE_NOW - 30 * 86400000) }) };
+  const newer = { thread: makeRichFakeThread('b2', { date: new Date(NEWEST_AGE_NOW - 30 * 86400000 + 1) }) };
+  assertEqual(keep(exact), true,  'a message exactly rule.days old is old enough');
+  assertEqual(keep(newer), false, 'a message 1ms short of rule.days is not');
+}
+function test_newestMessageAgeFilter_unreadableDate_failsOpenToPreFilterBehaviour() {
+  const keep = newestMessageAgeFilter({ days: 30 }, NEWEST_AGE_NOW);
+  assertEqual(keep({ thread: makeFakeThread('nodate') }), true, 'no getLastMessageDate method');
+  assertEqual(keep({ thread: makeRichFakeThread('null', {}) }), true, 'null date');
+  assertEqual(keep({ thread: { getLastMessageDate: function () { return 'garbage'; } } }), true, 'unparseable date');
+  assertEqual(keep({ thread: { getLastMessageDate: function () { throw new Error('boom'); } } }), true, 'throwing getter');
+}
+function test_newestMessageAgeFilter_zeroDayRule_keepsEverythingInThePast() {
+  const keep = newestMessageAgeFilter({ days: 0 }, NEWEST_AGE_NOW);
+  assertEqual(keep(newestAgeCtx(0.001)), true);
+}
+
 const RULEENGINE_TESTS = [
   test_buildQuery_labelRule,
   test_buildQuery_labelRuleWithSpaces,
@@ -202,4 +241,9 @@ const RULEENGINE_TESTS = [
   test_buildQueue_categoryRulesFlaggedIsCategory,
   test_buildQueue_purgeRulesUseGlobalPurgeAndInboxPurgeLabels,
   test_buildQueue_offMeansOff,
+  test_newestMessageAgeFilter_threadWithRecentReply_isRejected,
+  test_newestMessageAgeFilter_threadWhoseNewestMessageIsOldEnough_isKept,
+  test_newestMessageAgeFilter_boundary_exactCutoffKept_oneMsNewerRejected,
+  test_newestMessageAgeFilter_unreadableDate_failsOpenToPreFilterBehaviour,
+  test_newestMessageAgeFilter_zeroDayRule_keepsEverythingInThePast,
 ];

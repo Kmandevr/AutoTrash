@@ -200,6 +200,8 @@ function findMatches(rule, opts) {
     const kept = contexts.filter(function (c) { return opts.filter(c); });
     filtered = contexts.length - kept.length;
     contexts = kept;
+    if (emit && filtered > 0)
+      emit('INFO', `Skipped ${fmtNum(filtered)} thread(s) held back by the rule's filter (e.g. a newer reply inside an old thread).`);
   }
 
   return {

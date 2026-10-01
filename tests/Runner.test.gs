@@ -573,6 +573,68 @@ function test_fullerStats_aHasMoreOrEqualMoved_returnsA() {
   assert(fullerStats(aTied, bTied) === aTied, 'a tie must favor a (the comparison requires b strictly greater to win)');
 }
 
+// ── Issue #104 end to end: a recent reply inside an old thread ─────────────
+// The search (older_than:365d) matches BOTH threads on their old message;
+// only the genuinely-stale one may be actioned. These fail on the pre-fix
+// code, where the revived thread was trashed too. Dates mirror the
+// break-test's THREAD-1455 (oldest 597d, newest reply 2.2d).
+function reviveFixture() {
+  const now = Date.now();
+  return {
+    stale:   makeRichFakeThread('stale',   { date: new Date(now - 400 * 86400000) }),
+    revived: makeRichFakeThread('revived', { date: new Date(now - 2.2 * 86400000) })
+  };
+}
+function test_processLiveBurst_liveRun_threadWithRecentReply_isNotTrashed() {
+  const f = reviveFixture();
+  const spy = installGmailSpy([f.stale, f.revived]);
+  try {
+    const payload = { dryRun: false, activeQueue: [{ label: 'OLD', days: 365, isTrash: true }], seenIds: [], stats: freshStats() };
+    const res = processLiveBurst(payload);
+    assertEqual(f.stale.__trashed, true, 'the thread whose newest message is old enough is trashed');
+    assertEqual(f.revived.__trashed, false, 'a thread with a 2.2-day-old reply must survive an older_than:365d rule');
+    assertEqual(res.payload.stats.totalTrashed, 1);
+    assertEqual(res.payload.seenIds, ['stale'], 'only the actioned thread is marked seen');
+    assert(res.log.some(function (e) { return e.msg.indexOf('Skipped 1 thread(s) held back') === 0; }),
+      'the user is told a thread was held back');
+  } finally { spy.restore(); }
+}
+function test_processLiveBurst_dryRun_threadWithRecentReply_isNotCounted() {
+  const f = reviveFixture();
+  const spy = installGmailSpy([f.stale, f.revived]);
+  try {
+    const payload = { dryRun: true, activeQueue: [{ label: 'OLD', days: 365, isTrash: true }], seenIds: [], stats: freshStats() };
+    const res = processLiveBurst(payload);
+    assertEqual(res.payload.stats.dryTrashed, 1, 'dry run must project the same count the live run will act on');
+  } finally { spy.restore(); }
+}
+function test_processLiveBurst_inboxPurge_threadWithRecentReply_isNotTrashed() {
+  const f = reviveFixture();
+  const spy = installGmailSpy([f.stale, f.revived]);
+  try {
+    const payload = { dryRun: false, activeQueue: [{ isInboxPurge: true, isTrash: true, days: 365, label: 'INBOX PURGE' }], seenIds: [], stats: freshStats() };
+    processLiveBurst(payload);
+    assertEqual(f.revived.__trashed, false, 'purge rules are age rules too');
+    assertEqual(f.stale.__trashed, true);
+  } finally { spy.restore(); }
+}
+function test_backgroundRun_threadWithRecentReply_isNotTrashed() {
+  const f = reviveFixture();
+  withSavedProps(['AUTOTRASH_RULES', 'CATEGORY_RULES', 'GLOBAL_PURGE_DAYS', 'INBOX_PURGE_DAYS'], props => {
+    props.setProperty('AUTOTRASH_RULES', JSON.stringify([{ label: 'OLD', days: 365, isTrash: true }]));
+    props.setProperty('CATEGORY_RULES', '[]');
+    props.setProperty('GLOBAL_PURGE_DAYS', 'OFF');
+    props.setProperty('INBOX_PURGE_DAYS', 'OFF');
+    const gmailSpy = installGmailSpy([f.stale, f.revived]);
+    const lockSpy = installLockSpy();
+    try {
+      backgroundRun();
+      assertEqual(f.stale.__trashed, true);
+      assertEqual(f.revived.__trashed, false, 'the background runner must apply the same newest-message rule');
+    } finally { lockSpy.restore(); gmailSpy.restore(); }
+  });
+}
+
 const RUNNER_TESTS = [
   test_abortRun_liveRun_accumulatesDailyStats,
   test_abortRun_dryRun_doesNotAccumulateDailyStats,
@@ -620,5 +682,9 @@ const RUNNER_TESTS = [
   test_backgroundRun_noRules_exitsBeforeTouchingLock,
   test_backgroundRun_lockContention_skipsGracefully,
   test_backgroundRun_seenIdsRegisteredBeforeExecuteActions,
-  test_backgroundRun_errorOnOneRule_continuesToNextRule
+  test_backgroundRun_errorOnOneRule_continuesToNextRule,
+  test_processLiveBurst_liveRun_threadWithRecentReply_isNotTrashed,
+  test_processLiveBurst_dryRun_threadWithRecentReply_isNotCounted,
+  test_processLiveBurst_inboxPurge_threadWithRecentReply_isNotTrashed,
+  test_backgroundRun_threadWithRecentReply_isNotTrashed
 ];

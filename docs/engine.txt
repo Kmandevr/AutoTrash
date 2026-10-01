@@ -57,6 +57,14 @@ AROUND Gmail rather than re-creating Gmail filters.
   call it. Before 2026-09-24 each of them carried its own copy of this
   pipeline.
 
+  Since 2026-10-01 (Issue #104) both built-in runners also pass
+  opts.filter = newestMessageAgeFilter(rule) (RuleEngine.gs): every
+  age-based query's older_than:Nd is judged per MESSAGE, so the filter keeps
+  a thread only when its NEWEST message is also at least rule.days old. A
+  thread held back this way is logged as an INFO line, counted in
+  findMatches()'s `filtered`, and — like a starred-guarded thread — is never
+  marked seen.
+
   RUN STATE: run = { dryRun, seen, emit }
     dryRun  The action is never invoked. Counts are still returned, and
             seen IDs are still registered, so a dry run dedups across

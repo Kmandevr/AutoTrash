@@ -86,7 +86,7 @@ tests/Engine.test.gs          → tests app/Engine.gs       (22 tests —
                                  acting, custom actions, dry-run across
                                  actions, narrow-only queries, lazy data)
 tests/Stats.test.gs           → tests app/Stats.gs        (9 tests)
-tests/EmailTemplates.test.gs  → tests app/EmailTemplates.gs (13 tests)
+tests/EmailTemplates.test.gs  → tests app/EmailTemplates.gs (19 tests)
 tests/EmailSend.test.gs       → tests app/EmailSend.gs     (6 tests)
 tests/Code.test.gs            → tests app/Code.gs          (1 test —
                                  doGet() sets the mobile viewport)
@@ -94,7 +94,7 @@ tests/Config.test.gs          → tests app/Config.gs        (13 tests)
 tests/Runner.test.gs          → tests app/Runner.gs        (51 tests,
                                  the largest suite — almost all of the
                                  fake-thread integration tests live here)
-tests/RunState.test.gs        → tests app/RunState.gs      (19 tests —
+tests/RunState.test.gs        → tests app/RunState.gs      (49 tests —
                                  the cross-device run registry plus the
                                  registry-aware paths it adds to
                                  processLiveBurst()/abortRun()/
@@ -150,7 +150,20 @@ tests/RunAll.gs
   already executed, in the Apps Script editor or the Node harness
   alike, regardless of file order either runtime happens to pick.
 
-  Current total: 247 tests, as of the 2026-10-01 fix for Issue #7 (a dry
+  Current total: 250 tests, as of the 2026-10-01 fix for Issue #110
+  (saveRunDetail() failed silently when even the slimmed RUN_DETAIL blob
+  was still too big for the cache): 3 new tests in
+  tests/RunState.test.gs. One reproduces the bug with a rule queue that
+  alone exceeds RUN_CACHE_MAX, asserting the false return, exactly one
+  console.error line naming the cache key, and that the previous
+  snapshot is left in place; two guards assert nothing is logged when
+  the blob fits on the first try or after slimming. The first fails on
+  the pre-fix code (verified by stashing app/). The RunState and
+  EmailTemplates file-map counts were also corrected to the real array
+  lengths (49 and 19); other file-map counts in section 2 were already
+  stale before this change and are not touched here.
+
+  Prior total: 247 tests, as of the 2026-10-01 fix for Issue #7 (a dry
   run that fills Gmail's 500-result search cap now reads "500+" instead
   of a bare, too-low 500): 10 new tests. 7 in tests/Runner.test.gs drive
   500 fake threads through processLiveBurst() (terminal lines and msg
@@ -631,6 +644,10 @@ has two jobs:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 7. HISTORY
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+2026-10-01: Issue #110 (saveRunDetail logs a second-tier failure): +3
+  tests in tests/RunState.test.gs, 247 -> 250. app/RunState.gs only. See
+  docs/feature-reference.txt section 2e.
 
 2026-10-01: Issue #84 (label-name collision warning): +8 assertions in
   tests/harness/index-html-functions.test.js (findLabelCollision()

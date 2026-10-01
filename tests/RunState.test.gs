@@ -581,6 +581,49 @@ function test_saveRunDetail_oversizedStats_dropsLabelsButKeepsTopLineTotals() {
   assertEqual(saved.stats.totalTrashed, 4242, 'top-line totals — what the UI tiles actually read — must survive the slim-down');
 }
 
+// Issue #110: when even the slimmed blob doesn't fit, the failure must be LOGGED
+// (every caller ignores saveRunDetail()'s return value on purpose, so before
+// the fix this was a completely silent stale-snapshot bug).
+function captureConsoleErrors(fn) {
+  const real = console.error, calls = [];
+  console.error = function () { calls.push(Array.prototype.slice.call(arguments).join(' ')); };
+  try { fn(); } finally { console.error = real; }
+  return calls;
+}
+function hugeQueueDetail() {
+  const queue = [];
+  for (let i = 0; i < 2000; i++) queue.push('rule-label-padding-' + i + '-' + 'x'.repeat(40)); // > RUN_CACHE_MAX on its own
+  return { log: [{ seq: 1, ts: Date.now(), level: 'INFO', msg: 'hi' }], stats: freshStats(), queue: queue };
+}
+function test_saveRunDetail_stillTooBigAfterSlimming_returnsFalseAndLogsIt() {
+  const detail = hugeQueueDetail();
+  assert(JSON.stringify(detail.queue).length > RUN_CACHE_MAX, 'fixture: the queue alone must exceed the cache cap, so slimming labels/log cannot help');
+  const key = 'test-detail-too-big';
+  cachePutJson(key, { stats: { totalMoved: 7 }, log: [], queue: ['A'] }); // the previous, small snapshot
+  let ok;
+  const logged = captureConsoleErrors(function () { ok = saveRunDetail(key, detail); });
+  assertEqual(ok, false, 'nothing could be cached, so saveRunDetail must still report false');
+  assertEqual(logged.length, 1, 'exactly one error line per failed save, not zero (silent) and not one per write attempt');
+  assert(logged[0].indexOf('saveRunDetail') === 0 && logged[0].indexOf(key) > 0 && logged[0].indexOf('even after slimming') > 0,
+    'the log line must name the function, the cache key and that slimming did not help: ' + logged[0]);
+  assertEqual(cacheGetJson(key).stats.totalMoved, 7, 'the previous snapshot is left in place (this is the stale-viewer case the log now makes visible)');
+  CacheService.getUserCache().remove(key);
+}
+function test_saveRunDetail_fitsOnFirstTry_logsNothing() {
+  let ok;
+  const logged = captureConsoleErrors(function () { ok = saveRunDetail('test-detail-small', { log: [], stats: freshStats(), queue: ['A'] }); });
+  assertEqual(ok, true);
+  assertEqual(logged.length, 0, 'a normal save must not log an error');
+  CacheService.getUserCache().remove('test-detail-small');
+}
+function test_saveRunDetail_fitsAfterSlimming_logsNothing() {
+  let ok;
+  const logged = captureConsoleErrors(function () { ok = saveRunDetail('test-detail-slim', { log: [], stats: bigLabelsStats(), queue: ['A'] }); });
+  assertEqual(ok, true, 'slimming labels is enough here');
+  assertEqual(logged.length, 0, 'a successful degraded save is not an error — only the second failure is logged');
+  CacheService.getUserCache().remove('test-detail-slim');
+}
+
 // The actual user-visible bug: a run whose stats grew too large to cache in
 // full must NOT leave a reloading dashboard stuck on a stale/zeroed snapshot.
 function test_recordRunProgress_oversizedStats_viewerStillSeesCurrentTotals() {
@@ -717,6 +760,9 @@ const RUNSTATE_TESTS = [
   test_saveRunPayload_oversizedPayload_dropsSeenIdsButStaysResumable,
   test_claimRun_oversizedPayload_warnsDedupResetInLog,
   test_saveRunDetail_oversizedStats_dropsLabelsButKeepsTopLineTotals,
+  test_saveRunDetail_stillTooBigAfterSlimming_returnsFalseAndLogsIt,
+  test_saveRunDetail_fitsOnFirstTry_logsNothing,
+  test_saveRunDetail_fitsAfterSlimming_logsNothing,
   test_recordRunProgress_oversizedStats_viewerStillSeesCurrentTotals,
   test_abortRun_withRunId_cachedDetailEvicted_fallsBackToCallerStats,
   test_cacheGetJson_returnsNullWhenCacheServiceThrows,

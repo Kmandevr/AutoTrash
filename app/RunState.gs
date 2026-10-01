@@ -228,7 +228,18 @@ function saveRunDetail(key, detail) {
     stats: slimStats,
     log: (detail.log || []).slice(-RUN_LOG_SLIM)
   });
-  return cachePutJson(key, slim);
+  if (cachePutJson(key, slim)) return true;
+  // Issue #110 (owner-approved option b): even the slimmed blob didn't fit
+  // (e.g. a huge `queue` or very long log messages), or the cache is
+  // unavailable. Nothing was cached, so the PREVIOUS detail blob stays and a
+  // reloading viewer sees a stale snapshot. Callers ignore the return value
+  // on purpose (progress reporting must never break a run), so say so in the
+  // execution log instead of failing silently.
+  let size = 'unknown';
+  try { size = String(JSON.stringify(slim).length); } catch (e) { /* leave 'unknown' */ }
+  console.error('saveRunDetail: could not cache ' + key + ' even after slimming (' + size +
+    ' bytes vs the ' + RUN_CACHE_MAX + '-byte cap, or the cache is unavailable) — reloading dashboards will keep showing the previous snapshot.');
+  return false;
 }
 
 // Public shape handed to the browser.

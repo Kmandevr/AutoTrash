@@ -32,12 +32,12 @@ function test_buildQuery_spamCategory_usesInSpamNotCategoryTab() {
 }
 function test_buildQuery_inboxPurge_scopedToInbox_noRedundantTrashClause() {
   const q = buildQuery({ isInboxPurge: true, days: 90 });
-  assertEqual(q, 'in:inbox older_than:90d -is:starred');
+  assertEqual(q, 'in:inbox older_than:90d -is:starred -is:important');
   assert(!q.includes('-in:trash'), 'inbox purge query must not carry a redundant -in:trash');
 }
 function test_buildQuery_globalPurge_allMailScope_excludesTrashAndSpam() {
   const q = buildQuery({ isGlobalPurge: true, days: 365 });
-  assertEqual(q, 'older_than:365d -is:starred -in:trash -in:spam -in:sent -in:drafts');
+  assertEqual(q, 'older_than:365d -is:starred -is:important -in:trash -in:spam -in:sent -in:drafts');
   assert(!q.includes('in:inbox'), 'global purge must reach archived mail — no in:inbox scope');
 }
 // FIX 53: Global Purge has no in:inbox scope (by design, to reach archived
@@ -54,6 +54,32 @@ function test_buildQuery_globalPurge_excludesSentAndDrafts() {
   const q = buildQuery({ isGlobalPurge: true, days: 30 });
   assert(q.includes('-in:sent'), 'global purge must never reach the user\'s own Sent mail: ' + q);
   assert(q.includes('-in:drafts'), 'global purge must never reach Drafts: ' + q);
+}
+// Issue #103 (owner-approved option a): the Inbox Purge and Global Purge
+// queries carry -is:important so Gmail-flagged important mail (bank / HR /
+// travel alerts) is never swept up by an age-only purge. Regression: fails
+// on the pre-fix buildQuery(), which had no -is:important anywhere.
+function test_buildQuery_inboxPurge_excludesImportantMail() {
+  const q = buildQuery({ isInboxPurge: true, days: 365 });
+  assert(q.includes('-is:important'), 'inbox purge must spare Gmail-important mail: ' + q);
+}
+function test_buildQuery_globalPurge_excludesImportantMail() {
+  const q = buildQuery({ isGlobalPurge: true, days: 365 });
+  assert(q.includes('-is:important'), 'global purge must spare Gmail-important mail: ' + q);
+}
+// Scope guard: the owner approved -is:important for the two PURGE rules only.
+// A label/category rule is the user explicitly targeting that mail, so its
+// query must be unchanged.
+function test_buildQuery_labelAndCategoryRules_doNotCarryImportantExclusion() {
+  const rules = [
+    { label: 'Newsletters', days: 30 },
+    { isCategory: true, category: 'promotions', days: 30 },
+    { isCategory: true, category: 'spam', days: 7 }
+  ];
+  rules.forEach(r => {
+    const q = buildQuery(r);
+    assert(!q.includes('is:important'), 'only purge rules exclude important mail: ' + q);
+  });
 }
 function test_buildQuery_allRuleTypes_spareStarredMail() {
   const rules = [
@@ -155,6 +181,9 @@ const RULEENGINE_TESTS = [
   test_buildQuery_inboxPurge_scopedToInbox_noRedundantTrashClause,
   test_buildQuery_globalPurge_allMailScope_excludesTrashAndSpam,
   test_buildQuery_globalPurge_excludesSentAndDrafts,
+  test_buildQuery_inboxPurge_excludesImportantMail,
+  test_buildQuery_globalPurge_excludesImportantMail,
+  test_buildQuery_labelAndCategoryRules_doNotCarryImportantExclusion,
   test_buildQuery_allRuleTypes_spareStarredMail,
   test_buildQuery_labelWithEmbeddedQuote_doesNotBreakOutOfQuotedTerm,
   test_buildQuery_labelWithoutQuotes_unaffectedByFix,

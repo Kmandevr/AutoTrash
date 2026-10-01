@@ -858,21 +858,24 @@ reviewing the backend (app/*.gs) or index.html.
     test_buildQuery_globalPurge_excludesSentAndDrafts in
     tests/RuleEngine.test.gs.
 
-  Known limits (current behavior, decisions pending — 2026-09-30). These
-  are honest descriptions of what AutoTrash does TODAY, not gaps this
-  section is asking someone to fix; each is a filed Issue waiting on an
-  owner decision between multiple reasonable directions (see the PM plan
-  and AUTOTRASH_CLAUDE_NOTES.md's decision-pending list in Project
-  knowledge). Nothing below changes until one is picked.
-    - Issue #103: Gmail-"important" mail is NOT protected by Inbox Purge
-      or Global Purge. Neither rule type adds -is:important (or any
-      equivalent) to its query, so a message Gmail itself has flagged as
-      important can still be trashed by an aggressive purge rule with no
-      separate warning beyond the existing DESTRUCTIVE-ACTION confirm.
-      Only the starred guard above and the exclusions already listed in
-      this section apply; "important" is a distinct Gmail signal from
-      "starred" and today gets no special handling anywhere in the
-      engine.
+  Known limits (current behavior, decisions pending — 2026-09-30; entries
+  marked FIXED were resolved after the owner picked a direction on
+  2026-10-01). These are honest descriptions of what AutoTrash does TODAY,
+  not gaps this section is asking someone to fix; each is a filed Issue
+  that was waiting on an owner decision between multiple reasonable
+  directions (see the PM plan and AUTOTRASH_CLAUDE_NOTES.md's
+  decision-pending list in Project knowledge).
+    - Issue #103 — FIXED (2026-10-01, owner-approved option a): Inbox
+      Purge and Global Purge now add -is:important to their queries
+      (buildQuery() in app/RuleEngine.gs), so mail Gmail itself has
+      flagged as important is never swept up by an age-only purge. Like
+      -is:starred this is a per-MESSAGE Gmail search term. Label and
+      category rules are deliberately unchanged: there the user chose the
+      target, so important mail inside that label/category is still in
+      scope. See test_buildQuery_inboxPurge_excludesImportantMail,
+      test_buildQuery_globalPurge_excludesImportantMail and
+      test_buildQuery_labelAndCategoryRules_doNotCarryImportantExclusion
+      in tests/RuleEngine.test.gs.
     - Issue #104: a thread is judged by its OLDEST matching message, not
       its most recent activity. findMatches()'s age-based rules
       (older_than: N days) match a thread the moment any message in it

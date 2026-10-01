@@ -80,7 +80,7 @@ tests/TestFramework.gs
   array (1 entry).
 
 tests/Utils.test.gs           → tests app/Utils.gs        (10 tests)
-tests/RuleEngine.test.gs      → tests app/RuleEngine.gs   (23 tests)
+tests/RuleEngine.test.gs      → tests app/RuleEngine.gs   (28 tests)
 tests/Engine.test.gs          → tests app/Engine.gs       (22 tests —
                                  the modularity guarantees: match without
                                  acting, custom actions, dry-run across
@@ -150,7 +150,15 @@ tests/RunAll.gs
   already executed, in the Apps Script editor or the Node harness
   alike, regardless of file order either runtime happens to pick.
 
-  Current total: 225 tests, as of a 2026-10-01 batch that added 13 direct
+  Current total: 228 tests, as of the 2026-10-01 fix for Issue #103
+  (Gmail-important mail unprotected by Inbox Purge/Global Purge): 3 new
+  tests in tests/RuleEngine.test.gs pinning -is:important on both purge
+  queries and its absence from label/category queries. The two existing
+  exact-string purge-query tests were updated to the new query text.
+  Mutation-checked: removing -is:important from buildQuery() fails the 2
+  new purge tests plus the 2 updated exact-string tests.
+
+  Prior total: 225 tests, as of a 2026-10-01 batch that added 13 direct
   unit tests for three app/Runner.gs helpers that previously only had
   INDIRECT coverage through end-to-end tests of processLiveBurst()/
   backgroundRun()/abortRun() — the same gap shape tests/RunState.test.gs's
@@ -596,6 +604,12 @@ has two jobs:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 7. HISTORY
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+2026-10-01: Issue #103 fixed (owner-approved option a): buildQuery()
+  adds -is:important to the Inbox Purge and Global Purge queries only.
+  +3 tests (225 -> 228); two existing exact-string purge-query
+  assertions updated. See §9's known-limits note in
+  docs/feature-reference.txt.
 
 2026-10-01: app/index.html's pure helper functions (fmt/esc/cid/relTime/
   ruleName/describeRun) got direct unit test coverage for the first

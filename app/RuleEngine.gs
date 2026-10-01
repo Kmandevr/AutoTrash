@@ -13,6 +13,14 @@
 function buildQuery(rule) {
   const star     = '-is:starred';
   const notTrash = '-in:trash';
+  // Issue #103 (owner-approved option a, 2026-10-01): the two PURGE rules
+  // sweep the whole inbox / all mail by age alone, so unlike a label or
+  // category rule (where the user chose the target) they can reach mail
+  // Gmail itself has flagged as important (bank/HR/travel alerts in the
+  // break-test sample). Both purge queries therefore carry -is:important.
+  // Like -is:starred this is a per-MESSAGE search term; label and category
+  // rules are deliberately unchanged.
+  const important = '-is:important';
 
   if (rule.isGlobalPurge) {
     // FIX 7: Use All Mail scope (no inbox restriction) to reach archived mail.
@@ -33,11 +41,11 @@ function buildQuery(rule) {
     // this project's own safety rules (§9) exist to rule out. Excluding both
     // restores the documented guarantee without narrowing what Global Purge
     // is meant to reach: mail the user received, inbox or archived.
-    return `older_than:${rule.days}d ${star} -in:trash -in:spam -in:sent -in:drafts`;
+    return `older_than:${rule.days}d ${star} ${important} -in:trash -in:spam -in:sent -in:drafts`;
   }
   if (rule.isInboxPurge) {
     // FIX 13 (BUG-C4): Removed redundant -in:trash — in:inbox already excludes trash.
-    return `in:inbox older_than:${rule.days}d ${star}`;
+    return `in:inbox older_than:${rule.days}d ${star} ${important}`;
   }
   if (rule.isCategory) {
     if (rule.category === 'spam') {

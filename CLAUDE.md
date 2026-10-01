@@ -68,6 +68,9 @@ built-in services (`GmailApp`, `PropertiesService`, `LockService`,
       testing.txt                 how tests/ is organized, how the Node
                                  harness works, and how to add a test —
                                  read before touching anything under tests/
+      modularity.txt             PROJECT-WIDE RULE: keep AutoTrash modular —
+                                 read before ANY change, every file, every
+                                 task (bug fix, feature, test, review)
       suggestions.txt            proposed, unbuilt — don't implement without
                                  being asked to
 
@@ -129,6 +132,11 @@ every file into a single `vm.Script` instead of running one per file).
 
 ## Rules
 
+- **Modularity is a project-wide invariant.** Every change must
+  preserve or improve modularity — see `docs/modularity.txt`. Put code
+  in the module that owns the responsibility, don't append unrelated
+  logic to a big file, and report (don't worsen) poorly modularized
+  areas. Before finishing, answer the checklist in its §18.
 - **Bugs, tasks, and features live in GitHub Issues, not a file.** A new
   finding is a new Issue (or a comment on one), not a straight-to-code fix,
   unless told to build it. See "Issue labels" below for how to tag one.

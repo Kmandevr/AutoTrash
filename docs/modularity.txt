@@ -1,0 +1,519 @@
+PROJECT-WIDE RULE: KEEP AUTOTRASH MODULAR
+
+This applies to EVERY FILE in the AutoTrash repository, not just the UI.
+
+From this point forward, modularity and maintainability are permanent architectural requirements for the entire project.
+
+This rule applies to:
+
+- frontend/UI files
+- backend Apps Script files
+- RuleEngine
+- Engine
+- Runner
+- RunState
+- Gmail/Fake Gmail code
+- test files
+- Chromium harness
+- test utilities
+- configuration
+- scripts
+- documentation
+- future modules
+- future provider integrations
+- every new file added to the repository
+
+---
+
+THE CORE RULE
+
+«Every automated task working on AutoTrash must preserve or improve modularity.»
+
+The automated tasks must NOT gradually turn a modular system back into a collection of giant files simply because making a quick patch is easier.
+
+A patch that works but makes future patches significantly harder is not considered a good patch.
+
+---
+
+1. PATCHABILITY IS A REQUIREMENT
+
+Every change should be evaluated not only by:
+
+«"Does this fix the immediate problem?"»
+
+but also:
+
+«"Will the next person be able to easily understand and modify this?"»
+
+Prefer:
+
+small responsibility
+        ↓
+small module
+        ↓
+clear interface
+        ↓
+easy patch
+
+over:
+
+small bug
+   ↓
+giant file
+   ↓
+modify unrelated code
+   ↓
+introduce hidden coupling
+
+---
+
+2. NO "JUST ADD IT HERE" DEVELOPMENT
+
+Do not repeatedly append unrelated functionality to an existing large file simply because that file already exists.
+
+Before adding substantial functionality, ask:
+
+«"Does this belong to this module?"»
+
+If not, create or use the appropriate module.
+
+Examples:
+
+If adding a new UI feature:
+
+DO:
+Settings module
+History module
+Dashboard module
+Rules module
+etc.
+
+Not:
+
+DO NOT:
+add another 500 lines to index.html
+
+If adding a backend feature:
+
+DO:
+appropriate engine/service/helper/module
+
+Not:
+
+DO NOT:
+dump unrelated logic into Runner.gs
+
+If adding testing functionality:
+
+DO:
+appropriate test/harness utility
+
+Not:
+
+DO NOT:
+make one enormous test file contain every testing concern
+
+---
+
+3. SINGLE RESPONSIBILITY
+
+Every file/module should have a reasonably understandable purpose.
+
+This does NOT mean every function needs its own file.
+
+It means a developer should be able to answer:
+
+«"What is this file responsible for?"»
+
+without reading the entire repository.
+
+Good:
+
+RuleEngine.gs
+→ rule evaluation
+
+Runner.gs
+→ coordinating runs
+
+RunState.gs
+→ run state persistence
+
+HistoryUI.js
+→ history presentation
+
+SettingsUI.js
+→ settings presentation
+
+Bad:
+
+UtilsEverything.gs
+→ rules
+→ Gmail
+→ UI
+→ history
+→ authentication
+→ settings
+→ random helpers
+→ unrelated business logic
+
+Use judgment. Cohesive utilities can live together.
+
+---
+
+4. AVOID HIDDEN COUPLING
+
+When modifying one module, avoid requiring knowledge of unrelated modules.
+
+Prefer explicit interfaces.
+
+For example:
+
+Module A
+  ↓
+well-defined function/API
+  ↓
+Module B
+
+instead of:
+
+Module A
+  ↓
+global variable
+  ↓
+Module B
+  ↓
+side effect
+  ↓
+Module C
+
+Minimize:
+
+- hidden global state
+- duplicated state
+- implicit dependencies
+- side effects
+- circular dependencies
+- duplicated business logic
+
+---
+
+5. REFACTOR WHEN A PATCH CREATES A STRUCTURAL PROBLEM
+
+Automated tasks should not be forbidden from making small structural improvements.
+
+If fixing a bug would create something like:
+
+500-line function
+
+or:
+
+another unrelated responsibility inside an existing module
+
+stop and consider extracting the new responsibility.
+
+The goal is not to perform a giant refactor for every bug.
+
+The goal is to prevent architectural decay.
+
+---
+
+6. BUG-FIX TASKS MUST ALSO RESPECT ARCHITECTURE
+
+The automated bug-fixing tasks are still allowed to make targeted fixes.
+
+But their workflow should be:
+
+Find bug
+   ↓
+Understand existing architecture
+   ↓
+Identify correct module
+   ↓
+Patch that module
+   ↓
+Add regression test
+   ↓
+Run tests
+
+NOT:
+
+Find bug
+   ↓
+Find easiest place to shove code
+   ↓
+Patch giant file
+   ↓
+Move on
+
+---
+
+7. FEATURE TASKS MUST PLAN THE MODULE BOUNDARY
+
+Before adding a substantial feature, determine:
+
+1. What responsibility does it introduce?
+2. Which existing module owns that responsibility?
+3. If no module owns it, should a new module be created?
+4. What interface should other modules use?
+5. What tests belong with it?
+
+This should happen before implementation.
+
+---
+
+8. TEST CODE MUST ALSO STAY MODULAR
+
+Testing code is part of the application architecture.
+
+Do not allow:
+
+one enormous test file
+
+or:
+
+one giant fake Gmail implementation
+
+or:
+
+one giant Chromium script
+
+to become the solution to every testing problem.
+
+Keep separate concerns where appropriate:
+
+Fake Gmail model
+Fake Gmail search
+Fake Gmail mutations
+Test fixtures
+Backend integration
+UI helpers
+Chromium scenarios
+Shared test utilities
+
+But don't split things unnecessarily.
+
+---
+
+9. FAKE GMAIL IS A SHARED FOUNDATION
+
+The canonical Fake Gmail model should remain reusable.
+
+If another test needs Gmail behavior:
+
+extend the existing Fake Gmail model where appropriate.
+
+Do not create:
+
+FakeGmail2
+FakeGmailForUI
+FakeGmailForRunner
+FakeGmailSpecialCase
+
+unless there is an extremely strong architectural reason.
+
+The goal is one coherent simulation of the Gmail behavior AutoTrash depends on.
+
+---
+
+10. DOCUMENTATION SHOULD ALSO BE MODULAR
+
+Don't create one enormous documentation file containing everything.
+
+Keep documentation organized around meaningful subjects where appropriate:
+
+architecture
+testing
+UI
+development
+deployment
+provider integrations
+
+Documentation should make it easier for future automated tasks to understand where things belong.
+
+---
+
+11. AUTOMATED TASKS MUST READ THE ARCHITECTURE
+
+Every automated Claude task that modifies AutoTrash should treat the repository architecture/documentation as part of its instructions.
+
+Before making significant changes, it should understand:
+
+- module boundaries
+- ownership
+- interfaces
+- shared state
+- testing architecture
+- conventions
+- where new functionality belongs
+
+Do not assume:
+
+«"This is just a small change, so I don't need to understand the structure."»
+
+Small patches are exactly how architectural decay happens when repeated hundreds of times.
+
+---
+
+12. UPDATE THE AUTOMATED TASK PROMPTS
+
+The existing automated tasks should be updated so that this rule is explicitly included in their instructions.
+
+This includes tasks responsible for:
+
+- development
+- bug fixing
+- break testing
+- code review
+- watchdog checks
+- project management
+- testing
+- refactoring
+- future feature development
+
+They should all understand:
+
+«Modularity is a project-wide invariant, not an optional cleanup preference.»
+
+If a task discovers that an existing area is poorly modularized, it should report that architectural issue rather than making it worse.
+
+---
+
+13. CODE REVIEW SHOULD CHECK MODULARITY
+
+Code review should explicitly ask:
+
+Responsibility
+
+Does the change belong in the modified file?
+
+Coupling
+
+Did the change introduce unnecessary dependencies?
+
+Size
+
+Did a file/function become unnecessarily large?
+
+Duplication
+
+Was existing functionality duplicated instead of reused?
+
+Interfaces
+
+Are module boundaries still clear?
+
+Future patches
+
+Would another developer be able to modify this area without understanding unrelated code?
+
+Testing
+
+Is the new behavior tested in the appropriate layer?
+
+---
+
+14. WATCHDOG SHOULD ALSO WATCH ARCHITECTURAL DECAY
+
+The watchdog should not only look for broken functionality.
+
+It should also flag trends such as:
+
+- rapidly growing files
+- giant functions
+- duplicated logic
+- duplicated test infrastructure
+- increasing global state
+- circular dependencies
+- unrelated responsibilities accumulating in one module
+- UI logic leaking into backend code
+- backend logic leaking into UI code
+
+Do not require arbitrary hard limits like:
+
+«"File over 500 lines = bad."»
+
+Size is a signal, not an automatic failure.
+
+Use responsibility and coupling as the primary criteria.
+
+---
+
+15. DO NOT OVER-MODULARIZE
+
+This rule does NOT mean:
+
+«"Make everything tiny."»
+
+Avoid creating pointless files such as:
+
+formatDate.js
+formatNumber.js
+formatBoolean.js
+formatString.js
+
+when those functions naturally belong together.
+
+The goal is:
+
+«cohesive modules with clear responsibilities.»
+
+Not:
+
+«the maximum possible number of files.»
+
+---
+
+16. WHEN IN DOUBT, OPTIMIZE FOR FUTURE CHANGE
+
+The most important question is:
+
+«"How difficult will this be to change six months from now?"»
+
+Prefer architecture where:
+
+new feature
+   ↓
+new/appropriate module
+   ↓
+small number of integration points
+
+rather than:
+
+new feature
+   ↓
+modify 12 unrelated files
+   ↓
+hope nothing else breaks
+
+---
+
+17. PERMANENT PROJECT PRINCIPLE
+
+Treat this as an AutoTrash engineering principle:
+
+«AutoTrash should be easy to patch, easy to extend, easy to test, and difficult to accidentally turn into a monolith.»
+
+Every automated task contributes to that.
+
+A patch is not truly successful if it solves today's problem while making tomorrow's changes substantially harder.
+
+---
+
+18. FINAL RULE FOR ALL FUTURE AUTOMATED WORK
+
+Before an automated task finishes a change, it should ask:
+
+1. Did I preserve existing functionality?
+2. Did I put the change in the correct module?
+3. Did I introduce unnecessary coupling?
+4. Did I duplicate existing functionality?
+5. Did I make any file unnecessarily harder to understand?
+6. Will the next automated task be able to patch this easily?
+7. Did I add/update the appropriate tests?
+8. Did I accidentally make the architecture less modular?
+
+If the answer to #8 is yes:
+
+fix the architecture before finishing the task.
+
+This rule applies to every file, every task, every future feature, and every future automated Claude run in the AutoTrash project.

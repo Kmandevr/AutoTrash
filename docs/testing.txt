@@ -343,7 +343,39 @@ tests/mocks/apps-script-globals.js  (Node-only — never pushed to Apps
 
 tests/harness/run-node-tests.js  (Node-only — never pushed to Apps
                                    Script; see §5)
-  The `npm test` entry point. See §4 for how it actually works.
+  The `npm test` entry point for the app/*.gs backend suite (runAllTests()
+  via TestFramework.gs/RunAll.gs — see §4).
+
+tests/harness/extract-index-html-functions.js  (Node-only)
+tests/harness/index-html-functions.test.js     (Node-only)
+  `npm test`'s second shell command (chained with `&&` after
+  `node tests/harness/run-node-tests.js`, which itself also runs the
+  index.html boot-safety guard below as part of its own exit code).
+  Direct unit tests for
+  app/index.html's small set of pure, DOM-free helper functions
+  (fmt/esc/cid/relTime/ruleName/describeRun) — formatting and label logic
+  that's easy to silently break in a refactor and directly user-visible
+  when it does (wrong counters, unescaped HTML, a stale backup-age label).
+  This is NOT part of runAllTests()/TestFramework.gs — those only ever
+  load app/*.gs, and index.html's UI code as a whole still has no
+  automated coverage (it needs a real DOM/google.script.run to exercise
+  meaningfully, which this project doesn't otherwise stand up). Instead,
+  extract-index-html-functions.js pulls just the named pure functions'
+  source text out of app/index.html (brace-matched, regex-literal-aware so
+  a brace or quote char inside a /regex/ doesn't desync the scan) and
+  evaluates ONLY that snippet in an isolated Node `vm` context — no DOM/
+  `document` stub is provided on purpose, so a function that turns out to
+  touch the DOM fails loudly at call time instead of silently passing.
+  index-html-functions.test.js then asserts against each function's real
+  behavior (plain `assert`, own pass/fail report line, same shape as
+  run-node-tests.js's own summary line). Run alone with
+  `node tests/harness/index-html-functions.test.js`.
+  Adding a function here: it must be genuinely pure (no `document`/
+  `google.script.run`/module-level state) — add its name to FN_NAMES in
+  index-html-functions.test.js and write assertions for it; the extractor
+  needs no changes unless the new function's source does something this
+  file's comment calls out as unhandled (nested `${...}` template
+  interpolation inside the body, for instance).
 
 tests/harness/check-index-html.js  (Node-only — never pushed to Apps
                                      Script; see §5; added 2026-09-30,
@@ -565,6 +597,24 @@ has two jobs:
 7. HISTORY
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
+2026-10-01: app/index.html's pure helper functions (fmt/esc/cid/relTime/
+  ruleName/describeRun) got direct unit test coverage for the first
+  time — test-coverage-gap fallback work, not tied to any Issue. Added
+  tests/harness/extract-index-html-functions.js (brace-matched, regex-
+  literal-aware source extraction straight out of app/index.html; no
+  DOM stub provided on purpose) and tests/harness/index-html-functions.
+  test.js (31 assertions, each mutation-checked by hand against the real
+  source). Wired as `npm test`'s second shell command, chained after
+  `node tests/harness/run-node-tests.js`, with its own "index.html
+  function tests: N/N" report line — not folded into runAllTests()/the
+  225-test backend count or the index.html boot-safety guard's own
+  lines (see the 2026-10-01 entry just below). This narrows, but does
+  not close, "index.html has no automated tests" — the DOM-dependent
+  majority of its UI code (event handlers, rendering, google.script.run
+  calls) is still untested; see §2's entry for these two files for what
+  would make a function eligible for this file. No app/ behavior
+  changed.
+
 2026-10-01: tests/harness/check-index-html.js's nested-template-literal
   scanner fixed to recognize regex literals — a backtick inside a regex
   was previously read as a template-literal boundary, which could desync
@@ -593,7 +643,8 @@ has two jobs:
   115 → 119. No moved test's behavior changed; index.html also gained a
   buildLocalQueue() helper replacing two copies of the same client-side
   queue-building logic (launchEngine()/burst()) — not part of the Node
-  suite (index.html has no automated tests), verified by hand.
+  suite (index.html had no automated tests at the time; see the
+  2026-10-01 entry below for its pure-helper coverage), verified by hand.
 2026-09-24 (later): app/Engine.gs split out of Runner.gs/RuleEngine.gs;
   tests/Engine.test.gs added (22 tests) plus one RuleEngine test for
   ruleLabel(). Total 92 → 115. No existing test changed.

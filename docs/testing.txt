@@ -150,7 +150,24 @@ tests/RunAll.gs
   already executed, in the Apps Script editor or the Node harness
   alike, regardless of file order either runtime happens to pick.
 
-  Current total: 197 tests, as of a 2026-09-29 fix to the RUN_DETAIL_<id>
+  Current total: 212 tests, as of a 2026-09-30 batch that added 15 direct
+  unit tests for the run-mutex primitives isRunActive()/isRunStale()/
+  abortRequestedFor() (app/RunState.gs) — previously only covered
+  indirectly through end-to-end tests like
+  test_startLiveRun_refusesSecondRunWhileOneIsActive. Pins the exact live
+  (90s) vs background (150s) staleness thresholds at their boundary
+  (both the "still fresh at exactly the limit" and "stale one ms past
+  it" sides), the unrecognized-source fallback to the live threshold, a
+  missing-updatedAt run being treated as already stale, isRunActive()
+  requiring BOTH status==='running' and a fresh heartbeat, and
+  abortRequestedFor()'s `!!runId &&` guard against a falsy run id
+  false-matching a cleared (null) RUN_ABORT key. Mutation-checked:
+  flipping isRunStale()'s `>` to `<`, isRunActive()'s `===` to `!==`, or
+  dropping abortRequestedFor()'s `!!runId` guard each makes the matching
+  new test(s) fail (11, 6, and 1 respectively). Changed no app/
+  behavior — tests only. See tests/RunState.test.gs.
+
+  Prior total: 197 tests, as of a 2026-09-29 fix to the RUN_DETAIL_<id>
   cache-overflow bug: beginRun()/recordRunProgress()/endRun()/claimRun()
   called cachePutJson() on the run's detail blob directly and ignored its
   return value, so once stats.labels grew large enough to push the blob

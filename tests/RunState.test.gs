@@ -44,6 +44,97 @@ function makeRunStale(props) {
   props.setProperty('RUN_STATE', JSON.stringify(s));
 }
 
+// ── isRunActive / isRunStale / abortRequestedFor (direct unit tests) ───────
+// These three are the actual mutex primitives startLiveRun()/requestAbort()/
+// getRunStatus() build on, but until now only had INDIRECT coverage through
+// end-to-end tests like test_startLiveRun_refusesSecondRunWhileOneIsActive
+// below and test_startLiveRun_replacesStaleRun. Direct tests here pin down
+// their exact boundary behavior (PM plan claude/autotrash-pm/plan-20260930.md,
+// Block D) — each one is a pure function of its arguments, so no
+// withRunProps()/PropertiesService round-trip is needed except for
+// abortRequestedFor, which reads RUN_ABORT directly.
+
+function test_isRunStale_liveRun_atExactThreshold_notStale() {
+  const s = { source: 'live', updatedAt: 1000 };
+  assertEqual(isRunStale(s, 1000 + RUN_STALE_MS.live), false,
+    'exactly at the live threshold must not count as stale — the check is a strict ">"');
+}
+function test_isRunStale_liveRun_justOverThreshold_isStale() {
+  const s = { source: 'live', updatedAt: 1000 };
+  assertEqual(isRunStale(s, 1000 + RUN_STALE_MS.live + 1), true,
+    'one millisecond past the live threshold must count as stale');
+}
+function test_isRunStale_backgroundRun_atExactThreshold_notStale() {
+  const s = { source: 'background', updatedAt: 1000 };
+  assertEqual(isRunStale(s, 1000 + RUN_STALE_MS.background), false,
+    'exactly at the background threshold (longer than live\'s) must not count as stale');
+}
+function test_isRunStale_backgroundRun_justOverThreshold_isStale() {
+  const s = { source: 'background', updatedAt: 1000 };
+  assertEqual(isRunStale(s, 1000 + RUN_STALE_MS.background + 1), true,
+    'one millisecond past the background threshold must count as stale');
+}
+function test_isRunStale_unknownSource_fallsBackToLiveThreshold() {
+  const s = { source: 'some-future-source', updatedAt: 1000 };
+  assertEqual(isRunStale(s, 1000 + RUN_STALE_MS.live + 1), true,
+    'an unrecognized source must fall back to RUN_STALE_MS.live (the "|| RUN_STALE_MS.live" default), not silently never go stale');
+}
+function test_isRunStale_nullState_neverStale() {
+  assertEqual(isRunStale(null, Date.now()), false, 'no run at all is not a "stale run" — callers check for null separately');
+}
+function test_isRunStale_missingUpdatedAt_treatsAsAlreadyStale() {
+  const s = { source: 'live' }; // no updatedAt at all
+  assertEqual(isRunStale(s, Date.now()), true,
+    'a run record with no updatedAt must fall back to epoch 0 (Date.now() minus 0 is always > the stale limit), not read as fresh');
+}
+
+function test_isRunActive_runningAndFresh_isActive() {
+  const s = { status: 'running', source: 'live', updatedAt: 1000 };
+  assertEqual(isRunActive(s, 1000 + 1000), true);
+}
+function test_isRunActive_runningButStale_isNotActive() {
+  const s = { status: 'running', source: 'live', updatedAt: 1000 };
+  assertEqual(isRunActive(s, 1000 + RUN_STALE_MS.live + 1), false,
+    'a run whose heartbeat went stale must not read as active even though status is still "running" — this is what lets startLiveRun() replace an abandoned run');
+}
+function test_isRunActive_finishedStatus_isNotActive() {
+  const s = { status: 'done', source: 'live', updatedAt: 1000 };
+  assertEqual(isRunActive(s, 1000 + 1), false,
+    'a fresh heartbeat does not make a finished run active — status must also be "running"');
+}
+function test_isRunActive_nullState_isNotActive() {
+  assertEqual(isRunActive(null, Date.now()), false, 'no run at all must never read as active');
+}
+
+function test_abortRequestedFor_matchingRunId_isTrue() {
+  withRunProps(props => {
+    props.setProperty('RUN_ABORT', 'run-123');
+    assertEqual(abortRequestedFor('run-123'), true);
+  });
+}
+function test_abortRequestedFor_differentRunId_isFalse() {
+  withRunProps(props => {
+    props.setProperty('RUN_ABORT', 'run-123');
+    assertEqual(abortRequestedFor('run-999'), false,
+      'an abort request for a DIFFERENT (e.g. superseded) run id must not be seen as requested for this one');
+  });
+}
+function test_abortRequestedFor_noAbortRequested_isFalse() {
+  withRunProps(() => {
+    assertEqual(abortRequestedFor('run-123'), false);
+  });
+}
+function test_abortRequestedFor_falsyRunId_isFalseEvenWithNoAbortKeySet() {
+  // withRunProps() deletes RUN_ABORT, so getProps().getProperty(RUN_ABORT_KEY)
+  // is null here. Without the `!!runId &&` short-circuit, a falsy runId
+  // (null/'') would wrongly compare null === null / '' === null and report
+  // an abort that was never actually requested by anyone.
+  withRunProps(() => {
+    assertEqual(abortRequestedFor(null), false);
+    assertEqual(abortRequestedFor(''), false);
+  });
+}
+
 // ── startLiveRun / coordination ────────────────────────────────────────────
 
 function test_startLiveRun_refusesSecondRunWhileOneIsActive() {
@@ -591,6 +682,21 @@ function test_getRunStatus_corruptState_readsAsNoRun() {
 }
 
 const RUNSTATE_TESTS = [
+  test_isRunStale_liveRun_atExactThreshold_notStale,
+  test_isRunStale_liveRun_justOverThreshold_isStale,
+  test_isRunStale_backgroundRun_atExactThreshold_notStale,
+  test_isRunStale_backgroundRun_justOverThreshold_isStale,
+  test_isRunStale_unknownSource_fallsBackToLiveThreshold,
+  test_isRunStale_nullState_neverStale,
+  test_isRunStale_missingUpdatedAt_treatsAsAlreadyStale,
+  test_isRunActive_runningAndFresh_isActive,
+  test_isRunActive_runningButStale_isNotActive,
+  test_isRunActive_finishedStatus_isNotActive,
+  test_isRunActive_nullState_isNotActive,
+  test_abortRequestedFor_matchingRunId_isTrue,
+  test_abortRequestedFor_differentRunId_isFalse,
+  test_abortRequestedFor_noAbortRequested_isFalse,
+  test_abortRequestedFor_falsyRunId_isFalseEvenWithNoAbortKeySet,
   test_startLiveRun_refusesSecondRunWhileOneIsActive,
   test_startLiveRun_replacesStaleRun,
   test_processLiveBurst_registered_recordsProgressForOtherDevices,

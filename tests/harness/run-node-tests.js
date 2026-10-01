@@ -32,6 +32,7 @@ const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
 const { createGlobals } = require('../mocks/apps-script-globals');
+const { checkIndexHtml } = require('./check-index-html');
 
 const ROOT = path.resolve(__dirname, '..', '..');
 
@@ -104,7 +105,32 @@ function main() {
     });
   }
 
-  process.exit(failed > 0 ? 1 : 0);
+  // Boot-safety guard: static checks on app/index.html's inline <script>
+  // content (see tests/harness/check-index-html.js for why this is a
+  // separate Node-level check rather than a tests/*.test.gs suite). Kept
+  // as its own summary line rather than folded into the runAllTests()
+  // count above, since it checks a different file with a different
+  // mechanism (vm.Script parse + a static scanner, not runAllTests()'s
+  // assert-based suites) — but it still gates `npm test`'s exit code.
+  const htmlCheck = checkIndexHtml();
+  console.log('');
+  console.log(`AutoTrash index.html guard: ${htmlCheck.passed}/${htmlCheck.total} passed, ${htmlCheck.failed} failed`);
+  if (htmlCheck.failed > 0) {
+    console.log('');
+    console.log('Failures:');
+    htmlCheck.results.filter(r => r.status === 'FAIL').forEach(r => {
+      console.log(`  ✗ ${r.name}`);
+      console.log(`    ${r.error}`);
+    });
+  }
+
+  // Regression coverage for the guard's own scanner (see
+  // tests/harness/check-index-html.selftest.js) — required here, not at
+  // module load, so its summary prints in the same order it runs.
+  const htmlSelftest = require('./check-index-html.selftest');
+
+  const anyFailed = failed > 0 || htmlCheck.failed > 0 || htmlSelftest.failed > 0;
+  process.exit(anyFailed ? 1 : 0);
 }
 
 main();

@@ -884,10 +884,27 @@ let finishedIds = {};       // runs this tab already showed the ending of
 let pollH = null, pollBusy = false, clockSkew = 0;
 let rpcRetries = 0;
 const MAX_RPC_RETRIES = 3;
+// Reload "READY flash" fix (2026-09-30): true once this tab's FIRST
+// getRunStatus() has resolved (success or failure). Until then the page
+// sits in a neutral CHECKING state with Engage disabled instead of the
+// static HTML's default READY/enabled — see exitCheckingState() below.
+let initialStatusChecked = false;
 
 // ── INIT ───────────────────────────────────────────────────────
 window.onload = () => {
   window.__atOnloadMs = Date.now(); // flight recorder (?diag=1): startup ran
+  // Reload "READY flash" fix: the static HTML paints READY with Engage
+  // enabled before this tab has any idea whether a run is already active
+  // elsewhere (a background trigger, or another device mid-run). If one
+  // is, that's a brief false "go ahead" on every reload — harmless, since
+  // startLiveRun()'s server-side mutex would refuse a second run anyway,
+  // but confusing to look at. Boot into a neutral checking state instead;
+  // exitCheckingState() (via the first applyStatus()/pollStatus() failure)
+  // releases it back to READY once we actually know nothing is running. A
+  // showable run instead routes through renderWatched(), which sets its
+  // own WATCHING/PAUSED state and disables Engage itself.
+  document.getElementById('btngo').disabled = true;
+  setState('CHECKING…');
   renderCats([]);
   google.script.run
     .withSuccessHandler(d => {
@@ -1504,8 +1521,45 @@ function burst(payload) {
     .processLiveBurst(payload);
 }
 
+// Applies one processLiveBurst() response's stats to lastStats/runStats and
+// the on-screen tiles. Split out of handleRes() so the AT-BRK-004 fix below
+// can call it from the post-abort path too, instead of duplicating it.
+function applyBurstStats(res) {
+  if (!res || !res.payload?.stats) return;
+  const s = res.payload.stats;
+  // BUG-H13: keep a full-fidelity reference to the latest server stats
+  // object (labels/purge sub-counts/errors included) so an abort mid-run
+  // can report the same detail a normal completion does. See doAbort().
+  lastStats = s;
+  runStats.totalMoved    = s.totalMoved    || 0;
+  // Use dryTrashed/dryArchived during dry runs so counters show projected counts.
+  runStats.totalTrashed  = isDry ? (s.dryTrashed  || 0) : (s.totalTrashed  || 0);
+  runStats.totalArchived = isDry ? (s.dryArchived || 0) : (s.totalArchived || 0);
+  // BUG-H9 FIX: Also mirror raw dry fields into runStats so abortRun()
+  // server-side can read stats.dryTrashed directly (it doesn't re-read totalTrashed).
+  if (isDry) {
+    runStats.dryTrashed  = s.dryTrashed  || 0;
+    runStats.dryArchived = s.dryArchived || 0;
+  }
+  animStat('sv0', runStats.totalMoved);
+  animStat('sv1', runStats.totalTrashed);
+  animStat('sv2', runStats.totalArchived);
+  updateBars(s);
+}
+
 function handleRes(res) {
-  if (aborted) return;
+  // AT-BRK-004 FIX: a burst's processLiveBurst() RPC can still be in flight
+  // when Abort is tapped, so its response lands here AFTER `aborted` is
+  // already true. That burst's Gmail actions already happened server-side
+  // (the abort email and DAILY_STATS both reflect them correctly — see
+  // fullerStats() in Runner.gs) — the old code just never told the
+  // dashboard: `if (aborted) return;` bailed out before the stats block
+  // below ever ran, so the tiles stayed frozen at whatever they showed
+  // before the race (0/0/0 if this was the very first burst) even though
+  // real mail had moved. Apply this burst's real stats to the tiles first,
+  // then bail out — still refusing to start another burst or act on
+  // busy/superseded/abortRequested signals, since the run is already over.
+  if (aborted) { applyBurstStats(res); return; }
   rpcRetries = 0;
 
   // Registered-run control signals (see processLiveBurst() in Runner.gs).
@@ -1539,27 +1593,7 @@ function handleRes(res) {
     term.scrollTop = term.scrollHeight; // ONE scroll after all lines
   }
 
-  if (res.payload?.stats) {
-    const s = res.payload.stats;
-    // BUG-H13: keep a full-fidelity reference to the latest server stats
-    // object (labels/purge sub-counts/errors included) so an abort mid-run
-    // can report the same detail a normal completion does. See doAbort().
-    lastStats = s;
-    runStats.totalMoved    = s.totalMoved    || 0;
-    // Use dryTrashed/dryArchived during dry runs so counters show projected counts.
-    runStats.totalTrashed  = isDry ? (s.dryTrashed  || 0) : (s.totalTrashed  || 0);
-    runStats.totalArchived = isDry ? (s.dryArchived || 0) : (s.totalArchived || 0);
-    // BUG-H9 FIX: Also mirror raw dry fields into runStats so abortRun()
-    // server-side can read stats.dryTrashed directly (it doesn't re-read totalTrashed).
-    if (isDry) {
-      runStats.dryTrashed  = s.dryTrashed  || 0;
-      runStats.dryArchived = s.dryArchived || 0;
-    }
-    animStat('sv0', runStats.totalMoved);
-    animStat('sv1', runStats.totalTrashed);
-    animStat('sv2', runStats.totalArchived);
-    updateBars(s);
-  }
+  applyBurstStats(res);
 
   // FIX: update rule label display after round-robin rotation.
   // S-U3: the Rules Left counter comes from the same queue read — unlike the
@@ -1873,12 +1907,25 @@ function pollStatus() {
   pollBusy = true;
   google.script.run
     .withSuccessHandler(st => { pollBusy = false; try { applyStatus(st); } finally { schedulePoll(pollDelay()); } })
-    .withFailureHandler(() => { pollBusy = false; schedulePoll(15000); })
+    .withFailureHandler(() => { pollBusy = false; exitCheckingState(); schedulePoll(15000); })
     .getRunStatus(watch.seq, watch.id);
 }
 
+// Reload "READY flash" fix: releases the neutral CHECKING boot state set in
+// window.onload, back to READY with Engage enabled. Called the first time
+// this tab learns (successfully or not) that no run is active anywhere —
+// a showable run instead marks initialStatusChecked itself (see
+// applyStatus()) and lets renderWatched() own the UI state from then on.
+// Idempotent/safe to call repeatedly; every call after the first is a no-op.
+function exitCheckingState() {
+  if (initialStatusChecked) return;
+  initialStatusChecked = true;
+  document.getElementById('btngo').disabled = false;
+  if (document.getElementById('state').textContent === 'CHECKING…') setState('READY');
+}
+
 function applyStatus(st) {
-  if (!st) return;
+  if (!st) { exitCheckingState(); return; }
   clockSkew = (st.serverNow || Date.now()) - Date.now();
   const r = st.run;
 
@@ -1896,7 +1943,16 @@ function applyStatus(st) {
   const showable = r && r.status === 'running' && !finishedIds[r.id] &&
     (r.active || (r.stale && r.source === 'live'));
 
-  if (showable) { renderWatched(r, st); return; }
+  if (showable) {
+    // renderWatched() sets its own WATCHING/PAUSED state and disables
+    // Engage via setRunningUI(true) — just mark the initial check done so
+    // exitCheckingState() (e.g. from a later failed poll) never re-enables
+    // Engage out from under an actively-watched run.
+    initialStatusChecked = true;
+    renderWatched(r, st);
+    return;
+  }
+  exitCheckingState();
 
   // The run we were watching has ended.
   if (role === 'viewer' && watch.id && r && r.id === watch.id) {

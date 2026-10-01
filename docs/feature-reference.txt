@@ -367,6 +367,16 @@ reviewing the backend (app/*.gs) or index.html.
     "lastStats" below).
   - The currently-in-flight burst may still complete server-side
     (Google can't cancel mid-execution), but no further bursts fire.
+  - AT-BRK-004 FIX (2026-09-30): that in-flight burst's response, once it
+    arrives, still updates the dashboard tiles (Actioned/Trashed/Archived)
+    and lastStats even though `aborted` is already true — only starting
+    ANOTHER burst stays gated on the abort flag. Previously handleRes()
+    discarded the response outright on `if (aborted) return;`, so the
+    tiles stayed frozen at whatever they showed before the abort (0/0/0 on
+    the very first burst) while the abort email and server-side RUN_DETAIL
+    both correctly reported the real count — the tool had genuinely moved
+    mail the screen said it hadn't touched. See app/index.html's
+    handleRes()/applyBurstStats().
   - Since 2026-09-24, abortRun() takes the run's id as a 4th argument. With
     it, the abort waits for an in-flight burst to finish (script lock),
     uses the server's own recorded stats if they are more complete than the
@@ -678,6 +688,19 @@ reviewing the backend (app/*.gs) or index.html.
                   run). The run's ending banner shows on every watching
                   dashboard. The header's LAST RUN also refreshes from the
                   poll (S-N3).
+                  Boot / reload (2026-09-30 fix): the page no longer paints
+                  READY with Engage enabled the instant it loads — it boots
+                  into a neutral CHECKING… state with Engage disabled until
+                  this tab's FIRST getRunStatus() resolves (success OR
+                  failure — a network hiccup releases it too, rather than
+                  leaving Engage stuck disabled). Before this fix, a reload
+                  while a run was active elsewhere (a background trigger, or
+                  another device driving) would flash READY/Engage-enabled
+                  for one poll before switching to WATCHING — never a data
+                  risk, since startLiveRun()'s server-side mutex would have
+                  refused a second run anyway, but a confusing false "go
+                  ahead" on every reload. See exitCheckingState() in
+                  index.html.
   Connection loss : A driving tab whose burst RPC fails re-syncs from the
                   server's saved payload (claimRun with its own id) and
                   retries up to 3 times before stopping; the run then shows
@@ -749,9 +772,11 @@ reviewing the backend (app/*.gs) or index.html.
                     --dur-slow 320ms, --ease-standard/enter/exit; JS mirror
                     MOTION + motionOK()). prefers-reduced-motion zeroes them
                     and resolves every animation to its end state.
-                  - Status pill (setState) in the header: READY / STARTING /
-                    RUNNING / DRY RUN / WATCHING / PAUSED / ABORTING /
-                    COMPLETE / DRY COMPLETE / ABORTED / HALTED.
+                  - Status pill (setState) in the header: CHECKING… (boot
+                    only, before the first getRunStatus() resolves — see
+                    "Watching" above) / READY / STARTING / RUNNING / DRY RUN
+                    / WATCHING / PAUSED / ABORTING / COMPLETE / DRY COMPLETE
+                    / ABORTED / HALTED.
                   - Run pipeline under the terminal bar: RULES → SEARCH →
                     EVALUATE → EXECUTE → DONE. A stage lights only when the
                     server log reports it (SEARCH; RESULT/DRYRUN/clean-eject
@@ -832,6 +857,42 @@ reviewing the backend (app/*.gs) or index.html.
     Purge is meant to reach (received mail, inbox or archived). See
     test_buildQuery_globalPurge_excludesSentAndDrafts in
     tests/RuleEngine.test.gs.
+
+  Known limits (current behavior, decisions pending — 2026-09-30). These
+  are honest descriptions of what AutoTrash does TODAY, not gaps this
+  section is asking someone to fix; each is a filed Issue waiting on an
+  owner decision between multiple reasonable directions (see the PM plan
+  and AUTOTRASH_CLAUDE_NOTES.md's decision-pending list in Project
+  knowledge). Nothing below changes until one is picked.
+    - Issue #103: Gmail-"important" mail is NOT protected by Inbox Purge
+      or Global Purge. Neither rule type adds -is:important (or any
+      equivalent) to its query, so a message Gmail itself has flagged as
+      important can still be trashed by an aggressive purge rule with no
+      separate warning beyond the existing DESTRUCTIVE-ACTION confirm.
+      Only the starred guard above and the exclusions already listed in
+      this section apply; "important" is a distinct Gmail signal from
+      "starred" and today gets no special handling anywhere in the
+      engine.
+    - Issue #104: a thread is judged by its OLDEST matching message, not
+      its most recent activity. findMatches()'s age-based rules
+      (older_than: N days) match a thread the moment any message in it
+      is old enough — including a thread that also contains a brand-new
+      reply. A conversation someone replied to yesterday can still be
+      trashed today if one of its early messages is old enough to match,
+      because Gmail's own getLastMessageDate() on the thread is never
+      consulted by the current query/match logic.
+    - Issue #105: a rule can finish early under starred-guard cap
+      starvation. The starred-thread guard (this section, above) drops a
+      guarded thread from `seen` so it is never marked handled — correct
+      for not silently losing it, but if a single rule's top 500 search
+      results (Gmail's per-search page/cap size) are ALL starred-guarded,
+      `matched` reads 0 for that burst and the rule is treated as
+      finished, silently leaving any of its older, non-guarded matches
+      beyond that first 500 untouched. Safe in the sense that it
+      under-acts rather than over-acts, but incomplete: a rule with a
+      very large starred-heavy backlog may never reach its true matches.
+      See claude/autotrash-findings/starred-guard-cap-starvation-20260925.md
+      (Project knowledge) for the full mechanism and reproduction.
 
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

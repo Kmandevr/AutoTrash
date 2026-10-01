@@ -1,6 +1,7 @@
 ████████████████████████████████████████████████████████████████
 AUTOTRASH — SUGGESTIONS & POTENTIAL FEATURES
-Last updated: 2026-09-01 (twelfth pass — added S-N17)
+Last updated: 2026-09-30 (marked S-N6 [IMPLEMENTED] — fixed on main by
+9de38ed/#81 on 2026-09-26 but never reflected here until now)
 
 ⚠ IMPORTANT — READ BEFORE ACTING ON ANYTHING IN THIS FILE ⚠
 
@@ -25,8 +26,6 @@ STILL OPEN (need a decision before any code is written):
   S-L4  (Issue #77) undo window / pending-trash label
   S-L5  (Issue #78) per-rule sender/subject exclusions
   S-N4  (Issue #80) drag-to-reorder queue ordering
-  S-N6  (Issue #81) cid() can collide for two rules whose labels differ only in
-        characters it strips — progress bars would then overwrite each other
   S-N9  see BUG-C19 in GitHub Issues — Spam category "Archive" is
         likely a silent no-op; needs live-account verification + a fix
         decision, not a suggestions-file build-or-don't call
@@ -151,7 +150,8 @@ S-N5  [IMPLEMENTED — FIX 43] Digest send-hour dropdown covers only 7 of the
   lists 6:00 AM through 8:00 PM in order (15 options); default stays 8:00 AM.
   See FIX 43 in GitHub Issues for the implementation note.
 
-S-N6  cid() can collide for two rules with different labels
+S-N6  [IMPLEMENTED 2026-09-26 — 9de38ed, Issue #81] cid() can collide for
+      two rules with different labels
   Found: 2026-08-31 review. index.html's cid() turns a rule label into a
   DOM-safe id by replacing every character outside [a-zA-Z0-9_-] with '_'.
   Two custom label rules named e.g. "Old/Receipts" and "Old Receipts" (or any
@@ -161,10 +161,23 @@ S-N6  cid() can collide for two rules with different labels
   other's bar instead of each getting its own. Rare in practice (requires two
   rules with near-identical names AND both active in the same run) and not a
   data-safety issue — Gmail actions themselves are entirely unaffected, this
-  only garbles the live progress display. Not fixed: the cleanest options are
-  (a) key bars by queue index instead of a derived id, or (b) suffix the id
-  with a running counter when a collision is detected at render time. Either
-  is a small, contained change if you want it.
+  only garbles the live progress display.
+  FIXED (option (a) of the two listed here): renderBars() now keys each bar
+  off the rule's position in the queue (a new `barIds` Map: 'b' + index)
+  instead of cid(label), which is always unique within one run; updateBars()
+  looks the right element back up via barIds.get(label), falling back to the
+  old cid(lbl) only as a defensive no-op path. Also applied to the purge-row
+  lookup so a custom rule literally named "GLOBAL PURGE"/"INBOX PURGE" can't
+  collide with those either. Pure client-side id-generation change, no
+  effect on stats.labels itself (a separate, larger question — see #84/S-N11
+  below, still open). npm test: 183/183 (unaffected, no backend change);
+  exercised directly against real app/index.html via a headless-Chromium
+  harness, confirmed failing pre-fix (duplicate DOM id, one bar frozen) and
+  passing post-fix (two distinct ids, each updates independently). GitHub
+  Issue #81 is fixed on `main` but, as of 2026-09-30, still shows OPEN there
+  — every scheduled session this week has lacked GitHub write access to
+  close it; see AUTOTRASH_CLAUDE_NOTES.md / claude/autotrash-outbox.md
+  (Project knowledge) for the pending status-fixed close.
 
 S-N8  [IMPLEMENTED 2026-09-24 — app/RunState.gs, feature-reference §2e]
       Live (manual) runs have no cross-tab/cross-session coordination
@@ -598,7 +611,8 @@ S-N4  Rule ordering in the queue is fixed: labels → categories → purges
 
 S-N5  [see Section 1 — digest send-hour dropdown, now IMPLEMENTED]
 
-S-N6  [see Section 1 — cid() collision edge case]
+S-N6  [IMPLEMENTED 2026-09-26 — 9de38ed, Issue #81 — see Section 1, cid()
+      collision edge case]
 
 S-N7  Background error emails can double up with the end-of-cycle summary
   Found: 2026-08-31 review. This is a real behavioural question, tracked

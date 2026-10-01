@@ -583,7 +583,10 @@ reviewing the backend (app/*.gs) or index.html.
                       literal "PROMOTIONS" custom label alongside the
                       Promotions category) shares one entry and one email
                       row between two logically distinct rules; tracked as
-                      S-N11 in suggestions.txt.
+                      S-N11 in suggestions.txt (the UI now WARNS about this
+                      at rule-add and save time since 2026-10-01, Issue
+                      #84 — see §1a "Add Rule" / the §7 NOTE below; the
+                      keying itself is unchanged).
     globalPurgeDone / inboxPurgeDone
                     — bool, set when a purge rule ejects. Purge rules get no
                       stats.labels entry, so these are the only "finished"
@@ -649,8 +652,12 @@ reviewing the backend (app/*.gs) or index.html.
   into one stats.labels entry and one row in the per-rule email table and
   digest. This does not affect what Gmail actually does — each rule's
   buildQuery()/action still runs correctly and independently — only the
-  reporting layer conflates the two. Not fixed; see S-N11 in
-  suggestions.txt for options.
+  reporting layer conflates the two. The keying itself is still unchanged
+  (option c in S-N11, namespacing the keys, was not chosen), but since
+  2026-10-01 (Issue #84, owner-approved option b) the UI warns at rule-add
+  and Save Config time when two label rules, or a label rule and a built-in
+  rule name, would share a key (see §1a "Add Rule"). Hand-edited config
+  that bypasses the UI is not checked.
 
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -766,6 +773,19 @@ reviewing the backend (app/*.gs) or index.html.
                   successfully but search Gmail with an empty label term
                   forever. Any label with at least one non-quote character
                   is unaffected.
+                  As of 2026-10-01 (Issue #84, owner-approved option b) it
+                  also WARNS, without blocking, when the new label matches
+                  another label rule or a built-in rule name (the five
+                  Gmail category names, GLOBAL PURGE, INBOX PURGE),
+                  ignoring case and surrounding spaces (Gmail label search
+                  is case-insensitive, so "News" and "news" really are the
+                  same label). The rule is still added; a warning toast
+                  appears and a WARN line goes to the terminal. Save Config
+                  re-checks the whole list (so duplicates already in a
+                  stored config are flagged too): the success toast reads
+                  "Saved ✓ — N rule name(s) overlap (see log)." and each
+                  colliding name gets one WARN line. A clean config saves
+                  exactly as before. See findLabelCollision() in index.html.
   Category days : getCatState() (backs the toggle/render/save paths for the
                   Gmail Category Rules panel) floors any parsed "Days" value
                   under 1 back to the category's documented default, the
@@ -1304,9 +1324,11 @@ reviewing the backend (app/*.gs) or index.html.
   Node execution can only simulate by manually sequencing the two
   functions' internal steps rather than truly running them in parallel —
   worth deciding as part of any eventual fix); the stats.labels
-  key-collision case described in §7's NOTE and tracked as S-N11 (would
-  need a spy/harness change to model two rules sharing a key
-  meaningfully); the dead-code branch in buildEmailHtml()'s color selector
+  key-collision case described in §7's NOTE and tracked as S-N11 (the
+  save-time WARNING is covered since #84 by findLabelCollision()'s tests in
+  tests/harness/index-html-functions.test.js; the key MERGE itself is still
+  untested and unchanged, and would need a spy/harness change to model two
+  rules sharing a key meaningfully); the dead-code branch in buildEmailHtml()'s color selector
   described in §6/BUG-E18 (deliberately NOT tested — there is no observable
   output difference for a test to distinguish, since the branch can never
   execute against any real caller); and index.html's client-side JS in

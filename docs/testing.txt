@@ -632,6 +632,17 @@ has two jobs:
 7. HISTORY
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
+2026-10-01: Issue #84 (label-name collision warning): +8 assertions in
+  tests/harness/index-html-functions.test.js (findLabelCollision()
+  unique/duplicate/case+space-insensitive/category name/purge
+  names/precedence/blank input, and labelCollisionText()), 31 -> 39. The
+  backend count is unchanged at 247 (no .gs change). The new functions
+  do not exist on the pre-fix code, so the extractor throws and the
+  whole file fails there (verified by stashing app/). The add-time and
+  save-time warnings themselves were exercised in headless Chromium
+  against the real app (duplicate added but warned, category name
+  warned, save toast + WARN lines, clean config saves quietly).
+
 2026-10-01: Issue #7 (dry-run "500+" label): +10 tests (7 Runner, 3
   EmailTemplates), 237 -> 247. app/Runner.gs, app/EmailTemplates.gs,
   app/Utils.gs (fmtCapped), app/index.html. See docs/feature-

@@ -313,6 +313,7 @@
     /* BUG-R1 FIX: INFO text raised from var(--dim) #336633 (~2.5:1) to var(--g3) #44bb77 (≥4.5:1) */
     .b-INFO    {background:rgba(18,38,18,.9);color:var(--g3);border:1px solid var(--dimmer)}
     .b-ERROR   {background:rgba(255,68,85,.13);color:var(--red);border:1px solid rgba(255,68,85,.28)}
+    .b-WARN    {background:rgba(255,187,68,.13);color:var(--amber);border:1px solid rgba(255,187,68,.28)}
     /* BUG-R4 FIX: SEP level — full-width faint line, no badge */
     .b-SEP     {display:none}
     .ll.sep    {border-top:1px solid var(--bord2);margin:3px 0;padding-top:3px}
@@ -1043,6 +1044,50 @@ function renderRules() {
     </div>`).join('');
 }
 
+// ── LABEL-NAME COLLISIONS (Issue #84, owner-approved option b) ─────────────
+// stats.labels (and so the run summary, the per-rule email table and the
+// daily digest) is keyed by the rule's plain label text. Two rules that
+// produce the same key silently MERGE their reported counts. Category rules
+// are keyed by their upper-cased display name ("PROMOTIONS") and the two
+// purge rules by "GLOBAL PURGE" / "INBOX PURGE", so a custom label rule can
+// collide with those too. Gmail label names are case-insensitive in search,
+// so "News" and "news" are also genuinely the same label, not just a
+// look-alike: the comparison here ignores case and surrounding spaces.
+// This only WARNS — nothing is blocked or changed, because the collision is
+// a reporting problem (no mail is mis-actioned by it).
+// Pure: pass the other rules' labels and the reserved names in.
+function findLabelCollision(label, otherLabels, reservedNames) {
+  const norm = x => String(x == null ? '' : x).trim().toLowerCase();
+  const key = norm(label);
+  if (!key) return null;
+  const rule = (otherLabels || []).find(o => norm(o) === key);
+  if (rule !== undefined) return { kind: 'rule', other: String(rule) };
+  const res = (reservedNames || []).find(o => norm(o) === key);
+  if (res !== undefined) return { kind: 'reserved', other: String(res) };
+  return null;
+}
+function labelCollisionText(label, c) {
+  const tail = ' Their counts would be reported together in the run summary and emails.';
+  return c.kind === 'rule'
+    ? '"' + label + '" matches another label rule ("' + c.other + '").' + tail
+    : '"' + label + '" matches the built-in rule name "' + c.other + '".' + tail;
+}
+function reservedRuleNames() {
+  return CATS.map(c => c.name.toUpperCase()).concat(['GLOBAL PURGE', 'INBOX PURGE']);
+}
+// Every collision among the CURRENT label rules (legacy saved configs can
+// already hold duplicates). Each colliding name is reported once.
+function collectLabelCollisions() {
+  const out = [], seenKeys = {};
+  rules.forEach((r, i) => {
+    const others = rules.filter((_, j) => j !== i).map(x => x.label);
+    const c = findLabelCollision(r.label, others, reservedRuleNames());
+    const k = String(r.label).trim().toLowerCase();
+    if (c && !seenKeys[k]) { seenKeys[k] = 1; out.push(labelCollisionText(r.label, c)); }
+  });
+  return out;
+}
+
 function addRule() {
   const l = document.getElementById('nL').value.trim();
   const d = parseInt(document.getElementById('nD').value);
@@ -1058,7 +1103,13 @@ function addRule() {
   // point that already knows what "sanitizes to nothing" means, instead of
   // silently saving a rule that searches Gmail with an empty label term.
   if (!l.replace(/"/g, '')) { toast('Label name can\'t consist only of " characters.', 'warn'); return; }
+  // Issue #84: warn (don't block) if this name collides with another rule.
+  const clash = findLabelCollision(l, rules.map(r => r.label), reservedRuleNames());
   rules.push({ label: l, days: d, isTrash: a === 'trash' }); // FIX: always explicit boolean
+  if (clash) {
+    tl('WARN', labelCollisionText(l, clash));
+    toast('Heads up: "' + l + '" matches ' + (clash.kind === 'rule' ? 'another label rule' : 'a built-in rule name') + ' — counts will be combined (see log).', 'warn');
+  }
   document.getElementById('nL').value = '';
   document.getElementById('nD').value = '';
   renderRules();
@@ -1117,9 +1168,13 @@ async function saveConfig() {
 
   // BUG-H8 FIX: Warn user if saving while engine is running. The in-flight
   // run is unaffected (rules are in payload memory), but the user may not know.
-  const toastMsg = running
+  let toastMsg = running
     ? 'Config saved. Changes apply on next run — current run unaffected.'
     : 'Saved ✓';
+  // Issue #84: remind at save time too (covers duplicates already in a stored config).
+  const collisions = collectLabelCollisions();
+  const toastKind = collisions.length ? 'warn' : 'ok';
+  if (collisions.length) toastMsg += ' — ' + collisions.length + ' rule name' + (collisions.length === 1 ? '' : 's') + ' overlap (see log).';
   // Loading → success/fail state on the button itself, so the save reads as
   // one continuous interaction rather than a click followed by a toast.
   const btn = document.getElementById('btnsave');
@@ -1134,7 +1189,8 @@ async function saveConfig() {
   };
   google.script.run
     .withSuccessHandler(() => {
-      settle(true); toast(toastMsg, 'ok'); tl('INFO', 'Config saved.');
+      settle(true); toast(toastMsg, toastKind); tl('INFO', 'Config saved.');
+      collisions.forEach(m => tl('WARN', m));
       lastKnownGoodCounts = now; // this save is the new baseline a future wipe-check compares against
     })
     .withFailureHandler(e  => { settle(false); toast('Save failed: ' + e.message, 'err'); })

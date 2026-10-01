@@ -80,15 +80,18 @@ function buildEmailHtml(title, lines, accent, stats, elapsedMs, dryRun) {
        </td></tr>`
     : '';
 
+  // Issue #7: on a dry run, a rule that hit the 500-result search cap shows
+  // "500+" (a floor, not an exact count). Only ever set by dry runs.
+  const capAll = !!(dryRun && stats?.dryCapped);
   const allRows = [];
   for (const [k, v] of Object.entries(stats?.labels || {})) {
     if ((v.moved || 0) === 0) continue;
-    allRows.push({ name: k, moved: v.moved, t: v.trashed || 0, a: v.archived || 0 });
+    allRows.push({ name: k, moved: v.moved, t: v.trashed || 0, a: v.archived || 0, cap: !!(dryRun && v.capped) });
   }
   if ((stats?.globalPurgeMoved || 0) > 0)
-    allRows.push({ name: 'GLOBAL PURGE', moved: stats.globalPurgeMoved, t: stats.globalPurgeMoved, a: 0, special: true });
+    allRows.push({ name: 'GLOBAL PURGE', moved: stats.globalPurgeMoved, t: stats.globalPurgeMoved, a: 0, special: true, cap: !!(dryRun && stats.globalPurgeCapped) });
   if ((stats?.inboxPurgeMoved || 0) > 0)
-    allRows.push({ name: 'INBOX PURGE',  moved: stats.inboxPurgeMoved,  t: stats.inboxPurgeMoved,  a: 0, special: true });
+    allRows.push({ name: 'INBOX PURGE',  moved: stats.inboxPurgeMoved,  t: stats.inboxPurgeMoved,  a: 0, special: true, cap: !!(dryRun && stats.inboxPurgeCapped) });
   allRows.sort((a, b) => b.moved - a.moved);
 
   const maxM = Math.max(...allRows.map(r => r.moved), 1);
@@ -117,9 +120,9 @@ function buildEmailHtml(title, lines, accent, stats, elapsedMs, dryRun) {
     // summary/digest email instead of rendering as plain text.
     return `<tr>
       <td style="padding:6px 10px;font-family:'Courier New',monospace;font-size:12px;color:${nc};border-bottom:1px solid #111f11;white-space:nowrap;">${escHtml(r.name)}</td>
-      <td style="padding:6px 10px;font-family:'Courier New',monospace;font-size:12px;color:#fff;text-align:right;border-bottom:1px solid #111f11;white-space:nowrap;">${fmtNum(r.moved)}</td>
-      <td style="padding:6px 10px;font-family:'Courier New',monospace;font-size:12px;color:#ff8877;text-align:right;border-bottom:1px solid #111f11;white-space:nowrap;">${fmtNum(r.t)}</td>
-      <td style="padding:6px 10px;font-family:'Courier New',monospace;font-size:12px;color:#88aaff;text-align:right;border-bottom:1px solid #111f11;white-space:nowrap;">${fmtNum(r.a)}</td>
+      <td style="padding:6px 10px;font-family:'Courier New',monospace;font-size:12px;color:#fff;text-align:right;border-bottom:1px solid #111f11;white-space:nowrap;">${fmtCapped(r.moved, r.cap)}</td>
+      <td style="padding:6px 10px;font-family:'Courier New',monospace;font-size:12px;color:#ff8877;text-align:right;border-bottom:1px solid #111f11;white-space:nowrap;">${fmtCapped(r.t, r.cap && r.t > 0)}</td>
+      <td style="padding:6px 10px;font-family:'Courier New',monospace;font-size:12px;color:#88aaff;text-align:right;border-bottom:1px solid #111f11;white-space:nowrap;">${fmtCapped(r.a, r.cap && r.a > 0)}</td>
       <td style="padding:6px 10px;border-bottom:1px solid #111f11;min-width:70px;">
         <table cellpadding="0" cellspacing="1" width="100%"><tr>${bar}</tr></table>
       </td></tr>`;
@@ -182,15 +185,15 @@ ${dryBanner}
   <table width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 14px;border-collapse:separate;border-spacing:4px;">
   <tr>
     <td style="padding:12px 8px;background:#060d06;border:1px solid #1a3a1a;border-top:3px solid ${accent};border-radius:4px;text-align:center;">
-      <div class="at-d1" style="font-family:'Courier New',monospace;font-size:26px;font-weight:bold;color:${accent};">${fmtNum(stats?.totalMoved || 0)}</div>
+      <div class="at-d1" style="font-family:'Courier New',monospace;font-size:26px;font-weight:bold;color:${accent};">${fmtCapped(stats?.totalMoved || 0, capAll)}</div>
       <div style="font-family:'Courier New',monospace;font-size:8px;color:#447744;text-transform:uppercase;letter-spacing:1.5px;margin-top:3px;">${labelActioned}</div>
     </td>
     <td style="padding:12px 8px;background:#060d06;border:1px solid #1a3a1a;border-top:3px solid #ff4455;border-radius:4px;text-align:center;">
-      <div class="at-d2" style="font-family:'Courier New',monospace;font-size:26px;font-weight:bold;color:#ff8877;">${fmtNum(stats?.totalTrashed || 0)}</div>
+      <div class="at-d2" style="font-family:'Courier New',monospace;font-size:26px;font-weight:bold;color:#ff8877;">${fmtCapped(stats?.totalTrashed || 0, capAll && (stats?.totalTrashed || 0) > 0)}</div>
       <div style="font-family:'Courier New',monospace;font-size:8px;color:#447744;text-transform:uppercase;letter-spacing:1.5px;margin-top:3px;">${labelTrashed}</div>
     </td>
     <td style="padding:12px 8px;background:#060d06;border:1px solid #1a3a1a;border-top:3px solid #44aaff;border-radius:4px;text-align:center;">
-      <div class="at-d3" style="font-family:'Courier New',monospace;font-size:26px;font-weight:bold;color:#88aaff;">${fmtNum(stats?.totalArchived || 0)}</div>
+      <div class="at-d3" style="font-family:'Courier New',monospace;font-size:26px;font-weight:bold;color:#88aaff;">${fmtCapped(stats?.totalArchived || 0, capAll && (stats?.totalArchived || 0) > 0)}</div>
       <div style="font-family:'Courier New',monospace;font-size:8px;color:#447744;text-transform:uppercase;letter-spacing:1.5px;margin-top:3px;">${labelArchived}</div>
     </td>
   </tr>

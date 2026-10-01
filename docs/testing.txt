@@ -86,12 +86,12 @@ tests/Engine.test.gs          → tests app/Engine.gs       (22 tests —
                                  acting, custom actions, dry-run across
                                  actions, narrow-only queries, lazy data)
 tests/Stats.test.gs           → tests app/Stats.gs        (9 tests)
-tests/EmailTemplates.test.gs  → tests app/EmailTemplates.gs (10 tests)
+tests/EmailTemplates.test.gs  → tests app/EmailTemplates.gs (13 tests)
 tests/EmailSend.test.gs       → tests app/EmailSend.gs     (6 tests)
 tests/Code.test.gs            → tests app/Code.gs          (1 test —
                                  doGet() sets the mobile viewport)
 tests/Config.test.gs          → tests app/Config.gs        (13 tests)
-tests/Runner.test.gs          → tests app/Runner.gs        (44 tests,
+tests/Runner.test.gs          → tests app/Runner.gs        (51 tests,
                                  the largest suite — almost all of the
                                  fake-thread integration tests live here)
 tests/RunState.test.gs        → tests app/RunState.gs      (19 tests —
@@ -150,7 +150,24 @@ tests/RunAll.gs
   already executed, in the Apps Script editor or the Node harness
   alike, regardless of file order either runtime happens to pick.
 
-  Current total: 237 tests, as of the 2026-10-01 fix for Issue #104 (a
+  Current total: 247 tests, as of the 2026-10-01 fix for Issue #7 (a dry
+  run that fills Gmail's 500-result search cap now reads "500+" instead
+  of a bare, too-low 500): 10 new tests. 7 in tests/Runner.test.gs drive
+  500 fake threads through processLiveBurst() (terminal lines and msg
+  for a trash rule, an archive rule where only the non-zero side gets
+  the "+", a Global Purge rule setting globalPurgeCapped, 499 threads
+  staying plain, and a LIVE run never showing a "+" or setting
+  dryCapped) plus two runSummaryMsg() tests; 3 in
+  tests/EmailTemplates.test.gs pin the "+" on a capped dry-run email's
+  stat boxes and per-rule row, no "+" without the flag, and no "+" on a
+  live email. 5 of the 10 fail on the pre-fix code (verified by stashing
+  app/); the other 5 are guards that pass either way by design (under-
+  cap and live cases). The UI half (tiles, progress bar, summary,
+  banner, second-device viewer) was exercised in headless Chromium
+  against the real app behind the Google-faithful host, not by a test in
+  this suite.
+
+  Prior total: 237 tests, as of the 2026-10-01 fix for Issue #104 (a
   thread with a recent reply was trashed because one old message matched
   older_than): 9 new tests. 5 unit tests in tests/RuleEngine.test.gs pin
   newestMessageAgeFilter() (recent reply rejected, old thread kept,
@@ -614,6 +631,11 @@ has two jobs:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 7. HISTORY
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+2026-10-01: Issue #7 (dry-run "500+" label): +10 tests (7 Runner, 3
+  EmailTemplates), 237 -> 247. app/Runner.gs, app/EmailTemplates.gs,
+  app/Utils.gs (fmtCapped), app/index.html. See docs/feature-
+  reference.txt section 3.
 
 2026-10-01: Issue #104 fixed (owner-approved option a): both runners
   pass newestMessageAgeFilter(rule) as runRule()'s opts.filter, so an

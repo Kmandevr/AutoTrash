@@ -77,6 +77,26 @@ function test_buildEmailHtml_dryRunShowsSimulationBannerAndWouldLabels() {
   assert(html.includes('>Would Trash<'), 'dry-run stat box must relabel Trashed as Would Trash');
   assert(html.includes('>Would Archive<'), 'dry-run stat box must relabel Archived as Would Archive');
 }
+// Issue #7: a dry run that hit the 500-result search cap shows "500+".
+function test_buildEmailHtml_dryRunCapped_showsPlusInBoxesAndRows() {
+  const html = buildEmailHtml('DRY RUN COMPLETE', ['✓ done'], '#00ff88',
+    { totalMoved: 500, totalTrashed: 500, totalArchived: 0, dryCapped: true,
+      labels: { BIG: { moved: 500, trashed: 500, archived: 0, capped: true } } }, 1000, true);
+  assert(html.includes('>500+</div>'), 'a capped stat box must read 500+');
+  assert(html.includes('>500+</td>'), 'a capped per-rule row must read 500+');
+  assert(html.includes('>0</div>'), 'a zero box next to a capped one stays a plain 0');
+}
+function test_buildEmailHtml_dryRunNotCapped_showsNoPlus() {
+  const html = buildEmailHtml('DRY RUN COMPLETE', ['✓ done'], '#00ff88',
+    { totalMoved: 500, totalTrashed: 500, totalArchived: 0, labels: { BIG: { moved: 500, trashed: 500, archived: 0 } } }, 1000, true);
+  assert(!html.includes('500+'), 'no cap flag, no plus');
+}
+function test_buildEmailHtml_liveRunIgnoresCappedFlags() {
+  const html = buildEmailHtml('LIVE RUN COMPLETE', ['✓ done'], '#00ff88',
+    { totalMoved: 500, totalTrashed: 500, totalArchived: 0, dryCapped: true,
+      labels: { BIG: { moved: 500, trashed: 500, archived: 0, capped: true } } }, 1000, false);
+  assert(!html.includes('500+'), 'a live email is exact; the cap flag only matters for dry runs');
+}
 function test_buildEmailHtml_liveRunHasNoSimulationBannerOrWouldLabels() {
   const html = buildEmailHtml('LIVE RUN COMPLETE', ['✓ done'], '#00ff88',
     { totalMoved: 5, totalTrashed: 3, totalArchived: 2, labels: {} }, 1000, false);
@@ -137,6 +157,9 @@ const EMAILTEMPLATES_TESTS = [
   test_escHtml_plainTextUnchanged,
   test_buildEmailHtml_escapesRuleNameInPerRuleTable,
   test_buildEmailHtml_dryRunShowsSimulationBannerAndWouldLabels,
+  test_buildEmailHtml_dryRunCapped_showsPlusInBoxesAndRows,
+  test_buildEmailHtml_dryRunNotCapped_showsNoPlus,
+  test_buildEmailHtml_liveRunIgnoresCappedFlags,
   test_buildEmailHtml_liveRunHasNoSimulationBannerOrWouldLabels,
   test_buildEmailHtml_omitsOpenButtonWhenNotDeployedAsWebApp,
   test_buildEmailHtml_includesOpenButtonLinkingToDeployedAppUrl,

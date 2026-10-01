@@ -10,6 +10,9 @@ function chunkArray(arr, size) {
   return out;
 }
 function fmtNum(n) { return (n||0).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ','); }
+// Issue #7: a count that hit Gmail's 500-result search cap is only a floor
+// ("at least 500"), so the dry-run projection labels it "500+".
+function fmtCapped(n, capped) { return fmtNum(n) + (capped ? '+' : ''); }
 function fmtMs(ms) { return ms < 1000 ? ms + 'ms' : (ms/1000).toFixed(1) + 's'; }
 function safeMail(to, subj, html, plain) {
   // FIX 48 (BUG-C25): guard e.message the same way the rest of the error-

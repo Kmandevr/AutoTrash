@@ -86,7 +86,42 @@ function test_accumulate_purgeTrashedSubcountsAreKept() {
   });
 }
 
+// ── Issue #2 (BUG-C22): creditPartialCounts ──────────────────────────────────
+function test_creditPartialCounts_trash_creditsTotalsAndRuleRow() {
+  const s = freshStats();
+  const n = creditPartialCounts(s, 'PROMOS', { label: 'PROMOS' }, { partialCounts: { action: 'trash', count: 100 } });
+  assertEqual(n, 100);
+  assertEqual(s.totalMoved, 100); assertEqual(s.totalTrashed, 100); assertEqual(s.totalArchived, 0);
+  assertEqual(s.labels['PROMOS'].moved, 100); assertEqual(s.labels['PROMOS'].trashed, 100);
+}
+function test_creditPartialCounts_archive_creditsArchivedNotTrashed() {
+  const s = freshStats();
+  creditPartialCounts(s, 'OLD', { label: 'OLD' }, { partialCounts: { action: 'archive', count: 200 } });
+  assertEqual(s.totalArchived, 200); assertEqual(s.totalTrashed, 0); assertEqual(s.labels['OLD'].archived, 200);
+}
+function test_creditPartialCounts_purgeRule_routesToPurgeCountersNotLabels() {
+  const s = freshStats();
+  creditPartialCounts(s, 'GLOBAL PURGE', { isGlobalPurge: true }, { partialCounts: { action: 'trash', count: 100 } });
+  assertEqual(s.globalPurgeMoved, 100); assertEqual(s.totalMoved, 100);
+  assert(!s.labels['GLOBAL PURGE'], 'a purge rule gets no stats.labels row (BUG-C2)');
+}
+function test_creditPartialCounts_nothingToCredit_returnsZeroAndChangesNothing() {
+  const rule = { label: 'X' };
+  [undefined, null, 'boom', 42, {}, { partialCounts: null }, { partialCounts: { action: 'trash', count: 0 } },
+   { partialCounts: { action: 'custom', count: 9 } }, { partialCounts: { action: 'trash', count: -3 } }].forEach(function (err) {
+    const s = freshStats();
+    assertEqual(creditPartialCounts(s, 'X', rule, err), 0);
+    assertEqual(s.totalMoved, 0); assertEqual(Object.keys(s.labels).length, 0);
+  });
+  assertEqual(creditPartialCounts(null, 'X', rule, { partialCounts: { action: 'trash', count: 5 } }), 0, 'no stats object, no crash');
+  assertEqual(creditPartialCounts(freshStats(), 'X', null, { partialCounts: { action: 'trash', count: 5 } }), 0, 'no rule, no crash');
+}
+
 const STATS_TESTS = [
+  test_creditPartialCounts_trash_creditsTotalsAndRuleRow,
+  test_creditPartialCounts_archive_creditsArchivedNotTrashed,
+  test_creditPartialCounts_purgeRule_routesToPurgeCountersNotLabels,
+  test_creditPartialCounts_nothingToCredit_returnsZeroAndChangesNothing,
   test_ensureStat_createsZeroedEntryOnce,
   test_creditStat_normalRuleGoesToLabels,
   test_creditStat_globalPurge_bypassesLabels,

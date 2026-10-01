@@ -81,17 +81,17 @@ tests/TestFramework.gs
 
 tests/Utils.test.gs           → tests app/Utils.gs        (10 tests)
 tests/RuleEngine.test.gs      → tests app/RuleEngine.gs   (33 tests)
-tests/Engine.test.gs          → tests app/Engine.gs       (22 tests —
+tests/Engine.test.gs          → tests app/Engine.gs       (30 tests —
                                  the modularity guarantees: match without
                                  acting, custom actions, dry-run across
                                  actions, narrow-only queries, lazy data)
-tests/Stats.test.gs           → tests app/Stats.gs        (9 tests)
+tests/Stats.test.gs           → tests app/Stats.gs        (13 tests)
 tests/EmailTemplates.test.gs  → tests app/EmailTemplates.gs (19 tests)
 tests/EmailSend.test.gs       → tests app/EmailSend.gs     (6 tests)
 tests/Code.test.gs            → tests app/Code.gs          (1 test —
                                  doGet() sets the mobile viewport)
 tests/Config.test.gs          → tests app/Config.gs        (13 tests)
-tests/Runner.test.gs          → tests app/Runner.gs        (51 tests,
+tests/Runner.test.gs          → tests app/Runner.gs        (56 tests,
                                  the largest suite — almost all of the
                                  fake-thread integration tests live here)
 tests/RunState.test.gs        → tests app/RunState.gs      (49 tests —
@@ -150,7 +150,29 @@ tests/RunAll.gs
   already executed, in the Apps Script editor or the Node harness
   alike, regardless of file order either runtime happens to pick.
 
-  Current total: 250 tests, as of the 2026-10-01 fix for Issue #110
+  Current total: 263 tests, as of the 2026-10-01 fix for Issue #2
+  (BUG-C22: threads already trashed/archived by earlier chunks vanished
+  from every count when a later chunk threw): 13 new tests. 4 in
+  tests/Engine.test.gs pin executeAction()'s err.partialCounts (later
+  chunk throws -> { action, count: 100 } with the original error intact;
+  first chunk throws -> same error object, no property; a per-thread
+  action failing midway; attachPartialCounts() wrapping a bare
+  string/null/frozen Error with the same message). 4 in
+  tests/Stats.test.gs pin creditPartialCounts() (trash, archive, purge-
+  rule routing, and nine 'nothing to credit' inputs that must change
+  nothing). 5 in tests/Runner.test.gs drive 250 fake threads (chunks of
+  100+100+50) through processLiveBurst() for a trash rule, an archive
+  rule and Global Purge, a first-chunk failure that must credit nothing,
+  and backgroundRun() checking the DAILY_STATS digest totals; the live
+  trash test also checks the error email's own 'Moved' line. 11 of the
+  13 fail on the pre-fix code (verified by stashing app/); the first-
+  chunk and 'nothing to credit' style cases are guards. One real bug was
+  caught while writing them: assigning to a frozen Error silently does
+  nothing in non-strict code, so attachPartialCounts() now verifies the
+  property stuck and wraps instead. Engine/Stats/Runner file-map counts
+  corrected to the real array lengths (30/13/56).
+
+  Prior total: 250 tests, as of the 2026-10-01 fix for Issue #110
   (saveRunDetail() failed silently when even the slimmed RUN_DETAIL blob
   was still too big for the cache): 3 new tests in
   tests/RunState.test.gs. One reproduces the bug with a rule queue that
@@ -644,6 +666,12 @@ has two jobs:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 7. HISTORY
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+2026-10-01: Issue #2 (BUG-C22 partial chunk counts): +13 tests (4
+  Engine, 4 Stats, 5 Runner), 250 -> 263. app/Engine.gs
+  (attachPartialCounts), app/Stats.gs (creditPartialCounts),
+  app/Runner.gs (both catch blocks). See docs/feature-reference.txt
+  section 2b.
 
 2026-10-01: Issue #110 (saveRunDetail logs a second-tier failure): +3
   tests in tests/RunState.test.gs, 247 -> 250. app/RunState.gs only. See

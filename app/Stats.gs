@@ -32,6 +32,27 @@ function creditStat(stats, lbl, rule, trashed, archived) {
   stats.labels[lbl].archived += archived;
 }
 
+// Issue #2 (BUG-C22): credit the chunks that DID succeed before a later chunk
+// threw. executeAction() tags the re-thrown error with err.partialCounts =
+// { action, count } (Engine.gs attachPartialCounts); the runners' catch blocks
+// call this BEFORE recording the error / sending the error email, so
+// stats.totalMoved, the per-rule row, DAILY_STATS and the email's own "Moved"
+// line include mail that really was trashed/archived. Returns the number of
+// threads credited (0 when there is nothing to credit). Only trash/archive are
+// stats actions; a custom action's partial work is not a cleanup stat.
+function creditPartialCounts(stats, lbl, rule, err) {
+  const p = (err !== null && typeof err === 'object') ? err.partialCounts : null;
+  if (!p || !(p.count > 0) || !stats || !rule) return 0;
+  const trashed  = p.action === 'trash'   ? p.count : 0;
+  const archived = p.action === 'archive' ? p.count : 0;
+  if (!trashed && !archived) return 0;
+  stats.totalMoved    = (stats.totalMoved    || 0) + trashed + archived;
+  stats.totalTrashed  = (stats.totalTrashed  || 0) + trashed;
+  stats.totalArchived = (stats.totalArchived || 0) + archived;
+  creditStat(stats, lbl, rule, trashed, archived);
+  return trashed + archived;
+}
+
 // ─── DAILY STATS ACCUMULATION ─────────────────────────────────────────────────
 function accumulateDailyStats(stats) {
   const props = getProps();

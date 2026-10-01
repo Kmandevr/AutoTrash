@@ -377,7 +377,65 @@ function test_engine_seenTracker_arrayIsUpdatedInPlaceWithoutDuplicates() {
   assert(seenTracker(set) === set, 'a Set (background run) is used directly');
 }
 
+// ── Issue #2 (BUG-C22): partial counts survive a mid-batch failure ──────────
+// executeAction() chunks by GMAIL_CHUNK (100). When a LATER chunk throws, the
+// earlier chunks' threads were really actioned; the re-thrown error now
+// carries err.partialCounts = { action, count } so the runner can credit them.
+function engineThreads(n) { const t = []; for (let i = 0; i < n; i++) t.push(makeFakeThread('pc' + i)); return t; }
+function test_engine_executeAction_laterChunkThrows_errorCarriesPartialCounts() {
+  const threads = engineThreads(250);
+  const spy = installGmailSpy(threads);
+  const orig = GmailApp.moveThreadsToTrash; let calls = 0;
+  GmailApp.moveThreadsToTrash = function (ts) { calls++; if (calls === 2) throw new Error('chunk 2 failed'); return orig.call(GmailApp, ts); };
+  try {
+    let threw = null;
+    try { runRule(ENGINE_TEST_RULE, { seen: new Set() }, { action: 'trash' }); } catch (e) { threw = e; }
+    assert(threw && threw.message === 'chunk 2 failed', 'the original error must still propagate unchanged');
+    assertEqual(threw.partialCounts, { action: 'trash', count: 100 }, 'chunk 1 (100 threads) really was trashed, so the error must say so');
+    assertEqual(threads.filter(t => t.__trashed).length, 100, 'sanity: Gmail really changed exactly 100 threads');
+  } finally { spy.restore(); }
+}
+function test_engine_executeAction_firstChunkThrows_errorIsUntouched() {
+  const spy = installGmailSpy(engineThreads(250));
+  const boom = new Error('chunk 1 failed');
+  GmailApp.moveThreadsToTrash = function () { throw boom; };
+  try {
+    let threw = null;
+    try { runRule(ENGINE_TEST_RULE, { seen: new Set() }, { action: 'trash' }); } catch (e) { threw = e; }
+    assert(threw === boom, 'nothing succeeded, so the very same error object must come back');
+    assert(!('partialCounts' in threw), 'no partialCounts when nothing was actioned');
+  } finally { spy.restore(); }
+}
+function test_engine_executeAction_eachActionThrowsMidway_errorCarriesPartialCounts() {
+  const spy = installGmailSpy(engineThreads(5));
+  let n = 0;
+  const flaky = { name: 'flaky', each: function () { if (++n === 4) throw new Error('boom at 4'); return n; } };
+  try {
+    let threw = null;
+    try { runRule(ENGINE_TEST_RULE, { seen: new Set() }, { action: flaky }); } catch (e) { threw = e; }
+    assert(threw && threw.message === 'boom at 4');
+    assertEqual(threw.partialCounts, { action: 'flaky', count: 3 }, 'per-thread actions report how many threads succeeded first');
+  } finally { spy.restore(); }
+}
+function test_engine_attachPartialCounts_primitiveThrow_isWrappedWithSameText() {
+  const w = attachPartialCounts('boom', 'trash', 100);
+  assert(w instanceof Error && w.message === 'boom', 'a bare thrown string becomes an Error with the same text');
+  assertEqual(w.partialCounts, { action: 'trash', count: 100 });
+  const n = attachPartialCounts(null, 'archive', 7);
+  assertEqual(n.message, 'null', 'null keeps the text the runners already printed for it');
+  assertEqual(n.partialCounts.count, 7);
+  assertEqual(attachPartialCounts('boom', 'trash', 0), 'boom', 'count 0 returns the thrown value untouched');
+  const frozen = Object.freeze(new Error('frozen'));
+  const f = attachPartialCounts(frozen, 'trash', 5);
+  assertEqual(f.message, 'frozen', 'a frozen error is wrapped rather than losing the counts');
+  assertEqual(f.partialCounts.count, 5);
+}
+
 const ENGINE_TESTS = [
+  test_engine_executeAction_laterChunkThrows_errorCarriesPartialCounts,
+  test_engine_executeAction_firstChunkThrows_errorIsUntouched,
+  test_engine_executeAction_eachActionThrowsMidway_errorCarriesPartialCounts,
+  test_engine_attachPartialCounts_primitiveThrow_isWrappedWithSameText,
   test_engine_runRule_trashRule_trashesInGmailChunks,
   test_engine_runRule_archiveRule_archives,
   test_engine_runRule_liveLogLines_matchPreEngineFormat,

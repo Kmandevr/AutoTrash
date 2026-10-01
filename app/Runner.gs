@@ -106,6 +106,7 @@ function processLiveBurstCore(payload) {
   // reproduction before patching; see GitHub Issues.
   let lbl = 'unknown';
   let dry = false;
+  let curRule = null;   // Issue #2: the catch block needs the rule to credit partial work
 
   try {
     // FIX 40 (BUG-C16): Build the queue server-side when the caller hasn't
@@ -127,6 +128,7 @@ function processLiveBurstCore(payload) {
 
     dry = !!payload.dryRun;
     const rule = payload.activeQueue[0];
+    curRule = rule;
 
     lbl = ruleLabel(rule);
 
@@ -272,6 +274,12 @@ function processLiveBurstCore(payload) {
     // as BUG-C15/BUG-C24, just one line further down. See BUG-C25 in
     // GitHub Issues for the full reproduction.
     const errMsg = (e && e.message) ? e.message : String(e);
+    // Issue #2 (BUG-C22): chunks that succeeded before the throw were REAL
+    // Gmail changes — credit them now, BEFORE the error email reads stats, so
+    // the totals (and the per-rule row, and DAILY_STATS) match the mailbox.
+    const partial = creditPartialCounts(payload.stats, lbl, curRule, e);
+    if (partial > 0)
+      log.push({ t: Date.now() - t0, level: 'INFO', msg: `${fmtNum(partial)} thread(s) were already moved before the error and are counted.`, meta: null });
     payload.stats.errors.push({ label: lbl, error: errMsg });
     // FIX 39 (BUG-E13): Pass dry through so sendErrorEmail can report
     // projected dry-run counts instead of a misleading 0/0 — the same swap
@@ -526,6 +534,10 @@ function backgroundRun() {
       } catch (e) {
         // FIX 47 (BUG-C24): same normalization as processLiveBurst's catch
         // block above — see that comment for the full story.
+        // Issue #2 (BUG-C22): credit chunks that succeeded before the throw
+        // (see processLiveBurstCore's catch for the full reasoning).
+        const partial = creditPartialCounts(stats, lbl, rule, e);
+        if (partial > 0) emit('INFO', `${fmtNum(partial)} thread(s) were already moved before the error and are counted.`);
         stats.errors.push({ label: lbl, error: (e && e.message) ? e.message : String(e) });
         // FIX 23 (BUG-E4): Pass 'background' so the error email footer says
         // "trigger will retry" instead of "re-run when ready".

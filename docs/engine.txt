@@ -110,7 +110,9 @@ AROUND Gmail rather than re-creating Gmail filters.
   can't be replaced.
 
   ERRORS. The engine does not swallow errors. An exception in search,
-  filter, or action propagates unchanged to the caller. Seen IDs for that
+  filter, or action propagates unchanged to the caller (plus, when earlier
+  chunks of an action had already succeeded, err.partialCounts = { action,
+  count } so the work that DID happen can still be counted — see §3). Seen IDs for that
   rule were already registered, so nothing is re-actioned by a later rule
   in the same run. In the two runners, the existing catch blocks still
   own stats.errors[] and the error email (BUG-C15/C24/C25). A feature
@@ -184,6 +186,9 @@ AROUND Gmail rather than re-creating Gmail filters.
   - Per-rule sender/subject conditions are suggestion S-L5 (Issue #78),
     still unbuilt. refineQuery() is the seam it would use: narrow-only,
     query-side, so it's the cheapest stage.
-  - executeAction's partial-count loss when a later chunk throws is the
-    existing open bug BUG-C22. It is unchanged here on purpose (separate
-    fix).
+  - (BUG-C22, fixed 2026-10-01, Issue #2) When a later chunk throws,
+    executeAction() tags the re-thrown error with err.partialCounts =
+    { action, count } for the chunks that already succeeded, and the
+    runners credit them via creditPartialCounts() (Stats.gs). The error
+    still propagates unchanged; a feature that calls runRule() directly can
+    read err.partialCounts in its own catch block the same way.

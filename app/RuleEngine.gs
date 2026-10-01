@@ -68,6 +68,33 @@ function buildQuery(rule) {
   return `label:"${safeLabel}" in:inbox older_than:${rule.days}d ${star} ${notTrash}`;
 }
 
+// ─── NEWEST-MESSAGE AGE FILTER (Issue #104) ──────────────────────────────────
+// Every age-based query ends in older_than:Nd, which Gmail evaluates per
+// MESSAGE — but trash/archive act on the whole THREAD. So a thread with one
+// 597-day-old message and a reply from yesterday still satisfied the query on
+// its old message and was trashed along with the live conversation. This is
+// the opts.filter for findMatches()/runRule() (owner-approved option a,
+// 2026-10-01): keep a thread only if its NEWEST message is also at least
+// rule.days old. thread.getLastMessageDate() is already on the search result
+// (no extra Gmail round trip per message), so the check is cheap.
+//
+// Fail-open on purpose: if the date can't be read the thread is KEPT, i.e.
+// behaves exactly as before this filter existed — the query already matched
+// it, and silently dropping a thread because of a missing date would stall a
+// rule rather than make it safer. Real GmailThreads always carry the date.
+function newestMessageAgeFilter(rule, nowMs) {
+  const days   = +rule.days;
+  const cutoff = (nowMs == null ? Date.now() : nowMs) - (isFinite(days) ? days : 0) * 86400000;
+  return function (ctx) {
+    let last = null;
+    try { last = ctx.thread.getLastMessageDate(); } catch (e) { return true; }
+    if (!last) return true;
+    const t = typeof last.getTime === 'function' ? last.getTime() : new Date(last).getTime();
+    if (!isFinite(t)) return true;
+    return t <= cutoff;
+  };
+}
+
 // ─── RESOLVE ACTION ───────────────────────────────────────────────────────────
 // FIX 8: only archive when isTrash is EXPLICITLY false.
 // isTrash === true  → trash

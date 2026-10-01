@@ -876,14 +876,27 @@ reviewing the backend (app/*.gs) or index.html.
       test_buildQuery_globalPurge_excludesImportantMail and
       test_buildQuery_labelAndCategoryRules_doNotCarryImportantExclusion
       in tests/RuleEngine.test.gs.
-    - Issue #104: a thread is judged by its OLDEST matching message, not
-      its most recent activity. findMatches()'s age-based rules
-      (older_than: N days) match a thread the moment any message in it
-      is old enough — including a thread that also contains a brand-new
-      reply. A conversation someone replied to yesterday can still be
-      trashed today if one of its early messages is old enough to match,
-      because Gmail's own getLastMessageDate() on the thread is never
-      consulted by the current query/match logic.
+    - Issue #104 — FIXED (2026-10-01, owner-approved option a): an age
+      rule now matches a thread only if its NEWEST message is at least
+      rule.days old. older_than:Nd is judged per MESSAGE by Gmail, but
+      trash/archive act on the whole THREAD, so a thread with one old
+      message and a reply from yesterday used to be trashed (a 597-day-old
+      thread with a 2.2-day-old reply, in the break-test). Both built-in
+      runners now pass opts.filter = newestMessageAgeFilter(rule)
+      (app/RuleEngine.gs) through runRule(), so live, dry-run and
+      background paths all agree, and it applies to every age-based rule:
+      label, category, Inbox Purge and Global Purge. It reads
+      thread.getLastMessageDate(), which is already on the search result
+      (no extra Gmail calls per message). A held-back thread is logged as
+      an INFO "Skipped N thread(s) held back by the rule's filter" line
+      and is never marked seen. If a thread's date can't be read it is
+      KEPT (fail-open to the pre-fix behavior) so a missing date can never
+      stall a rule. Known interaction: like a starred-guarded thread, a
+      held-back thread stays in Gmail's top-500 result page on every run;
+      see #105 below for how a page made up entirely of such threads is
+      handled. Tests: test_newestMessageAgeFilter_* in
+      tests/RuleEngine.test.gs and the *_threadWithRecentReply_* tests in
+      tests/Runner.test.gs.
     - Issue #105: a rule can finish early under starred-guard cap
       starvation. The starred-thread guard (this section, above) drops a
       guarded thread from `seen` so it is never marked handled — correct

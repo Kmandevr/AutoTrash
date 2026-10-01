@@ -142,7 +142,7 @@ function processLiveBurstCore(payload) {
     // Engine (Engine.gs): SEARCH/RESULT/INFO logs → search → dedup → and, on
     // a live run with matches, ACTION/BATCH logs + the actual Gmail move. On a
     // dry run the engine registers seenIds and counts, but never calls Gmail.
-    const m = runRule(rule, { dryRun: dry, seen: seen, emit: emit });
+    const m = runRule(rule, { dryRun: dry, seen: seen, emit: emit }, { filter: newestMessageAgeFilter(rule) });
     const matched = m.matched;
 
     if (matched === 0) {
@@ -498,7 +498,7 @@ function backgroundRun() {
         // engine registers thread IDs in seenIds BEFORE the Gmail call, so if
         // it throws mid-batch (e.g. quota error), threads already processed in
         // earlier chunks won't be re-actioned by later rules in the same run.
-        const m = runRule(rule, { seen: seenIds, emit: emit });
+        const m = runRule(rule, { seen: seenIds, emit: emit }, { filter: newestMessageAgeFilter(rule) });
 
         if (m.matched === 0) {
           emit('COMPLETE', `[${lbl}] clean — ejected from queue.`);

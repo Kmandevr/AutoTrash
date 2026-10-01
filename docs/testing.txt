@@ -80,7 +80,7 @@ tests/TestFramework.gs
   array (1 entry).
 
 tests/Utils.test.gs           → tests app/Utils.gs        (10 tests)
-tests/RuleEngine.test.gs      → tests app/RuleEngine.gs   (28 tests)
+tests/RuleEngine.test.gs      → tests app/RuleEngine.gs   (33 tests)
 tests/Engine.test.gs          → tests app/Engine.gs       (22 tests —
                                  the modularity guarantees: match without
                                  acting, custom actions, dry-run across
@@ -91,7 +91,7 @@ tests/EmailSend.test.gs       → tests app/EmailSend.gs     (6 tests)
 tests/Code.test.gs            → tests app/Code.gs          (1 test —
                                  doGet() sets the mobile viewport)
 tests/Config.test.gs          → tests app/Config.gs        (13 tests)
-tests/Runner.test.gs          → tests app/Runner.gs        (25 tests,
+tests/Runner.test.gs          → tests app/Runner.gs        (44 tests,
                                  the largest suite — almost all of the
                                  fake-thread integration tests live here)
 tests/RunState.test.gs        → tests app/RunState.gs      (19 tests —
@@ -150,7 +150,17 @@ tests/RunAll.gs
   already executed, in the Apps Script editor or the Node harness
   alike, regardless of file order either runtime happens to pick.
 
-  Current total: 228 tests, as of the 2026-10-01 fix for Issue #103
+  Current total: 237 tests, as of the 2026-10-01 fix for Issue #104 (a
+  thread with a recent reply was trashed because one old message matched
+  older_than): 9 new tests. 5 unit tests in tests/RuleEngine.test.gs pin
+  newestMessageAgeFilter() (recent reply rejected, old thread kept,
+  exact-cutoff boundary, fail-open on an unreadable date, a 0-day rule)
+  and 4 end-to-end tests in tests/Runner.test.gs drive a stale thread
+  plus a revived thread through processLiveBurst() (live, dry run, Inbox
+  Purge) and backgroundRun(). All 9 fail on the pre-fix code (verified
+  by stashing app/). No existing test changed.
+
+  Prior total: 228 tests, as of the 2026-10-01 fix for Issue #103
   (Gmail-important mail unprotected by Inbox Purge/Global Purge): 3 new
   tests in tests/RuleEngine.test.gs pinning -is:important on both purge
   queries and its absence from label/category queries. The two existing
@@ -604,6 +614,12 @@ has two jobs:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 7. HISTORY
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+2026-10-01: Issue #104 fixed (owner-approved option a): both runners
+  pass newestMessageAgeFilter(rule) as runRule()'s opts.filter, so an
+  age rule only matches a thread whose newest message is also old
+  enough; findMatches() now logs how many threads the filter held back.
+  +9 tests (228 -> 237). See docs/feature-reference.txt §9.
 
 2026-10-01: Issue #103 fixed (owner-approved option a): buildQuery()
   adds -is:important to the Inbox Purge and Global Purge queries only.

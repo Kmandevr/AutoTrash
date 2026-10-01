@@ -150,7 +150,28 @@ tests/RunAll.gs
   already executed, in the Apps Script editor or the Node harness
   alike, regardless of file order either runtime happens to pick.
 
-  Current total: 212 tests, as of a 2026-09-30 batch that added 15 direct
+  Current total: 225 tests, as of a 2026-10-01 batch that added 13 direct
+  unit tests for three app/Runner.gs helpers that previously only had
+  INDIRECT coverage through end-to-end tests of processLiveBurst()/
+  backgroundRun()/abortRun() — the same gap shape tests/RunState.test.gs's
+  own isRunActive()/isRunStale()/abortRequestedFor() direct tests (below)
+  already closed for app/RunState.gs: safeRuleLabel() (the try/catch
+  guaranteeing a broken rule object can never be what crashes progress
+  reporting — its own catch branch had zero coverage since today's
+  ruleLabel() already handles a category rule missing `category` without
+  throwing; a `null` rule is what actually exercises it), runSummaryMsg()
+  (the one-line completion banner text, including that the rule count
+  only counts labels with moved > 0 plus the purge flags — not every
+  labels key), and fullerStats() (the null-handling branches and the
+  actual greater-than comparison/tie-break, pinned directly rather than
+  only through one end-to-end abortRun()-with-runId scenario in
+  RunState.test.gs). Mutation-checked by hand: flipping fullerStats()'s
+  `>` to `<` breaks 2 of the new tests (plus 1 pre-existing one), removing
+  safeRuleLabel()'s try/catch breaks 1 new test (plus 1 pre-existing one),
+  and removing runSummaryMsg()'s `moved > 0` filter breaks 1 new test.
+  No app/Runner.gs behavior changed — tests only. See tests/Runner.test.gs.
+
+  Prior total: 212 tests, as of a 2026-09-30 batch that added 15 direct
   unit tests for the run-mutex primitives isRunActive()/isRunStale()/
   abortRequestedFor() (app/RunState.gs) — previously only covered
   indirectly through end-to-end tests like
@@ -186,7 +207,7 @@ tests/RunAll.gs
   against pre-fix code and pass after the fix. See docs/feature-
   reference.txt §2e.
 
-  Prior total: 195 tests, as of a 2026-09-29 batch that added
+  Second-prior total: 195 tests, as of a 2026-09-29 batch that added
   tests/EmailSend.test.gs coverage for maybeSendRunEmail() — the
   SUMMARY_FREQ/error gate documented in §6 that decides whether a normal
   run completion (finalizeAndEmail(), or backgroundRun()'s end-of-cycle

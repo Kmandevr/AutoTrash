@@ -469,9 +469,129 @@ function test_backgroundRun_ruleLabelThrows_stillEmailsAndDoesNotCrashCycle() {
   });
 }
 
+// ── safeRuleLabel / runSummaryMsg / fullerStats (direct unit tests) ────────
+// These three small Runner.gs helpers previously had no DIRECT test
+// coverage — only indirect coverage through end-to-end tests of
+// processLiveBurst()/backgroundRun()/abortRun() above and in
+// RunState.test.gs (same gap shape as the one RunState.test.gs's own
+// isRunActive()/isRunStale()/abortRequestedFor() direct tests closed for
+// app/RunState.gs). Added 2026-10-01 as a test-coverage-gap pass — no
+// app/Runner.gs behavior changed.
+
+// safeRuleLabel() wraps ruleLabel() so a broken rule object can never be
+// what crashes progress reporting (see the comment on safeRuleLabel() in
+// Runner.gs). Today's ruleLabel() (RuleEngine.gs) is itself already
+// defensive for a category rule missing its `category` field — it falls
+// back to '?' via its own `||` ternary rather than throwing — so the two
+// normal-ish cases below exercise ruleLabel()'s own fallback, reached
+// through safeRuleLabel() unchanged. The real try/catch in safeRuleLabel()
+// is only reached when `rule` itself is missing/malformed (e.g. `null`),
+// which is what the last test below actually exercises.
+function test_safeRuleLabel_normalRule_returnsLabel() {
+  assertEqual(safeRuleLabel({ label: 'PROMOS', days: 30, isTrash: true }), 'PROMOS');
+}
+function test_safeRuleLabel_categoryRuleWithCategory_returnsUppercasedCategory() {
+  assertEqual(safeRuleLabel({ isCategory: true, category: 'social', days: 30 }), 'SOCIAL');
+}
+function test_safeRuleLabel_categoryRuleMissingCategory_returnsQuestionMark() {
+  // ruleLabel()'s own fallback (`rule.isCategory && rule.category ? ... : '?'`)
+  // handles this without throwing — safeRuleLabel()'s catch is not involved.
+  assertEqual(safeRuleLabel({ isCategory: true, days: 30 }), '?');
+}
+function test_safeRuleLabel_nullRule_catchesAndReturnsQuestionMark() {
+  // `null.label` inside ruleLabel() throws a TypeError — this is the one
+  // case that actually reaches safeRuleLabel()'s own try/catch, proving the
+  // "progress reporting must never be what breaks a run" guarantee the
+  // comment on safeRuleLabel() documents.
+  let threw = false;
+  let result;
+  try { result = safeRuleLabel(null); } catch (e) { threw = true; }
+  assertEqual(threw, false, 'safeRuleLabel() must swallow a throwing ruleLabel() call, not let it escape');
+  assertEqual(result, '?');
+}
+
+// runSummaryMsg() is the one-line completion summary recordRunProgress()
+// sends to every dashboard watching a run (mirrors index.html's own
+// finishEng() banners — see the comment on runSummaryMsg() in Runner.gs).
+function test_runSummaryMsg_liveRun_formatsCompleteBanner() {
+  const stats = { totalMoved: 150, totalTrashed: 100, totalArchived: 50, labels: { PROMOS: { moved: 150 } } };
+  assertEqual(runSummaryMsg(stats, false, 12345),
+    '✓ COMPLETE · 150 actioned · 100 trashed · 50 archived · 1 rule(s) · 12.3s');
+}
+function test_runSummaryMsg_dryRun_formatsDryRunBannerWithThousandsSeparator() {
+  const stats = { totalMoved: 2000, dryTrashed: 1500, dryArchived: 500, labels: {} };
+  assertEqual(runSummaryMsg(stats, true, 5000),
+    '[DRY RUN COMPLETE] ~2,000 threads scanned · 1,500 would trash · 500 would archive · 0 rule(s) · 5.0s');
+}
+function test_runSummaryMsg_countsOnlyLabelsWithPositiveMoved_plusPurgeFlags() {
+  const stats = {
+    totalMoved: 10, totalTrashed: 10, totalArchived: 0,
+    labels: { A: { moved: 5 }, B: { moved: 0 }, C: { moved: 3 } },
+    globalPurgeMoved: 2, inboxPurgeMoved: 0
+  };
+  const msg = runSummaryMsg(stats, false, 0);
+  assert(msg.indexOf('3 rule(s)') > -1,
+    'rule count must include A and C (moved > 0) and globalPurgeMoved, but not B (moved: 0) or inboxPurgeMoved (0): ' + msg);
+}
+function test_runSummaryMsg_missingStats_doesNotThrowAndDefaultsToZero() {
+  let threw = false;
+  let msg;
+  try { msg = runSummaryMsg(undefined, false, undefined); } catch (e) { threw = true; }
+  assertEqual(threw, false, 'runSummaryMsg() must tolerate a missing stats object — it is called from catch/finalize paths');
+  assertEqual(msg, '✓ COMPLETE · 0 actioned · 0 trashed · 0 archived · 0 rule(s) · 0.0s');
+}
+
+// fullerStats() picks whichever stats object has seen more of the run —
+// RunState.test.gs's test_abortRun_withRunId_cachedDetailEvicted_fallsBackToCallerStats
+// proves the "cache evicted" case end to end via abortRun(); these pin the
+// pure function's own branches directly (null handling and the actual
+// comparison), including the tie-break and "a already fuller" cases that
+// test didn't need to exercise.
+function test_fullerStats_aMissing_returnsB() {
+  const b = { totalMoved: 5 };
+  assert(fullerStats(null, b) === b, 'with no `a` at all, `b` must be returned as-is');
+}
+function test_fullerStats_bothMissing_returnsEmptyObject() {
+  const result = fullerStats(null, null);
+  assertEqual(JSON.stringify(result), '{}', 'with neither stats object, fullerStats() must return a usable empty object, not null/undefined');
+}
+function test_fullerStats_bMissing_returnsA() {
+  const a = { totalMoved: 5 };
+  assert(fullerStats(a, null) === a, 'with no `b` at all, `a` must be returned as-is');
+}
+function test_fullerStats_bHasStrictlyMoreMoved_returnsB() {
+  const a = { totalMoved: 5 };
+  const b = { totalMoved: 10 };
+  assert(fullerStats(a, b) === b, 'b has seen strictly more of the run, so b must win');
+}
+function test_fullerStats_aHasMoreOrEqualMoved_returnsA() {
+  const aGreater = { totalMoved: 10 };
+  const bLesser  = { totalMoved: 5 };
+  assert(fullerStats(aGreater, bLesser) === aGreater, 'a has seen more of the run, so a must win');
+  const aTied = { totalMoved: 10 };
+  const bTied = { totalMoved: 10 };
+  assert(fullerStats(aTied, bTied) === aTied, 'a tie must favor a (the comparison requires b strictly greater to win)');
+}
+
 const RUNNER_TESTS = [
   test_abortRun_liveRun_accumulatesDailyStats,
   test_abortRun_dryRun_doesNotAccumulateDailyStats,
+
+  test_safeRuleLabel_normalRule_returnsLabel,
+  test_safeRuleLabel_categoryRuleWithCategory_returnsUppercasedCategory,
+  test_safeRuleLabel_categoryRuleMissingCategory_returnsQuestionMark,
+  test_safeRuleLabel_nullRule_catchesAndReturnsQuestionMark,
+
+  test_runSummaryMsg_liveRun_formatsCompleteBanner,
+  test_runSummaryMsg_dryRun_formatsDryRunBannerWithThousandsSeparator,
+  test_runSummaryMsg_countsOnlyLabelsWithPositiveMoved_plusPurgeFlags,
+  test_runSummaryMsg_missingStats_doesNotThrowAndDefaultsToZero,
+
+  test_fullerStats_aMissing_returnsB,
+  test_fullerStats_bothMissing_returnsEmptyObject,
+  test_fullerStats_bMissing_returnsA,
+  test_fullerStats_bHasStrictlyMoreMoved_returnsB,
+  test_fullerStats_aHasMoreOrEqualMoved_returnsA,
 
   test_backgroundRun_corruptRulesProperty_doesNotThrow,
   test_backgroundRun_corruptCategoryRulesProperty_doesNotThrow,

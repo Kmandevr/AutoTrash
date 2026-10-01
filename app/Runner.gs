@@ -81,7 +81,7 @@ function runSummaryMsg(stats, dryRun, elapsedMs) {
   const rules = Object.keys(stats.labels || {}).filter(k => (stats.labels[k].moved || 0) > 0).length
     + ((stats.globalPurgeMoved || 0) > 0 ? 1 : 0) + ((stats.inboxPurgeMoved || 0) > 0 ? 1 : 0);
   return dryRun
-    ? `[DRY RUN COMPLETE] ~${fmtNum(stats.totalMoved)} threads scanned · ${fmtNum(stats.dryTrashed || 0)} would trash · ${fmtNum(stats.dryArchived || 0)} would archive · ${rules} rule(s) · ${secs}s`
+    ? `[DRY RUN COMPLETE] ~${fmtCapped(stats.totalMoved, stats.dryCapped)} threads scanned · ${fmtCapped(stats.dryTrashed || 0, stats.dryCapped && stats.dryTrashed > 0)} would trash · ${fmtCapped(stats.dryArchived || 0, stats.dryCapped && stats.dryArchived > 0)} would archive · ${rules} rule(s) · ${secs}s`
     : `✓ COMPLETE · ${fmtNum(stats.totalMoved)} actioned · ${fmtNum(stats.totalTrashed || 0)} trashed · ${fmtNum(stats.totalArchived || 0)} archived · ${rules} rule(s) · ${secs}s`;
 }
 
@@ -173,8 +173,15 @@ function processLiveBurstCore(payload) {
     if (dry) {
       const wouldTrash   = action === 'trash'   ? matched : 0;
       const wouldArchive = action === 'archive' ? matched : 0;
-      emit('DRYRUN', `[${lbl}] Would ${action.toUpperCase()} ${fmtNum(matched)}`);
-      emit('DRYRUN', `  → ${fmtNum(wouldTrash)} trash · ${fmtNum(wouldArchive)} archive`);
+      // Issue #7 (owner-approved option b): a dry run searches each rule ONCE,
+      // capped at GMAIL_SEARCH (500) results, so a rule that fills the cap has
+      // at least this many matches, not exactly this many. Label it "500+" and
+      // flag the stats so the banner/summary/email can say so too. Live runs
+      // are unaffected: they re-search every burst until the rule is clean.
+      const capped = matched === GMAIL_SEARCH;
+      emit('DRYRUN', `[${lbl}] Would ${action.toUpperCase()} ${fmtCapped(matched, capped)}`);
+      emit('DRYRUN', `  → ${fmtCapped(wouldTrash, capped && wouldTrash > 0)} trash · ${fmtCapped(wouldArchive, capped && wouldArchive > 0)} archive`);
+      if (capped) payload.stats.dryCapped = true;
 
       payload.stats.totalMoved  = (payload.stats.totalMoved  || 0) + matched;
       payload.stats.dryTrashed  = (payload.stats.dryTrashed  || 0) + wouldTrash;
@@ -186,14 +193,15 @@ function processLiveBurstCore(payload) {
       // row into the dry-run email table that BUG-C2 removed from live runs.
       if (rule.isGlobalPurge || rule.isInboxPurge) {
         creditStat(payload.stats, lbl, rule, wouldTrash, wouldArchive);
-        if (rule.isGlobalPurge) payload.stats.globalPurgeDone = true;
-        else                    payload.stats.inboxPurgeDone  = true;
+        if (rule.isGlobalPurge) { payload.stats.globalPurgeDone = true; if (capped) payload.stats.globalPurgeCapped = true; }
+        else                    { payload.stats.inboxPurgeDone  = true; if (capped) payload.stats.inboxPurgeCapped  = true; }
       } else {
         ensureStat(payload.stats, lbl);
         payload.stats.labels[lbl].moved    += matched;
         payload.stats.labels[lbl].trashed  += wouldTrash;
         payload.stats.labels[lbl].archived += wouldArchive;
         payload.stats.labels[lbl].finished  = true;
+        if (capped) payload.stats.labels[lbl].capped = true;
       }
 
       payload.activeQueue.shift();
@@ -202,7 +210,7 @@ function processLiveBurstCore(payload) {
         payload, log, ejected: true,
         done: payload.activeQueue.length === 0,
         moved: matched,
-        msg: `[DRY] ${lbl}: ${fmtNum(matched)} · ${payload.activeQueue.length} remain.`
+        msg: `[DRY] ${lbl}: ${fmtCapped(matched, capped)} · ${payload.activeQueue.length} remain.`
       };
     }
 

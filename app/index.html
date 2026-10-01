@@ -273,6 +273,8 @@
     .stat-v { font-family:var(--disp); font-size:21px; font-weight:800; color:var(--green); line-height:1; text-shadow:var(--glow-sm); }
     .stat-v { font-variant-numeric:tabular-nums; }
     .stat-v.flash { animation:statFlash var(--dur-slow) var(--ease-enter); }
+    /* Issue #7: a dry-run count that hit Gmail's 500-result search cap is a floor, shown as "500+" */
+    .cap::after { content:'+'; }
     /* BUG-A1 FIX: Glow-only flash — no color in keyframe so red/blue/amber stats don't glitch green */
     @keyframes statFlash { 0%{opacity:.55;text-shadow:0 0 10px rgba(255,255,255,.55)} 100%{opacity:1;text-shadow:inherit} }
     .stat-k { font-size:8px; color:var(--dim); margin-top:4px; text-transform:uppercase; letter-spacing:1.2px; }
@@ -1433,6 +1435,7 @@ function engageUI(q, payload, opts) {
   ss('sv0', fmt(s0.totalMoved || 0));
   ss('sv1', fmt(isDry ? (s0.dryTrashed  || 0) : (s0.totalTrashed  || 0)));
   ss('sv2', fmt(isDry ? (s0.dryArchived || 0) : (s0.totalArchived || 0)));
+  markCaps(s0, isDry);
   ss('sv3', String((payload.activeQueue || q).length)); // S-U3: seed Rules Left with the full queue
   ss('sv4', '0s');
   setRunningUI(true);
@@ -1524,6 +1527,20 @@ function burst(payload) {
 // Applies one processLiveBurst() response's stats to lastStats/runStats and
 // the on-screen tiles. Split out of handleRes() so the AT-BRK-004 fix below
 // can call it from the post-abort path too, instead of duplicating it.
+// Issue #7: a dry run searches each rule once, capped at 500 results, so a
+// rule that fills the cap has AT LEAST that many matches. The server flags
+// stats.dryCapped; the tiles then carry a CSS "+" (class .cap) so the count
+// reads "500+" without touching the count-up animation, which only ever
+// writes the plain number.
+function markCaps(s, dry) {
+  s = s || {};
+  const cap = !!(dry && s.dryCapped);
+  [['sv0', s.totalMoved], ['sv1', s.dryTrashed], ['sv2', s.dryArchived]].forEach(function (p) {
+    const el = document.getElementById(p[0]);
+    if (el) el.classList.toggle('cap', cap && (p[1] || 0) > 0);
+  });
+}
+
 function applyBurstStats(res) {
   if (!res || !res.payload?.stats) return;
   const s = res.payload.stats;
@@ -1544,6 +1561,7 @@ function applyBurstStats(res) {
   animStat('sv0', runStats.totalMoved);
   animStat('sv1', runStats.totalTrashed);
   animStat('sv2', runStats.totalArchived);
+  markCaps(s, isDry);
   updateBars(s);
 }
 
@@ -1628,7 +1646,8 @@ function finishEng(stats, res) {
   if (isDry) {
     const dT = stats.dryTrashed  || 0;
     const dA = stats.dryArchived || 0;
-    banner('warn', `[DRY RUN COMPLETE] ~${fmt(stats.totalMoved)} threads scanned · ${fmt(dT)} would trash · ${fmt(dA)} would archive · ${ruleCount} rule(s) · ${secs}s`);
+    const pl = stats.dryCapped ? '+' : '';  // Issue #7: a rule hit the 500-result cap, so these are floors
+    banner('warn', `[DRY RUN COMPLETE] ~${fmt(stats.totalMoved)}${pl} threads scanned · ${fmt(dT)}${dT > 0 ? pl : ''} would trash · ${fmt(dA)}${dA > 0 ? pl : ''} would archive · ${ruleCount} rule(s) · ${secs}s`);
   } else {
     // BUG-H14: the live/"ok" completion banner used to omit ruleCount even
     // though it's computed right above for exactly this purpose (and the
@@ -1803,7 +1822,7 @@ function updateBars(stats) {
     const id  = barIds.get(lbl) || cid(lbl);
     const ct  = document.getElementById('lc-' + id);
     const bar = document.getElementById('lb-' + id);
-    if (ct)  ct.textContent = fmt(v.moved||0) + ' actioned';
+    if (ct)  ct.textContent = fmt(v.moved||0) + (v.capped ? '+' : '') + ' actioned';  // Issue #7: dry-run floor
     noteRuleHit(id, v.moved || 0);
     // S-N2: prefix a ✓ once the rule ejects clean, so a finished rule is
     // distinguishable from one that simply hasn't had its turn yet.
@@ -1822,8 +1841,8 @@ function updateBars(stats) {
   // the rule ejects) because they never get a stats.labels entry to hold
   // finished:true. Without them the bar only turned green at markBarsDone().
   const purgeMap = {
-    'GLOBAL PURGE': { moved: stats.globalPurgeMoved || 0, done: !!stats.globalPurgeDone },
-    'INBOX PURGE':  { moved: stats.inboxPurgeMoved  || 0, done: !!stats.inboxPurgeDone  }
+    'GLOBAL PURGE': { moved: stats.globalPurgeMoved || 0, done: !!stats.globalPurgeDone, capped: !!stats.globalPurgeCapped },
+    'INBOX PURGE':  { moved: stats.inboxPurgeMoved  || 0, done: !!stats.inboxPurgeDone,  capped: !!stats.inboxPurgeCapped  }
   };
   Object.entries(purgeMap).forEach(([lbl, p]) => {
     if (!p.moved && !p.done) return;
@@ -1831,7 +1850,7 @@ function updateBars(stats) {
     const ct  = document.getElementById('lc-' + id);
     const bar = document.getElementById('lb-' + id);
     const nm  = document.getElementById('ln-' + id);
-    if (ct)  ct.textContent = fmt(p.moved) + ' actioned';
+    if (ct)  ct.textContent = fmt(p.moved) + (p.capped ? '+' : '') + ' actioned';  // Issue #7
     noteRuleHit(id, p.moved);
     if (nm && p.done && nm.textContent.charAt(0) !== '✓') nm.textContent = '✓ ' + lbl; // S-N2
     if (bar && !bar.classList.contains('done')) {
@@ -2081,6 +2100,7 @@ function paintStats(s, dry) {
   animStat('sv0', s.totalMoved || 0);
   animStat('sv1', dry ? (s.dryTrashed  || 0) : (s.totalTrashed  || 0));
   animStat('sv2', dry ? (s.dryArchived || 0) : (s.totalArchived || 0));
+  markCaps(s, dry);
   updateBars(s);
 }
 
@@ -2293,7 +2313,9 @@ function renderSummary(o) {
     if (t.skipped) rows.push(['Already handled (skipped)', t.skipped]);
   }
   rows.push(['Starred mail', 'excluded']); // every query carries -is:starred (§9)
-  if (dry) { rows.push(['Would trash', s.dryTrashed || 0]); rows.push(['Would archive', s.dryArchived || 0]); }
+  // Third element = Issue #7 cap flag: show "500+" style floors on a capped dry run.
+  const capped = !!(dry && s.dryCapped);
+  if (dry) { rows.push(['Would trash', s.dryTrashed || 0, capped && (s.dryTrashed || 0) > 0]); rows.push(['Would archive', s.dryArchived || 0, capped && (s.dryArchived || 0) > 0]); }
   else     { rows.push(['Trashed', s.totalTrashed || 0]);   rows.push(['Archived', s.totalArchived || 0]); }
 
   const shortId = o.id ? String(o.id).split('-').pop().toUpperCase() : '';
@@ -2314,10 +2336,10 @@ function renderSummary(o) {
       return '<div class="sum-ln" style="animation-delay:' + (80 + i * 45) + 'ms">' +
              '<span class="ck' + (na ? ' na' : '') + '">' + (na ? DASH : TICK) + '</span>' +
              '<span class="k">' + esc(r[0]) + '</span>' +
-             '<span class="v"' + (isNum ? ' data-to="' + r[1] + '"' : '') + '>' + (isNum ? '0' : esc(r[1])) + '</span></div>';
+             '<span class="v' + (r[2] ? ' cap' : '') + '"' + (isNum ? ' data-to="' + r[1] + '"' : '') + '>' + (isNum ? '0' : esc(r[1])) + '</span></div>';
     }).join('') +
     '<div class="sum-rule"></div>' +
-    '<div class="sum-big"><span data-to="' + (s.totalMoved || 0) + '">0</span> ' +
+    '<div class="sum-big"><span' + (capped ? ' class="cap"' : '') + ' data-to="' + (s.totalMoved || 0) + '">0</span> ' +
       (dry ? 'threads matched \u00b7 nothing moved' : 'threads handled') + '</div>' +
     '<div class="sum-meta"><b class="' + (errs ? 'bad' : '') + '">' + errs + '</b> error' + (errs === 1 ? '' : 's') +
       ' \u00b7 <b>' + esc(o.secs) + 's</b></div>';

@@ -318,20 +318,32 @@ reviewing the backend (app/*.gs) or index.html.
     consistently on BOTH the normal-completion path (finalizeAndEmail) and
     the abort path (abortRun), see §4.
   - After run, isDry state is preserved — user must toggle off manually.
-  - CAUTION (BUG-C21, open — see GitHub Issues, flagged
-    2026-09-01, eighth pass): because a dry-run rule is processed exactly
-    once and never rotated (unlike a live rule — see §2c), its reported
-    "would trash/archive" count is capped at whatever ONE
-    `GmailApp.search(q, 0, GMAIL_SEARCH)` call returns, i.e. at most 500 —
-    even if the rule's true backlog is far larger. A live run of the same
-    rule still correctly drains the full backlog over multiple bursts via
-    round-robin rotation, so this does not cause any wrong Gmail action or
-    lost mail; it only means a dry-run preview can meaningfully understate
-    how much a live run will actually move for any single rule matching
-    more than 500 threads. Not fixed — needs a decision on whether to
-    surface the truncation (e.g. label the count "500+" when the cap was
-    hit) or actually close it (page through search results within one dry
-    pass, at the cost of a longer single RPC call) before any code changes.
+  - "500+" LABEL (BUG-C21, Issue #7 — FIXED 2026-10-01, owner-approved
+    option b): because a dry-run rule is processed exactly once and never
+    rotated (unlike a live rule — see §2c), its "would trash/archive"
+    count can only be as large as what ONE
+    `GmailApp.search(q, 0, GMAIL_SEARCH)` call returns, i.e. 500, even if
+    the rule's true backlog is far larger. A live run of the same rule
+    still drains the full backlog over multiple bursts via round-robin
+    rotation, so this never caused a wrong Gmail action or lost mail; it
+    only made a dry-run preview understate what a live run will move.
+    Now, when a rule's dry-run match count is exactly GMAIL_SEARCH (500),
+    the count is shown as a floor, "500+", everywhere it appears: the
+    terminal "Would TRASH 500+" and "→ 500+ trash · 0 archive" lines
+    (only the non-zero side gets the "+"), the stat tiles, the per-rule
+    progress bar ("500+ actioned"), the end-of-run summary, the
+    "[DRY RUN COMPLETE]" banner (and the matching runSummaryMsg()), and
+    the dry-run summary/error emails. Totals across several rules get a
+    "+" as soon as ANY rule was capped, since the sum is then a floor too.
+    The numbers in stats stay plain numbers; the server flags the cap
+    (stats.dryCapped, stats.labels[lbl].capped, stats.globalPurgeCapped,
+    stats.inboxPurgeCapped) and the UI/email add the "+". Live runs never
+    set or show these flags. The check is on the post-filter match count,
+    so a rule whose search page is full but whose matches are reduced
+    below 500 by the starred guard / newest-message filter is NOT flagged
+    (KNOWN GAP — same family as the §9 "top 500 page" limits, Issue #105).
+    Paging through results inside one dry pass was NOT done (it would
+    lengthen a single RPC call).
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 4. ABORT
@@ -1277,14 +1289,7 @@ reviewing the backend (app/*.gs) or index.html.
   "no-op that Spam would suffer from" the way a live account would. Once
   BUG-C19 is verified and a fix direction is chosen, the spy itself may
   need to grow INBOX/SPAM label tracking before a meaningful regression
-  test can be written for it. Also not covered: the dry-run 500-thread
-  undercount described in §3/BUG-C21 (the fake spy has no notion of a
-  "true" match count larger than what it's told to return, so it cannot
-  currently distinguish "500 because that's really all there is" from "500
-  because that's the cap" — a meaningful test would need the spy to model
-  an underlying larger corpus and truncate its own return value, which is a
-  spy change, not just a new test, pending a fix direction for BUG-C21
-  itself); the executeActions() partial-chunk-failure accounting gap
+  test can be written for it. Also not covered: the executeActions() partial-chunk-failure accounting gap
   described in §2b/§6/§7/BUG-C22 (reproduced in a throwaway script — see
   the bug plan entry — but deliberately not committed as a permanent test
   until a fix direction is chosen, per the same "don't encode an accepted

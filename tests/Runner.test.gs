@@ -635,6 +635,77 @@ function test_backgroundRun_threadWithRecentReply_isNotTrashed() {
   });
 }
 
+// ── Issue #7: dry-run "500+" when a rule fills Gmail's 500-result search cap ──
+// A dry run searches each rule once, so a capped result is a FLOOR, not the
+// real match count. Pre-fix every one of these read a bare "500".
+function capThreads(n) {
+  const out = [];
+  for (let i = 0; i < n; i++) out.push(makeFakeThread('cap' + i));
+  return out;
+}
+function test_processLiveBurst_dryRun_ruleAtSearchCap_isLabelledFiveHundredPlus() {
+  const spy = installGmailSpy(capThreads(GMAIL_SEARCH));
+  try {
+    const payload = { dryRun: true, activeQueue: [{ label: 'BIG', days: 30, isTrash: true }], seenIds: [], stats: freshStats() };
+    const res = processLiveBurst(payload);
+    const msgs = res.log.map(function (e) { return e.msg; });
+    assert(msgs.indexOf('[BIG] Would TRASH 500+') >= 0, 'terminal line must read "500+": ' + msgs.join(' | '));
+    assert(msgs.indexOf('  → 500+ trash · 0 archive') >= 0, 'the trash/archive split must flag only the non-zero side: ' + msgs.join(' | '));
+    assertEqual(res.payload.stats.dryCapped, true, 'stats must carry the capped flag for the banner/summary/email');
+    assertEqual(res.payload.stats.labels['BIG'].capped, true);
+    assertEqual(res.payload.stats.dryTrashed, 500, 'the numeric total stays a plain number (the "+" is display only)');
+    assertEqual(res.msg, '[DRY] BIG: 500+ · 0 remain.');
+  } finally { spy.restore(); }
+}
+function test_processLiveBurst_dryRun_ruleJustUnderSearchCap_hasNoPlus() {
+  const spy = installGmailSpy(capThreads(GMAIL_SEARCH - 1));
+  try {
+    const payload = { dryRun: true, activeQueue: [{ label: 'BIG', days: 30, isTrash: true }], seenIds: [], stats: freshStats() };
+    const res = processLiveBurst(payload);
+    const msgs = res.log.map(function (e) { return e.msg; });
+    assert(msgs.indexOf('[BIG] Would TRASH 499') >= 0, 'an exact count must not get a "+": ' + msgs.join(' | '));
+    assert(!res.payload.stats.dryCapped, 'no capped flag below the cap');
+    assert(!res.payload.stats.labels['BIG'].capped);
+  } finally { spy.restore(); }
+}
+function test_processLiveBurst_dryRun_archiveRuleAtSearchCap_flagsArchiveSide() {
+  const spy = installGmailSpy(capThreads(GMAIL_SEARCH));
+  try {
+    const payload = { dryRun: true, activeQueue: [{ label: 'BIG', days: 30, isTrash: false }], seenIds: [], stats: freshStats() };
+    const res = processLiveBurst(payload);
+    const msgs = res.log.map(function (e) { return e.msg; });
+    assert(msgs.indexOf('  → 0 trash · 500+ archive') >= 0, msgs.join(' | '));
+  } finally { spy.restore(); }
+}
+function test_processLiveBurst_dryRun_globalPurgeAtSearchCap_setsPurgeCappedFlag() {
+  const spy = installGmailSpy(capThreads(GMAIL_SEARCH));
+  try {
+    const payload = { dryRun: true, activeQueue: [{ isGlobalPurge: true, isTrash: true, days: 365, label: 'GLOBAL PURGE' }], seenIds: [], stats: freshStats() };
+    const res = processLiveBurst(payload);
+    assertEqual(res.payload.stats.globalPurgeCapped, true);
+    assertEqual(res.payload.stats.dryCapped, true);
+    assert(!res.payload.stats.labels['GLOBAL PURGE'], 'purge rules still must not create a labels ghost row');
+  } finally { spy.restore(); }
+}
+function test_processLiveBurst_liveRun_ruleAtSearchCap_neverShowsPlusOrCappedFlag() {
+  const spy = installGmailSpy(capThreads(GMAIL_SEARCH));
+  try {
+    const payload = { dryRun: false, activeQueue: [{ label: 'BIG', days: 30, isTrash: true }], seenIds: [], stats: freshStats() };
+    const res = processLiveBurst(payload);
+    assert(res.log.every(function (e) { return !/\d\+/.test(e.msg); }), 'a live run actions the threads, so it is never a floor');
+    assert(!res.payload.stats.dryCapped, 'dryCapped is dry-run only');
+  } finally { spy.restore(); }
+}
+function test_runSummaryMsg_dryRunCapped_showsPlusOnTotals() {
+  const stats = { totalMoved: 500, dryTrashed: 500, dryArchived: 0, dryCapped: true, labels: { BIG: { moved: 500 } } };
+  assertEqual(runSummaryMsg(stats, true, 5000),
+    '[DRY RUN COMPLETE] ~500+ threads scanned · 500+ would trash · 0 would archive · 1 rule(s) · 5.0s');
+}
+function test_runSummaryMsg_dryRunCapped_doesNotAffectLiveSummary() {
+  const stats = { totalMoved: 500, totalTrashed: 500, totalArchived: 0, dryCapped: true, labels: { BIG: { moved: 500 } } };
+  assert(runSummaryMsg(stats, false, 5000).indexOf('+') < 0, 'a live summary never shows a floor');
+}
+
 const RUNNER_TESTS = [
   test_abortRun_liveRun_accumulatesDailyStats,
   test_abortRun_dryRun_doesNotAccumulateDailyStats,
@@ -686,5 +757,12 @@ const RUNNER_TESTS = [
   test_processLiveBurst_liveRun_threadWithRecentReply_isNotTrashed,
   test_processLiveBurst_dryRun_threadWithRecentReply_isNotCounted,
   test_processLiveBurst_inboxPurge_threadWithRecentReply_isNotTrashed,
-  test_backgroundRun_threadWithRecentReply_isNotTrashed
+  test_backgroundRun_threadWithRecentReply_isNotTrashed,
+  test_processLiveBurst_dryRun_ruleAtSearchCap_isLabelledFiveHundredPlus,
+  test_processLiveBurst_dryRun_ruleJustUnderSearchCap_hasNoPlus,
+  test_processLiveBurst_dryRun_archiveRuleAtSearchCap_flagsArchiveSide,
+  test_processLiveBurst_dryRun_globalPurgeAtSearchCap_setsPurgeCappedFlag,
+  test_processLiveBurst_liveRun_ruleAtSearchCap_neverShowsPlusOrCappedFlag,
+  test_runSummaryMsg_dryRunCapped_showsPlusOnTotals,
+  test_runSummaryMsg_dryRunCapped_doesNotAffectLiveSummary
 ];

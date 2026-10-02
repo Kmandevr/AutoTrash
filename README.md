@@ -110,6 +110,8 @@ docs/
                             pipeline works, for building new features
   testing.txt               How tests/ is organized and how to add a
                             test — read before touching anything there
+  modularity.txt            Project-wide rule: keep AutoTrash modular
+                            — read before any change
   privacy.md                What AutoTrash does and doesn't do with
                             your data
   suggestions.txt           Proposed features and improvements, not yet
